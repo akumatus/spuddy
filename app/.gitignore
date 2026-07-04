@@ -1,0 +1,4 @@
+node_modules/
+dist/
+public/draco/
+.DS_Store
