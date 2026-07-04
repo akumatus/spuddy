@@ -12,7 +12,13 @@
     "build": "vite build"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.1",
+    "@gltf-transform/extensions": "^4.4.1",
+    "@gltf-transform/functions": "^4.4.1",
+    "draco3dgltf": "^1.5.7",
     "electron": "^33.0.0",
+    "meshoptimizer": "^1.2.0",
+    "sharp": "^0.35.3",
     "vite": "^5.4.0"
   },
   "dependencies": {

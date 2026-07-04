@@ -1,7 +1,11 @@
-// A clean "card screen" quad placed over the scanned card (per-character
-// transform from scripts/detect_cards.py → public/models/cards.json).
-// Text renders on a CanvasTexture; golden weave pulses the emissive
-// (design 08: card emissive pulse · 1.6s); card raise per design 05.
+// The encouragement text renders on a CanvasTexture, applied one of two ways:
+// - part-separated models (a mesh named "card"): planar-project UVs onto the
+//   card mesh and swap its material — text sits on the actual yarn card, so
+//   the hands grip it from the front like the physical product;
+// - legacy single-mesh scans: a clean quad placed over the scanned card
+//   (per-character transform from scripts/detect_cards.py → cards.json).
+// Golden weave pulses the emissive (design 08: card emissive pulse · 1.6s);
+// card raise per design 05.
 import * as THREE from 'three';
 
 const COVER = 1.05; // fully hide the scanned card (its color/edges vary per scan)
@@ -51,6 +55,8 @@ export class CardScreen {
     });
     this._rebuildTexture();
     this.mesh = null;
+    this.cardMesh = null; // part-separated models: the model's own card mesh
+    this.rigDriven = false; // rig owns the card transform ('present' clip etc.)
     this.upLocal = new THREE.Vector3(0, 1, 0);
     this.baseQuat = new THREE.Quaternion();
     this.basePos = new THREE.Vector3();
@@ -77,26 +83,36 @@ export class CardScreen {
 
   attach(model, data) {
     if (this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh);
-    if (!data) {
-      this.mesh = null;
-      return;
-    }
+    this.mesh = null;
+    this.cardMesh = null;
+    this.rigDriven = false;
+    if (!data) return;
     const normal = new THREE.Vector3(...data.normal).normalize();
     const up = new THREE.Vector3(...data.up).normalize();
     const right = new THREE.Vector3().crossVectors(up, normal).normalize();
-    const w = data.width * COVER;
-    const h = data.height * COVER;
+    let w = data.width * COVER;
+    let h = data.height * COVER;
 
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.material);
-    this.basePos
-      .set(...data.center)
-      .addScaledVector(normal, data.offset ?? 0.015);
-    this.baseQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, normal));
+    const cardMesh = model.getObjectByName('card');
+    if (cardMesh) {
+      w = data.width;
+      h = data.height;
+      this._projectUVs(cardMesh.geometry, data, right, up);
+      cardMesh.material = this.material;
+      this.cardMesh = cardMesh;
+      this.basePos.copy(cardMesh.position);
+    } else {
+      this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.material);
+      this.basePos
+        .set(...data.center)
+        .addScaledVector(normal, data.offset ?? 0.015);
+      this.baseQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, normal));
+      this.mesh.position.copy(this.basePos);
+      this.mesh.quaternion.copy(this.baseQuat);
+      model.add(this.mesh);
+    }
     this.upLocal = up;
     this.height = h;
-    this.mesh.position.copy(this.basePos);
-    this.mesh.quaternion.copy(this.baseQuat);
-    model.add(this.mesh);
 
     const newH = Math.round((512 * h) / w);
     if (this.canvas.width !== 512 || this.canvas.height !== newH) {
@@ -105,6 +121,24 @@ export class CardScreen {
       this._rebuildTexture();
     }
     this.redraw();
+  }
+
+  // Planar-project UVs onto the card mesh in the card-plane basis so the
+  // canvas maps straight onto its front face (clamped edges catch the rim).
+  // Geometry is shared across model clones; the projection is idempotent,
+  // so flag it and skip on repeat visits.
+  _projectUVs(geometry, data, right, up) {
+    if (geometry.userData.cardUV) return;
+    const pos = geometry.getAttribute('position');
+    const uv = geometry.getAttribute('uv');
+    const c = data.center;
+    const d = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      d.set(pos.getX(i) - c[0], pos.getY(i) - c[1], pos.getZ(i) - c[2]);
+      uv.setXY(i, d.dot(right) / data.width + 0.5, d.dot(up) / data.height + 0.5);
+    }
+    uv.needsUpdate = true;
+    geometry.userData.cardUV = true;
   }
 
   setContent(content) {
@@ -119,28 +153,36 @@ export class CardScreen {
     if (!W || !H) return;
     const c = this.content;
 
-    // uniform paper face, covering the whole scanned card
     ctx.clearRect(0, 0, W, H);
-    const r = Math.min(W, H) * 0.09;
-    ctx.beginPath();
-    ctx.roundRect(0.5, 0.5, W - 1, H - 1, r);
-    ctx.fillStyle = '#FFFDF6';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(90, 73, 52, 0.14)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // soft inner shadow at the bottom so the flat quad reads as a card
-    const sh = ctx.createLinearGradient(0, H * 0.82, 0, H);
-    sh.addColorStop(0, 'rgba(70, 50, 25, 0)');
-    sh.addColorStop(1, 'rgba(70, 50, 25, 0.07)');
-    ctx.fillStyle = sh;
-    ctx.beginPath();
-    ctx.roundRect(0.5, 0.5, W - 1, H - 1, r);
-    ctx.fill();
+    if (this.cardMesh) {
+      // texture drapes over the yarn card itself — its geometry provides the
+      // silhouette, so the paper bleeds to the edges with no drawn border
+      ctx.fillStyle = '#FFFDF6';
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      // uniform paper face, covering the whole scanned card
+      const r = Math.min(W, H) * 0.09;
+      ctx.beginPath();
+      ctx.roundRect(0.5, 0.5, W - 1, H - 1, r);
+      ctx.fillStyle = '#FFFDF6';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90, 73, 52, 0.14)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // soft inner shadow at the bottom so the flat quad reads as a card
+      const sh = ctx.createLinearGradient(0, H * 0.82, 0, H);
+      sh.addColorStop(0, 'rgba(70, 50, 25, 0)');
+      sh.addColorStop(1, 'rgba(70, 50, 25, 0.07)');
+      ctx.fillStyle = sh;
+      ctx.beginPath();
+      ctx.roundRect(0.5, 0.5, W - 1, H - 1, r);
+      ctx.fill();
+    }
 
     // fixed-aspect content box, centered — quad aspects vary per scan,
-    // but the layout inside stays identical across the crew
-    let cw = W * 0.92;
+    // but the layout inside stays identical across the crew.
+    // On a held card the thumbs grip the side margins, so inset the content.
+    let cw = W * (this.cardMesh ? 0.68 : 0.92);
     let ch = cw / CONTENT_ASPECT;
     if (ch > H * 0.92) {
       ch = H * 0.92;
@@ -198,7 +240,7 @@ export class CardScreen {
   }
 
   update() {
-    if (!this.mesh) return;
+    if (!this.mesh && !this.cardMesh) return;
     const now = performance.now();
 
     // 08 · Golden Weave — card emissive pulse · 1.6s
@@ -210,6 +252,10 @@ export class CardScreen {
       this.material.emissiveIntensity = 0.35;
     }
 
+    // Rigged card: the Animator's card track ('present' lift/tilt/wiggle,
+    // idle-life drift) owns the transform — only the texture/pulse live here.
+    if (this.rigDriven) return;
+
     // 05 · Card Raise — 600ms spring · card +10% Y · rotX 8° to camera, hold, ease back
     let k = 0;
     if (this.raiseStart) {
@@ -218,6 +264,12 @@ export class CardScreen {
       else if (t < 1800) k = 1;
       else if (t < 2200) k = 1 - (t - 1800) / 400;
       else this.raiseStart = 0;
+    }
+    if (this.cardMesh) {
+      // raise slides the real card up out of the hands; no tilt — the mesh
+      // node's origin is the model origin, so rotation would swing it away
+      this.cardMesh.position.copy(this.basePos).addScaledVector(this.upLocal, 0.1 * this.height * k);
+      return;
     }
     this.mesh.position.copy(this.basePos).addScaledVector(this.upLocal, 0.1 * this.height * k);
     this.mesh.quaternion.copy(this.baseQuat);

@@ -50,19 +50,6 @@ html, body {
   height: 400px;
   cursor: pointer;
 }
-#shadow {
-  position: absolute;
-  left: 50%;
-  bottom: 6px;
-  width: 170px;
-  height: 20px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(70, 50, 25, 0.28);
-  filter: blur(7px);
-  pointer-events: none;
-}
-
 #zz {
   position: absolute;
   top: 66%;
@@ -104,6 +91,54 @@ html, body {
   border-right: 1.5px solid var(--ink);
   border-bottom: 1.5px solid var(--ink);
   transform: translateX(-50%) rotate(45deg);
+}
+
+/* 喃喃自语 — dashed thought bubble, Caveat hand-writing (7a) */
+#mutter {
+  position: absolute;
+  bottom: 80%;
+  left: 55%;
+  transform: translateX(-50%);
+  max-width: 240px;
+  width: max-content;
+  background: rgba(255, 253, 246, 0.94);
+  border: 1.5px dashed #d8c9ac;
+  border-radius: 16px;
+  padding: 7px 15px;
+  font-family: 'Caveat', cursive;
+  font-size: 20px;
+  font-weight: 600;
+  color: #6b5b44;
+  line-height: 1.2;
+  box-shadow: 0 8px 20px -12px rgba(90, 70, 40, 0.4);
+  animation: pp-mut 0.28s ease-out;
+  z-index: 5;
+  pointer-events: none;
+}
+#mutter::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 24px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.94);
+  border: 1.5px dashed #d8c9ac;
+  box-shadow: -7px 8px 0 -2.5px rgba(255, 253, 246, 0.94), -7px 8px 0 -1px #d8c9ac;
+}
+
+/* 飘浮 emote (♪ ♥ Z) — rises and fades (7a) */
+#emotes { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+#emotes .em {
+  position: absolute;
+  top: 37%;
+  font-family: 'Caveat', cursive;
+  font-size: 26px;
+  font-weight: 700;
+  color: #c9964f;
+  text-shadow: 0 1px 0 rgba(255, 253, 246, 0.8);
+  animation: pp-em 1.9s ease-out forwards;
 }
 
 #hearts { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
@@ -591,5 +626,7 @@ html, body {
 @keyframes pp-conf { 0% { transform: translateY(-30px) rotate(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotate(540deg); opacity: 0.5; } }
 @keyframes pp-sparkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
 @keyframes pp-zz { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-36px); opacity: 0; } }
+@keyframes pp-mut { 0% { transform: translateX(-50%) translateY(9px) scale(0.85); opacity: 0; } 100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; } }
+@keyframes pp-em { 0% { transform: translateY(0) scale(0.7) rotate(-6deg); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateY(-70px) scale(1.2) rotate(8deg); opacity: 0; } }
 @keyframes pp-rotate { to { transform: rotate(360deg); } }
 @keyframes pp-flipin { 0% { transform: translateY(70px) rotateY(0deg) scale(0.65); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateY(0) rotateY(720deg) scale(1); opacity: 1; } }

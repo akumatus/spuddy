@@ -28,6 +28,8 @@ export function defaultState() {
     buddyNew: false,
     sound: true,
     nightShownDate: null,
+    // 人格引擎 (7a) — 0..100, design Tweaks defaults
+    personality: { curiosity: 65, clinginess: 60, drama: 55, sleepiness: 35 },
   };
 }
 
@@ -64,6 +66,12 @@ export function save(s) {
       KEY,
       JSON.stringify({ ...s, chat: s.chat.slice(-40), journal: s.journal.slice(-60) })
     );
+  } catch (e) {}
+}
+
+export function reset() {
+  try {
+    localStorage.removeItem(KEY);
   } catch (e) {}
 }
 

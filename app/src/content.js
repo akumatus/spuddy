@@ -35,6 +35,10 @@ export const RETAP = [
   'Save some wisdom for tomorrow, eh?',
 ];
 
+// app-specific: the popup only opens from the card itself, so body pokes
+// sometimes point at it when today's draw is still waiting
+export const CARDHINT = "today's card is ready — the white one. give it a tap. ♥";
+
 export const SEDENTARY = '90 minutes in that chair! Even potatoes roll over sometimes. Stretch with me?';
 export const NIGHTMSG = "It's past 11. The world can wait till morning. Sleep, dear human.";
 

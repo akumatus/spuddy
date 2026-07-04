@@ -208,6 +208,19 @@ ipcMain.handle('ai-golden', async (_e, p) => {
   }
 });
 
+// ── cursor watch: he turns to look at your pointer (Turn 5 followCursor) ──
+// Global poll in the main process — the window is click-through, so the
+// renderer only sees the cursor while it hovers the window itself.
+let lastCursor = { x: -1, y: -1 };
+setInterval(() => {
+  if (!win || !win.isVisible()) return;
+  const p = screen.getCursorScreenPoint();
+  if (Math.abs(p.x - lastCursor.x) + Math.abs(p.y - lastCursor.y) < 3) return;
+  lastCursor = p;
+  const [wx, wy] = win.getPosition();
+  win.webContents.send('cursor', { x: p.x - wx, y: p.y - wy });
+}, 90);
+
 // ── sedentary watch: 90 min of continuous activity → stretch reminder ──
 let activeSec = 0;
 setInterval(() => {

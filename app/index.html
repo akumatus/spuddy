@@ -13,12 +13,13 @@
 
   <div id="stage" data-interactive>
     <div id="bubble" class="hidden"></div>
+    <div id="mutter" class="hidden"></div>
     <div id="zz" class="hidden">z z</div>
     <div id="hearts"></div>
+    <div id="emotes"></div>
     <div id="petclip">
       <canvas id="pet"></canvas>
     </div>
-    <div id="shadow"></div>
   </div>
 
   <div id="hoverpanel" data-interactive>
@@ -27,6 +28,8 @@
       <button id="bookBtn" title="Card Book">♥<b id="bookCount">0</b><i id="bookDot" class="hidden"></i></button>
       <button id="tuckBtn" title="tuck him away"><span class="zzlabel">z z</span><span class="peekhead"></span></button>
       <button id="soundBtn" title="sound">♪</button>
+      <button id="dbgDrawBtn" class="hidden" title="debug: draw again">🎲</button>
+      <button id="dbgResetBtn" class="hidden" title="debug: reset all">↺</button>
     </div>
     <div id="chatrow">
       <input id="chatInput" type="text" autocomplete="off" spellcheck="false" />
