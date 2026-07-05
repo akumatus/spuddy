@@ -41,15 +41,20 @@ function geoOf(request) {
   return (request.headers.get('x-pp-geo') || request.cf?.country || 'US').toUpperCase();
 }
 
-async function checkQuota(env, deviceId) {
+// Read-only budget check. Counting is deferred to bumpQuota, which only runs
+// after a successful model reply — so a failed/errored/over-quota provider call
+// never burns the user's daily budget.
+async function quotaState(env, deviceId) {
   const limit = parseInt(env.CHAT_DAILY_LIMIT || '40', 10);
   const key = `q:${deviceId || 'anon'}:${today()}`;
   const used = parseInt((await env.KV.get(key)) || '0', 10);
-  if (used >= limit) return { ok: false, used, limit };
+  return { key, used, limit, ok: used < limit };
+}
+
+async function bumpQuota(env, q) {
   // TTL ~2 days so counters self-clean; KV is eventually consistent, so a burst
   // of concurrent calls may slip a couple over — fine for hobby anti-abuse.
-  await env.KV.put(key, String(used + 1), { expirationTtl: 172800 });
-  return { ok: true, used: used + 1, limit };
+  await env.KV.put(q.key, String(q.used + 1), { expirationTtl: 172800 });
 }
 
 export default {
@@ -72,7 +77,7 @@ export default {
       if (url.pathname === '/chat' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = await request.json();
-        const q = await checkQuota(env, p.deviceId);
+        const q = await quotaState(env, p.deviceId);
         if (!q.ok) return json({ limited: true, used: q.used, limit: q.limit }, 429);
 
         const persona = PERSONAS[p.charId] || PERSONAS.spud;
@@ -83,7 +88,8 @@ export default {
         }));
         const provider = pickChatProvider(geoOf(request), env);
         const out = clean(await callLLM(env, provider, { system, messages, maxTokens: 300 }));
-        if (!out) return json(null);
+        if (!out) return json(null); // model failed/empty — don't spend budget
+        await bumpQuota(env, q); // only a real reply counts
         const { tag, body } = parseTag(out);
         return json({ tag, text: body.slice(0, 220), provider });
       }
@@ -91,7 +97,7 @@ export default {
       if (url.pathname === '/golden' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = await request.json();
-        const q = await checkQuota(env, p.deviceId);
+        const q = await quotaState(env, p.deviceId);
         if (!q.ok) return json({ limited: true }, 429);
 
         const persona = PERSONAS[p.charId] || PERSONAS.spud;
@@ -100,7 +106,9 @@ export default {
         const out = clean(
           await callLLM(env, provider, { system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200 })
         );
-        return json({ text: out && out.length > 4 && out.length < 220 ? out : null, provider });
+        if (!out) return json({ text: null, provider }); // failed — don't spend budget
+        await bumpQuota(env, q); // successful weave counts
+        return json({ text: out.length > 4 && out.length < 220 ? out : null, provider });
       }
 
       if (url.pathname === '/admin/generate' && request.method === 'POST') {
