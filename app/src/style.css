@@ -36,6 +36,7 @@ html, body {
   bottom: 0;
   width: 300px;
   height: 400px;
+  z-index: 50; /* above the modal dim (#overlay, 40) — he stays visible, watching */
 }
 #petclip {
   position: absolute;
@@ -45,7 +46,7 @@ html, body {
 #pet {
   position: absolute;
   left: 0;
-  bottom: -6px;
+  bottom: 0;
   width: 300px;
   height: 400px;
   cursor: pointer;
@@ -65,9 +66,13 @@ html, body {
 
 #bubble {
   position: absolute;
-  bottom: 78%;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 62%;
+  /* center with auto margins, not translateX(-50%): the pp-bubble keyframe
+     overwrites `transform`, which would drop the centering mid-animation and
+     make the bubble pop in at the right before snapping to center */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
   max-width: 250px;
   width: max-content;
   background: var(--paper);
@@ -93,10 +98,10 @@ html, body {
   transform: translateX(-50%) rotate(45deg);
 }
 
-/* 喃喃自语 — dashed thought bubble, Caveat hand-writing (7a) */
+/* mutter — dashed thought bubble, Caveat hand-writing (7a) */
 #mutter {
   position: absolute;
-  bottom: 80%;
+  bottom: 64%;
   left: 55%;
   transform: translateX(-50%);
   max-width: 240px;
@@ -128,7 +133,7 @@ html, body {
   box-shadow: -7px 8px 0 -2.5px rgba(255, 253, 246, 0.94), -7px 8px 0 -1px #d8c9ac;
 }
 
-/* 飘浮 emote (♪ ♥ Z) — rises and fades (7a) */
+/* floating emote (♪ ♥ Z) — rises and fades (7a) */
 #emotes { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
 #emotes .em {
   position: absolute;
@@ -153,7 +158,9 @@ html, body {
 #hoverpanel {
   position: absolute;
   right: 300px;
-  bottom: 34px;
+  /* the chat box (panel's bottom edge) sits level with the pet's base — his
+     model bottom renders ~78px above the window bottom (fixed for every buddy) */
+  bottom: 78px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -179,50 +186,33 @@ html, body {
   text-shadow: 0 1px 8px rgba(255, 253, 246, 0.9);
   animation: pp-bubble 0.4s ease-out;
 }
-#icons { display: flex; gap: 10px; align-items: center; }
+#icons { display: flex; gap: 8px; align-items: center; }
 #icons button {
   cursor: pointer;
   position: relative;
-  width: 46px;
-  height: 42px;
+  width: 39px;
+  height: 36px;
   background: var(--paper);
   border: none;
-  border-radius: 11px;
-  box-shadow: 0 8px 18px -9px rgba(70, 50, 25, 0.55), 0 1.5px 0 rgba(70, 50, 25, 0.12);
-  font-size: 15px;
+  border-radius: 10px;
+  box-shadow: 0 7px 16px -9px rgba(70, 50, 25, 0.55), 0 1.5px 0 rgba(70, 50, 25, 0.12);
+  font-size: 13px;
   color: var(--red);
   font-family: 'Nunito', sans-serif;
 }
 #icons button::before {
   content: '';
   position: absolute;
-  inset: 3.5px;
+  inset: 3px;
   border: 1.5px dashed var(--dash);
   border-radius: 8px;
 }
 #icons button:hover { transform: translateY(-2px); }
 #bookBtn { transform: rotate(-3deg); }
-#bookBtn b {
+#buddiesDot {
   position: absolute;
-  right: -7px;
-  top: -8px;
-  background: var(--red);
-  color: #fff6ec;
-  border-radius: 999px;
-  min-width: 19px;
-  height: 19px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10.5px;
-  font-weight: 900;
-  padding: 0 5px;
-  box-shadow: 0 2px 6px rgba(120, 40, 25, 0.35);
-}
-#bookDot {
-  position: absolute;
-  left: -5px;
-  bottom: -5px;
+  right: -5px;
+  top: -5px;
   width: 12px;
   height: 12px;
   border-radius: 999px;
@@ -230,26 +220,27 @@ html, body {
   border: 2px solid var(--paper);
   animation: pp-sparkle 1.4s ease-in-out infinite;
 }
-#tuckBtn { transform: rotate(2.5deg); overflow: hidden; }
-#tuckBtn .zzlabel {
+/* buddies button — placeholder (original peek-head look) pending a redesign */
+#buddiesBtn { transform: rotate(2.5deg); overflow: hidden; }
+#buddiesBtn .zzlabel {
   position: absolute;
-  top: 5px;
+  top: 4px;
   left: 0;
   right: 0;
   text-align: center;
   font-family: 'Caveat', cursive;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 11px;
   color: var(--tan);
   letter-spacing: 0.1em;
 }
-#tuckBtn .peekhead {
+#buddiesBtn .peekhead {
   position: absolute;
   left: 50%;
-  bottom: -13px;
-  width: 26px;
-  height: 26px;
-  margin-left: -13px;
+  bottom: -11px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
   border-radius: 999px;
   background: radial-gradient(circle at 38% 30%, #d9ae72, #b98a54);
 }
@@ -259,26 +250,26 @@ html, body {
 #chatrow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   background: rgba(255, 253, 246, 0.95);
   border: 1.5px solid #e0d2b8;
   border-radius: 999px;
-  padding: 7px 12px 7px 16px;
-  box-shadow: 0 10px 24px -14px rgba(70, 50, 25, 0.45);
-  width: 238px;
+  padding: 6px 11px 6px 14px;
+  box-shadow: 0 9px 22px -14px rgba(70, 50, 25, 0.45);
+  width: 204px;
 }
 #chatrow input {
   flex: 1;
   min-width: 0;
   border: none;
   font-family: 'Caveat', cursive;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink);
   background: transparent;
   outline: none;
 }
-#chatrow .enter { font-size: 10.5px; font-weight: 800; color: #c9b99b; }
+#chatrow .enter { font-size: 10px; font-weight: 800; color: #c9b99b; }
 
 /* ── overlay + modals ── */
 #overlay {
@@ -429,6 +420,10 @@ html, body {
 #book {
   width: 620px;
   max-width: calc(100vw - 40px);
+  /* fixed height keeps the panel the exact same size on every tab, so the
+     centered overlay never re-centers (no jump) when switching Cards ↔ Memory */
+  height: 500px;
+  max-height: calc(100vh - 40px);
   background: var(--cream);
   border-radius: 20px;
   padding: 20px;
@@ -438,8 +433,11 @@ html, body {
   gap: 14px;
   animation: pp-cardin 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+/* the buddies panel is a fixed roster — let it size to its content */
+#book.buddiespanel { height: auto; }
 #book .head { display: flex; align-items: center; gap: 10px; }
 #book .head .title { font-size: 18px; font-weight: 900; }
+#book .head .subcount { font-size: 12.5px; font-weight: 800; color: var(--tan); }
 #book .tab {
   cursor: pointer;
   position: relative;
@@ -502,7 +500,7 @@ html, body {
   color: var(--tan);
 }
 
-#book .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 340px; overflow: auto; padding: 2px; }
+#book .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; grid-auto-rows: min-content; flex: 1; min-height: 0; overflow: auto; padding: 2px; }
 .ccard {
   position: relative;
   background: var(--paper);
@@ -513,8 +511,12 @@ html, body {
   flex-direction: column;
   gap: 8px;
   min-height: 96px;
+  cursor: pointer; /* click the card to hold it in his hands */
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
+.ccard:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 12px 22px -14px rgba(70, 50, 25, 0.6); }
 .ccard.gold { background: var(--gold-bg); border-color: #d9b64a; }
+.ccard.gold:hover { border-color: var(--gold); }
 .ccard .acts { position: absolute; top: 8px; right: 8px; display: flex; gap: 5px; }
 .ccard .acts button {
   cursor: pointer;
@@ -571,7 +573,7 @@ html, body {
 .buddy.locked button { background: #f1ead9; color: var(--tan); }
 #book .hint { font-size: 11.5px; font-weight: 700; color: #9a8768; text-align: center; }
 
-#book .mems { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow: auto; padding: 2px; }
+#book .mems { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow: auto; padding: 2px; }
 .mem { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1.5px solid #eadfc8; border-radius: 12px; padding: 10px 12px; }
 .mem .day { font-size: 10px; font-weight: 900; color: var(--tan); letter-spacing: 0.08em; background: #f1e8d6; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 .mem .body { flex: 1; display: flex; flex-direction: column; gap: 3px; }

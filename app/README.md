@@ -14,7 +14,7 @@ npm start
 
 ## 玩法
 
-- **戳它（身体）** — 随机一种反应：压扁 / 跳 / 不倒翁 / 张望 / 转圈 / 打喷嚏 / 跳跃转体…（拆件角色还会翻白眼、颠卡片、挥手），最近两个动作不会重复出现；偶尔冒爱心和碎碎念——不会弹窗
+- **戳它（身体）** — 随机一种反应：压扁 / 跳 / 不倒翁 / 张望 / 转圈 / 打喷嚏 / 跳跃转体…（拆件角色还会翻白眼、颠卡片、挥手），小概率抽中完整小剧场（追尾巴、哼小曲、读卡片、颠卡片表演、练习挥手——带自言自语和音效）；最近两个动作不会重复，反应播放期间连点不叠加——不会弹窗。打瞌睡和敲玻璃搭讪只由它自己的状态触发
 - **点它手里的白卡片** — 唯一打开卡片弹窗的方式：当天没抽过就抽当日卡片（卡片上写着 tap me :)），抽过则重看今日卡片；点 Keep it ♥ 收进卡册
 - **移动鼠标** — 它会转头看你的光标（眼珠先到、头再跟上）；发呆时自己眨眼、扫视
 - **第 3、8、13… 天** — 金线卡片（Golden Stitch）：AI 会根据你聊过的话为你亲手织一张
@@ -46,7 +46,7 @@ npm start
 - `src/content.js` — 设计稿的全部文案、人设、解锁规则
 - `src/cardscreen.js` — 模型手中卡片上的动态文字（CanvasTexture）+ 金织自发光脉冲；拆件模型的卡片位移由动作系统驱动
 - `src/scene.js` — three.js 场景：部件铰链（爪=肩点 · 眼=自心 · 卡=底边）、接触阴影、镜头呼吸、PBR 光照（RoomEnvironment IBL + ACES tone mapping + 暖主光/rim；legacy 烘焙材质关 tone mapping 保持原样）
-- `public/models/*.glb` — 拆件角色（spud、donut）由 Rodin **PBR 导出**（`base_basic_pbr.glb`）经 `scripts/process_rodin_pbr.mjs` 处理：命名部件、albedo 深腔扩散填充（眼睛 UV 保护）、图集边缘填充、简化 + Draco，保留 baseColor/normal/metallicRoughness 三张贴图交给实时光照——PBR 导出不含烘焙光照层，遮挡黑/接触阴影/接缝压痕从根上不存在；其余角色暂为单网格扫描，由 `3d-models/*.usdz` 经 Blender 转换
+- `public/models/*.glb` — 拆件角色（spud、donut、taco、grad）由 Rodin **PBR 导出**（`base_basic_pbr.glb`）经 `scripts/process_rodin_pbr.mjs` 处理：识别部件（body / card / 两侧手 / 最小的两颗眼；多出来的装饰件如 taco 生菜壳、毕业帽命名为 `trim`，无绑定槽，静态跟随身体一起挤压/位移/旋转）、albedo 深腔扩散填充（眼睛与 trim UV 一同保护——它们的近黑是本色，别抹掉黑帽子）、图集边缘填充、简化 + Draco，保留 baseColor/normal/metallicRoughness 三张贴图交给实时光照——PBR 导出不含烘焙光照层，遮挡黑/接触阴影/接缝压痕从根上不存在；其余角色（bloom、leo）暂为单网格扫描，由 `3d-models/*.usdz` 经 Blender 转换
 - `public/models/cards.json` — 每个角色卡片平面的标定数据：拆件角色由 `process_rodin_pbr.mjs` 输出，单网格角色由 `scripts/detect_cards.py` 生成
 
 ## 卡片平面标定（新角色接入时）

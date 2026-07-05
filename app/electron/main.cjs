@@ -95,7 +95,71 @@ ipcMain.on('move-by', (_e, dx, dy) => {
   if (!win) return;
   const [x, y] = win.getPosition();
   win.setPosition(Math.round(x + dx), Math.round(y + dy));
+  reportEdge();
 });
+
+// ── modal mode: while an overlay is open, blow the (normally small, bottom-
+// right) window up to fill the screen so the popup can center on the whole
+// display. Restore the pet's little window when it closes. ──
+let savedBounds = null;
+
+// gap between the window's right/bottom edges and the work area's — the
+// renderer offsets the pet stage by this much while the window is expanded,
+// so the potato holds its exact on-screen spot instead of flashing/hiding
+ipcMain.handle('modal-geometry', () => {
+  if (!win) return null;
+  const b = savedBounds || win.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  return {
+    dx: wa.x + wa.width - (b.x + b.width),
+    dy: wa.y + wa.height - (b.y + b.height),
+  };
+});
+
+ipcMain.on('set-modal', (_e, on) => {
+  if (!win) return;
+  if (on) {
+    if (savedBounds) return; // already expanded
+    savedBounds = win.getBounds();
+    const wa = screen.getDisplayMatching(win.getBounds()).workArea;
+    win.setResizable(true);
+    win.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
+    win.setResizable(false);
+    lastEdge = null; // window jumped — drop any stale edge-dock state
+  } else {
+    if (!savedBounds) return;
+    win.setResizable(true);
+    win.setBounds(savedBounds);
+    win.setResizable(false);
+    savedBounds = null;
+  }
+});
+
+// ── edge dock: report which screen edge the potato is pushed against ──
+// The potato renders in the bottom-right of the transparent window (CSS stage:
+// right:16 bottom:0, 300x400), so its on-screen anchor sits at this offset
+// inside the window. We only dock on the sides / top — the bottom is his
+// resting spot, so docking there would put him to sleep the moment he boots.
+const ANCHOR_X = 514; // WIN_W - 16 - 150 → stage horizontal center
+const ANCHOR_Y = 490; // roughly the potato's body center
+const DOCK = 95; // how close the anchor must get to count as "at the edge"
+let lastEdge = null;
+
+function reportEdge() {
+  if (!win) return;
+  const [x, y] = win.getPosition();
+  const wa = screen.getDisplayMatching(win.getBounds()).workArea;
+  const ax = x + ANCHOR_X;
+  const ay = y + ANCHOR_Y;
+  let side = null;
+  if (ax >= wa.x + wa.width - DOCK) side = 'right';
+  else if (ax <= wa.x + DOCK) side = 'left';
+  else if (ay <= wa.y + DOCK) side = 'top';
+  if (side !== lastEdge) {
+    lastEdge = side;
+    win.webContents.send('edge', side);
+  }
+}
 
 // ── IPC: Claude API (key never enters the renderer) ──
 let anthropic = null;

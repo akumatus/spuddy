@@ -2,7 +2,7 @@
 // (Turn 6 · part rig + easing pass, Turn 7 · soul-engine clips and the
 // doze / hum idle modes) — keep in sync with it.
 //   - eased keyframe sampler: every segment carries its own curve
-//     (outBack 蓄力回弹 / outElastic 果冻余震 / ballistic jump timing)
+//     (outBack wind-up rebound / outElastic jelly aftershake / ballistic jump timing)
 //   - part tracks drive the rigged pivots (hands at the shoulder, eyes in
 //     their sockets, card at its bottom edge) on part-separated models
 //   - idle life: blinks 2.6–6.4s, gaze saccades, paw sway lagging the breath
@@ -353,7 +353,7 @@ export const CLIPS = {
   },
 };
 
-/* roly-poly 不倒翁 — decaying precession; eyes counter-sway to stay "level" */
+/* roly-poly — decaying precession; eyes counter-sway to stay "level" */
 export const WOBBLE = {
   zh: '不倒翁 · Roly-poly',
   spec: '2.6s 指数衰减进动 · rotZ/rotX 相位差 90° · 眼珠反向补偿保持水平 (前庭反射)',
@@ -398,6 +398,7 @@ export class Animator {
     this.mode = 'idle'; // idle | lean | rock | doze | hum
     this.leanK = 0;
     this.tucked = false;
+    this.asleep = false; // napping against a screen edge (edge-dock sleep)
     this.tuckT = 1; this.tuckFrom = 0; this.tuckTo = 0; this.tuckOffset = 0;
     this.faceY = 0; this.faceX = 0;
     this.faceTargetY = 0; this.faceTargetX = 0;
@@ -588,7 +589,11 @@ export class Animator {
       for (const side of ['L', 'R']) {
         const h = R['hand' + side]; if (!h) continue;
         const v = P['hand' + side];
-        h.g.rotation.set(v.curl * D2R, 0, h.sign * v.raise * D2R);
+        // forward-pointing paws lift around X at the arm root (raise up = −X,
+        // curl shares the axis: knocks/waves pitch from the same shoulder);
+        // side paws swing around Z as in the design prototype
+        if (h.liftAxis === 'x') h.g.rotation.set((v.curl - v.raise) * D2R, 0, 0);
+        else h.g.rotation.set(v.curl * D2R, 0, h.sign * v.raise * D2R);
         h.g.position.set(
           h.home.x + (h.sign * v.out * this.h + h.shyVec.x * v.toEye) * h.unit,
           h.home.y + (v.lift * this.h + h.shyVec.y * v.toEye * (1 / this.h) * this.h) * h.unit,

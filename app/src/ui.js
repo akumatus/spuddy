@@ -8,14 +8,74 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-export function openOverlay(html) {
-  modal().innerHTML = html;
+const stageEl = () => document.getElementById('stage');
+const panelEl = () => document.getElementById('hoverpanel');
+
+// ── modal window choreography ──
+// The pet window is small and sits wherever the user dragged the potato; a
+// modal expands it to the full work area so the popup can center on screen.
+// The stage is anchored right/bottom INSIDE the window, so the resize alone
+// would teleport the potato to the screen corner. Instead of hiding him
+// (earlier fix — he vanished for the whole modal), offset the stage by the
+// window→work-area edge gap so he holds his exact on-screen spot, and order
+// each step around actual paints/resizes so no frame catches him mid-jump.
+let modalUp = false;
+let modalSeq = 0; // open/close generation — stale async steps bail out
+
+const painted = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const resizedOrTimeout = (ms) =>
+  new Promise((r) => {
+    const done = () => { clearTimeout(t); window.removeEventListener('resize', done); r(); };
+    const t = setTimeout(done, ms);
+    window.addEventListener('resize', done, { once: true });
+  });
+
+async function expandForModal(seq) {
+  const g = await (window.pp?.win?.modalGeometry?.() ?? null);
+  if (seq !== modalSeq) return;
+  if (g) {
+    const st = stageEl().style;
+    st.right = `${16 + g.dx}px`;
+    st.bottom = `${g.dy}px`;
+    await painted(); // the offset stage is on screen before the window grows
+    if (seq !== modalSeq) return;
+    window.pp.win.setModal(true);
+    await resizedOrTimeout(250); // and the popup only shows once it can center
+    if (seq !== modalSeq) return;
+  }
   overlay().classList.remove('hidden');
 }
 
+export function openOverlay(html) {
+  modal().innerHTML = html;
+  if (modalUp) { overlay().classList.remove('hidden'); return; } // draw → weave → card chain: window already big
+  modalUp = true;
+  // Hide the hover panel instantly. It's anchored bottom:78px INSIDE the window
+  // but isn't offset like the stage, so when the window expands to fullscreen it
+  // reflows to the taller window's bottom and visibly drops for a beat before the
+  // dim overlay covers it. It sits behind the dim anyway, so just take it out.
+  panelEl().classList.remove('show');
+  panelEl().classList.add('hidden');
+  expandForModal(++modalSeq);
+}
+
 export function closeOverlay() {
+  const seq = ++modalSeq;
+  modalUp = false;
   overlay().classList.add('hidden');
   modal().innerHTML = '';
+  window.pp?.win?.setModal(false);
+  // release the stage offset only after the window is small again — resetting
+  // early would flash the potato at the fullscreen corner for a frame
+  const release = () => {
+    if (seq !== modalSeq) return;
+    const st = stageEl().style;
+    st.right = '';
+    st.bottom = '';
+    panelEl().classList.remove('hidden'); // back to hover-gated (stays hidden until next hover)
+  };
+  window.addEventListener('resize', () => requestAnimationFrame(release), { once: true });
+  setTimeout(release, 300); // fallback if no resize event fires
 }
 
 export function isOverlayOpen() {
@@ -96,12 +156,8 @@ export function setWeaveLine(line) {
 }
 
 // ── Card Book ──
-// handlers: {onClose, onTab, onFilter, onFav, onDel, onPick, onDelMem, onClearMem}
+// handlers: {onClose, onTab, onFilter, onApply, onFav, onDel, onDelMem, onClearMem}
 export function showBook(state, tab, filter, handlers) {
-  const cts = counts(state);
-  const unlocked = (id) => !UNLOCK[id] || state.unlockedIds.includes(id);
-  const unlockedCount = CHARS.filter((c) => unlocked(c.id)).length;
-
   let body = '';
   if (tab === 'cards') {
     let view = state.cards.map((cd, i) => ({ ...cd, i })).reverse();
@@ -124,7 +180,7 @@ export function showBook(state, tab, filter, handlers) {
         ${view
           .map(
             (c) => `
-          <div class="ccard ${c.rare ? 'gold' : ''}">
+          <div class="ccard ${c.rare ? 'gold' : ''}" data-apply="${c.i}" title="hold this one">
             <div class="acts">
               <button class="fav ${c.fav ? 'on' : ''}" data-fav="${c.i}">♥</button>
               <button class="del" data-del="${c.i}">×</button>
@@ -135,24 +191,6 @@ export function showBook(state, tab, filter, handlers) {
           )
           .join('')}
       </div>`;
-  } else if (tab === 'buddies') {
-    body = `
-      <div class="buddies">
-        ${CHARS.map((ch) => {
-          const un = unlocked(ch.id);
-          const act = state.active === ch.id;
-          const d = UNLOCK[ch.id];
-          const btn = act ? 'On duty ♥' : un ? 'Set active' : `${Math.min(cts[d.key], d.n)}/${d.n} · ${d.verb}`;
-          return `
-          <div class="buddy ${un ? '' : 'locked'} ${act ? 'active' : ''}">
-            <div class="pic" style="background-image:url('./chars/char-${ch.id}.png')"></div>
-            <div class="nm">${ch.name}</div>
-            <div class="ps">${un ? PERS[ch.id].p : d.how}</div>
-            <button data-pick="${ch.id}">${btn}</button>
-          </div>`;
-        }).join('')}
-      </div>
-      <div class="hint">each buddy joins for a different kind of care — keep · favorite · confide · show up · go gold. once a friend, always a friend</div>`;
   } else {
     const mems = state.journal.map((m, i) => ({ ...m, i })).reverse();
     body = `
@@ -178,27 +216,75 @@ export function showBook(state, tab, filter, handlers) {
       </div>`;
   }
 
-  openOverlay(`
-    <div id="book">
-      <div class="head">
+  const headInner = `
         <span class="title">Card Book</span>
         <button class="tab ${tab === 'cards' ? 'on' : ''}" data-tab="cards">Cards · ${state.cards.length}</button>
-        <button class="tab ${tab === 'buddies' ? 'on' : ''}" data-tab="buddies">Buddies · ${unlockedCount}/6${state.buddyNew ? '<span class="dot"></span>' : ''}</button>
         <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">Memory · ${state.journal.length}</button>
-        <button class="close" id="bookClose">×</button>
-      </div>
-      ${body}
-    </div>`);
+        <button class="close" id="bookClose">×</button>`;
+
+  // Re-render in place while the book is already open. Recreating #book (via
+  // openOverlay's innerHTML swap) would replay its pp-cardin entrance animation
+  // on every tab switch / delete / fav — that bounce-in reads as a flash. So
+  // only swap the head + body content, leaving #book (and its animation) alone.
+  const book = document.getElementById('book');
+  if (book) {
+    book.querySelector('.head').innerHTML = headInner;
+    while (book.children.length > 1) book.lastElementChild.remove();
+    book.insertAdjacentHTML('beforeend', body);
+  } else {
+    openOverlay(`
+      <div id="book">
+        <div class="head">${headInner}</div>
+        ${body}
+      </div>`);
+  }
 
   document.getElementById('bookClose').onclick = handlers.onClose;
   modal().querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => handlers.onTab(b.dataset.tab)));
   modal().querySelectorAll('[data-filter]').forEach((b) => (b.onclick = () => handlers.onFilter(b.dataset.filter)));
-  modal().querySelectorAll('[data-fav]').forEach((b) => (b.onclick = () => handlers.onFav(+b.dataset.fav)));
-  modal().querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => handlers.onDel(+b.dataset.del)));
-  modal().querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => handlers.onPick(b.dataset.pick)));
+  modal().querySelectorAll('[data-apply]').forEach((b) => (b.onclick = () => handlers.onApply(+b.dataset.apply)));
+  // fav / del sit on top of the card — stop the click from also "applying" it
+  modal().querySelectorAll('[data-fav]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); handlers.onFav(+b.dataset.fav); }));
+  modal().querySelectorAll('[data-del]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); handlers.onDel(+b.dataset.del); }));
   modal().querySelectorAll('[data-delmem]').forEach((b) => (b.onclick = () => handlers.onDelMem(+b.dataset.delmem)));
   const mc = document.getElementById('memClear');
   if (mc) mc.onclick = handlers.onClearMem;
+}
+
+// ── Buddies (standalone panel) ──
+// handlers: {onClose, onPick}
+export function showBuddies(state, handlers) {
+  const cts = counts(state);
+  const unlocked = (id) => !UNLOCK[id] || state.unlockedIds.includes(id);
+  const unlockedCount = CHARS.filter((c) => unlocked(c.id)).length;
+
+  openOverlay(`
+    <div id="book" class="buddiespanel">
+      <div class="head">
+        <span class="title">Buddies</span>
+        <span class="subcount">${unlockedCount}/6 friends</span>
+        <button class="close" id="buddiesClose">×</button>
+      </div>
+      <div class="buddies">
+        ${CHARS.map((ch) => {
+          const un = unlocked(ch.id);
+          const act = state.active === ch.id;
+          const d = UNLOCK[ch.id];
+          const btn = act ? 'On duty ♥' : un ? 'Set active' : `${Math.min(cts[d.key], d.n)}/${d.n} · ${d.verb}`;
+          return `
+          <div class="buddy ${un ? '' : 'locked'} ${act ? 'active' : ''}">
+            <div class="pic" style="background-image:url('./chars/char-${ch.id}.png')"></div>
+            <div class="nm">${ch.name}</div>
+            <div class="ps">${un ? PERS[ch.id].p : d.how}</div>
+            <button data-pick="${ch.id}">${btn}</button>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="hint">each buddy joins for a different kind of care — keep · favorite · confide · show up · go gold. once a friend, always a friend</div>
+    </div>`);
+
+  document.getElementById('buddiesClose').onclick = handlers.onClose;
+  modal().querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => handlers.onPick(b.dataset.pick)));
 }
 
 export function confettiBurst() {

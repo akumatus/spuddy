@@ -181,8 +181,9 @@ export class CardScreen {
 
     // fixed-aspect content box, centered — quad aspects vary per scan,
     // but the layout inside stays identical across the crew.
-    // On a held card the thumbs grip the side margins, so inset the content.
-    let cw = W * (this.cardMesh ? 0.68 : 0.92);
+    // Text is sized for readability over hand clearance: it fills nearly the
+    // whole card and the gripping hands may clip the lower corners — that's fine.
+    let cw = W * (this.cardMesh ? 0.9 : 0.94);
     let ch = cw / CONTENT_ASPECT;
     if (ch > H * 0.92) {
       ch = H * 0.92;
@@ -199,10 +200,11 @@ export class CardScreen {
       ctx.fillText(c.top, W / 2, top + ch * 0.12);
     }
 
-    // main text: auto-fit Caveat, wrapped
-    const maxW = cw * 0.94;
-    const maxH = ch * (c.footL || c.footR ? 0.54 : 0.64);
-    let size = Math.round(ch * 0.26);
+    // main text: auto-fit Caveat, wrapped — sized to fill the card so it stays
+    // legible at desktop-pet scale (hands may clip the edges of long messages)
+    const maxW = cw * 0.98;
+    const maxH = ch * (c.footL || c.footR ? 0.7 : 0.76);
+    let size = Math.round(ch * 0.34);
     let lines = [];
     while (size > 10) {
       ctx.font = `700 ${size}px Caveat, cursive`;

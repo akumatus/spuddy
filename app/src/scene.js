@@ -12,6 +12,12 @@ loader.setDRACOLoader(draco);
 
 const cache = new Map();
 
+// Only the card's center answers as functional UI (the gacha draw). Taps near
+// the rim — bare paper with no text, the part the hands grip — read as body
+// pokes instead, so you can still play with him around the edges of the card.
+// UV half-extent from center (0.5, 0.5); 0.3 ⇒ a central 60%×60% draw zone.
+const CARD_DRAW_ZONE = 0.3;
+
 async function loadModel(id) {
   if (cache.has(id)) return cache.get(id).clone(true);
   const gltf = await loader.loadAsync(`./models/${id}.glb`);
@@ -69,9 +75,19 @@ function rigParts(model, sceneRoot) {
     if (nodes[hn]) {
       const b = box[hn], c = ctr[hn];
       const sign = c.x >= 0 ? 1 : -1;
-      const pivot = new THREE.Vector3(sign > 0 ? b.min.x : b.max.x, c.y - size[hn].y * 0.25, c.z);
+      // Rodin paws point FORWARD (z-extent ≈ 2× width) to hold the card, so a
+      // 'raise' spin around Z is nearly parallel to the arm — it reads as the
+      // palm twisting on the spot. Forward paws instead hinge around X at the
+      // arm root (top-back edge, inside the body): the paw sweeps up and the
+      // palm turns to face the camera. Side-mounted paws (wider than deep)
+      // keep the original Z hinge at the top-inner corner.
+      const forward = size[hn].z > size[hn].x;
+      const pivot = forward
+        ? new THREE.Vector3(c.x, b.max.y - size[hn].y * 0.12, b.min.z + size[hn].z * 0.06)
+        : new THREE.Vector3(sign > 0 ? b.min.x : b.max.x, b.max.y - size[hn].y * 0.12, c.z);
       const r = wrap(nodes[hn], pivot);
       r.sign = sign;
+      r.liftAxis = forward ? 'x' : 'z';
       r.shyVec = new THREE.Vector3(0, 0, 0);
       if (nodes[en]) {
         r.shyVec.set(
@@ -120,12 +136,15 @@ export class PetScene {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
-    this.camBase = new THREE.Vector3(0, 1.55, 5.6);
-    this.lookAt = new THREE.Vector3(0, 1.3, 0);
-    this.cameraSway = true; // 镜头呼吸 11s/8.2s 双周期 (Turn 5)
+    // pulled back + aimed a touch lower than the head so he reads smaller (more
+    // "little pet") and his contact shadow keeps footroom inside the canvas
+    this.camBase = new THREE.Vector3(0, 1.62, 7.4);
+    this.lookAt = new THREE.Vector3(0, 1.16, 0);
+    this.cameraSway = true; // camera breathing sway, 11s/8.2s dual cycle (Turn 5)
 
-    // PBR 拆件模型靠实时光照出质感：IBL 提供柔和的全向填充，
-    // 暖主光塑形，rim 勾轮廓。legacy 烘焙模型不受光照影响。
+    // The PBR part-rigged model gets its texture from real-time lighting: IBL
+    // provides soft omnidirectional fill, a warm key light shapes it, rim light
+    // traces the outline. The legacy baked model is unaffected by lighting.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.55;
@@ -174,17 +193,15 @@ export class PetScene {
     const cardData = (await this.cardsData)[id];
     this.holder.clear();
 
-    // normalize by CARD width, not body height — the little cards are the same
-    // physical product across the crew, so equal cards read as one family while
-    // body sizes stay naturally varied. Clamp so unusual scans still fit the frame.
+    // Normalize by TOTAL model height (cap / tassel / any headwear included) so
+    // every buddy is the same overall size and no one's head reaches up into the
+    // speech bubble. The bubble sits at a fixed spot, so a consistent model top
+    // keeps a clean, even gap under it — TARGET_H is tuned against that bubble.
+    // (Card-width normalization let Prof's graduation cap tower past the crew.)
+    const TARGET_H = 1.5;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
-    let scale = 1.7 / size.y;
-    if (cardData) {
-      scale = 0.79 / cardData.width;
-      scale = Math.min(scale, 2.17 / size.y);
-      scale = Math.max(scale, 1.19 / size.y);
-    }
+    const scale = TARGET_H / size.y;
     model.scale.setScalar(scale);
     const box2 = new THREE.Box3().setFromObject(model);
     const center = box2.getCenter(new THREE.Vector3());
@@ -212,8 +229,8 @@ export class PetScene {
     this.cardScreen.setPulse(v);
   }
 
-  // what the pointer landed on: 'card' (the held white card — the card mesh
-  // on part models, the overlay quad on legacy scans), 'body', or null (air).
+  // what the pointer landed on: 'card' (the held white card — but only its
+  // center; the rim reads as body, see CARD_DRAW_ZONE), 'body', or null (air).
   // Closest hit wins, so a card tucked behind a paw still counts as body.
   pick(clientX, clientY) {
     const r = this.canvas.getBoundingClientRect();
@@ -228,8 +245,18 @@ export class PetScene {
     this._raycaster.setFromCamera(this._ndc, this.camera);
     const hits = this._raycaster.intersectObject(this.holder, true);
     if (!hits.length) return null;
+    const hit = hits[0];
     const cardObj = this.cardScreen.cardMesh || this.cardScreen.mesh;
-    return cardObj && hits[0].object === cardObj ? 'card' : 'body';
+    if (!cardObj || hit.object !== cardObj) return 'body';
+    // Card UVs run 0..1 with (0.5, 0.5) at center (projected on part models,
+    // native on the legacy quad). Only the central patch triggers a draw;
+    // rim taps fall through to body play. If UVs are somehow missing, keep the
+    // old whole-card behavior rather than breaking the draw entirely.
+    const uv = hit.uv;
+    if (!uv) return 'card';
+    const onCenter =
+      Math.abs(uv.x - 0.5) <= CARD_DRAW_ZONE && Math.abs(uv.y - 0.5) <= CARD_DRAW_ZONE;
+    return onCenter ? 'card' : 'body';
   }
 
   // 05 · Card Raise — part models hand it to the rig ('present' clip drives

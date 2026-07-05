@@ -17,6 +17,8 @@ export function defaultState() {
     streak: 1,
     lastDate: todayStr(),
     drawn: false,
+    draws: 0, // draws taken today; limit is main.js DAILY_DRAW_LIMIT
+    pity: 0, // draws since last golden, used for golden pity/smoothing; persists across days, see main.js drawToday
     rare: false,
     msg: '',
     keptToday: false,
@@ -28,7 +30,7 @@ export function defaultState() {
     buddyNew: false,
     sound: true,
     nightShownDate: null,
-    // 人格引擎 (7a) — 0..100, design Tweaks defaults
+    // personality engine (7a) — 0..100, design Tweaks defaults
     personality: { curiosity: 65, clinginess: 60, drama: 55, sleepiness: 35 },
   };
 }
@@ -52,11 +54,16 @@ export function load() {
     s.day += 1;
     s.streak = gap === 1 ? s.streak + 1 : 1;
     s.lastDate = today;
-    s.drawn = false;
-    s.rare = false;
-    s.msg = '';
-    s.keptToday = false;
+    s.draws = 0;
   }
+  // the card in his hands is ephemeral: every launch (and every new day) starts
+  // back on "tap me" for a fresh draw — kept cards live on in the Book
+  s.drawn = false;
+  s.rare = false;
+  s.msg = '';
+  s.keptToday = false;
+  if (typeof s.draws !== 'number') s.draws = s.drawn ? 1 : 0; // migrate old saves
+  if (typeof s.pity !== 'number') s.pity = 0; // golden pity counter persists across days, not reset on day rollover
   return s;
 }
 

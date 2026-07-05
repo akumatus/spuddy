@@ -1,7 +1,7 @@
 // SpudBrain ported from the design prototype's lib/spud-brain.js (Turn 7 ·
 // soul engine) — keep in sync with it.
 //
-//   Three needs drift over time:      energy 精力 / boredom 无聊 / social 想你
+//   Three needs drift over time:      energy / boredom / social (missing you)
 //   A utility tick (every 200ms) picks what to do:
 //     boredom high  → self-play routine (tail-chase, card-juggle, study…)
 //     energy  low   → doze off (nod-and-catch), wakes when rested/startled
@@ -147,6 +147,13 @@ const ROUTINES = {
   },
 };
 export const ROUTINE_KEYS = ['chase', 'juggle', 'study', 'practice', 'hum', 'stretch', 'peek', 'sneeze'];
+
+/* total playtime of a routine's step script (ms) — the app debounces taps
+   against this so a click-launched show can't be piled onto */
+export function routineMs(key) {
+  const r = ROUTINES[key];
+  return r ? r.steps.reduce((s, st) => s + (st.wait || 400), 0) : 0;
+}
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 

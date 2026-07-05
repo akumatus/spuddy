@@ -9,9 +9,11 @@ contextBridge.exposeInMainWorld('pp', {
   win: {
     setIgnoreMouse: (v) => ipcRenderer.send('set-ignore-mouse', v),
     moveBy: (dx, dy) => ipcRenderer.send('move-by', dx, dy),
+    setModal: (v) => ipcRenderer.send('set-modal', v),
+    modalGeometry: () => ipcRenderer.invoke('modal-geometry'),
   },
   on: (channel, cb) => {
-    if (channel === 'sedentary' || channel === 'cursor') {
+    if (channel === 'sedentary' || channel === 'cursor' || channel === 'edge') {
       ipcRenderer.on(channel, (_e, data) => cb(data));
     }
   },

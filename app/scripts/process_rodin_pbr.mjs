@@ -63,7 +63,14 @@ for (const node of root.listNodes()) {
 }
 parts.sort((a, c) => c.vol - a.vol);
 
-// biggest = body; flattest wide = card; of the rest: high = eyes, low = hands
+// biggest = body; flattest wide = card. Of what's left, hands are the two
+// most lateral meshes (arms reaching out to the sides) and eyes the two
+// smallest (little symmetric buttons). Anything still unclaimed — a taco's
+// shell, a grad cap — is decorative: it gets a neutral 'trim' name so the
+// 6-part rig (scene.js rigParts) ignores it and it simply rides the body
+// (root squash/move/spin) statically, with no hinge of its own.
+// NB: don't pick eyes/hands by height — extra toppings can sit above the
+// real eyes and steal their slot.
 const body = parts[0];
 const rest = parts.slice(1);
 const card = rest.reduce((best, p) => {
@@ -71,14 +78,17 @@ const card = rest.reduce((best, p) => {
   const bestFlat = Math.min(...best.b.size) / Math.max(...best.b.size);
   return p.b.size[0] > 0.5 && flat < bestFlat ? p : best;
 });
-const others = rest.filter((p) => p !== card).sort((a, c) => c.b.center[1] - a.b.center[1]);
-const eyes = others.slice(0, 2);
-const hands = others.slice(2);
+const pool = rest.filter((p) => p !== card);
+const byX = [...pool].sort((a, c) => a.b.center[0] - c.b.center[0]);
+const hands = pool.length >= 2 ? [byX[0], byX[byX.length - 1]] : [];
+const eyes = pool.filter((p) => !hands.includes(p)).sort((a, c) => a.vol - c.vol).slice(0, 2);
 const name = (p) => {
   if (p === body) return 'body';
   if (p === card) return 'card';
   const side = p.b.center[0] >= 0 ? 'R' : 'L';
-  return (eyes.includes(p) ? 'eye' : 'hand') + side;
+  if (eyes.includes(p)) return 'eye' + side;
+  if (hands.includes(p)) return 'hand' + side;
+  return 'trim'; // decorative extra — no rig slot, rides the body statically
 };
 for (const p of parts) {
   const n = name(p);
@@ -101,10 +111,12 @@ for (const mesh of root.listMeshes()) {
 // ---- albedo cavity fill ----
 // Deep cavities (the card slot, sockets) are black in the albedo — no bake
 // camera ever saw inside. Diffuse surrounding yarn color into them so parts
-// animating apart never reveal black material. Eye UV islands are protected:
-// eye albedo is legitimately near-black. Also flood the uncovered atlas
-// background with the nearest island colors so bilinear/mipmap edges after
-// the 2048→1024 resize never sample stray background.
+// animating apart never reveal black material. Eye and trim UV islands are
+// protected: their albedo is legitimately near-black by design (bead eyes, a
+// black felt grad cap) — flooding it would smear the surrounding yarn over a
+// visible surface. Also flood the uncovered atlas background with the nearest
+// island colors so bilinear/mipmap edges after the 2048→1024 resize never
+// sample stray background.
 {
   const rasterize = (prim, mask, W, H) => {
     const uv = prim.getAttribute('TEXCOORD_0');
@@ -151,14 +163,16 @@ for (const mesh of root.listMeshes()) {
       return out;
     };
 
-    // eye UV coverage (+2px margin) — their albedo is near-black by design
+    // eye + trim UV coverage (+2px margin) — their albedo is near-black by
+    // design (bead eyes, a black felt grad cap), so keep the fill out of them
     let protect = new Uint8Array(N);
     const covered = new Uint8Array(N);
     for (const p of parts) {
       const mat = p.prim.getMaterial();
       if (!mat || mat.getBaseColorTexture() !== tex) continue;
       rasterize(p.prim, covered, W, H);
-      if (p.node.getName().startsWith('eye')) rasterize(p.prim, protect, W, H);
+      const nm = p.node.getName();
+      if (nm.startsWith('eye') || nm === 'trim') rasterize(p.prim, protect, W, H);
     }
     protect = dilate1(dilate1(protect));
 
