@@ -161,20 +161,67 @@ function reportEdge() {
   }
 }
 
-// ── IPC: Claude API (key never enters the renderer) ──
+// ── app config + server gateway ──
+// ~/.config/positive-potato/config.json — { serverUrl, appToken, deviceId, apiKey }
+//   serverUrl : the Cloudflare Worker (below) — when set, all AI goes through it
+//   appToken  : optional shared token sent as x-pp-app
+//   deviceId  : stable anonymous id the server meters a daily budget against
+//   apiKey    : legacy local Anthropic key, used only when no serverUrl is set
+// serverUrl/appToken may also come from env (PP_SERVER_URL / PP_APP_TOKEN).
+const fs = require('fs');
+const CONFIG_DIR = path.join(app.getPath('home'), '.config', 'positive-potato');
+const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+const CARDS_CACHE = path.join(CONFIG_DIR, 'cards-cache.json');
+
+function readConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) || {};
+  } catch (e) {
+    return {};
+  }
+}
+function writeConfig(patch) {
+  try {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify({ ...readConfig(), ...patch }, null, 2));
+  } catch (e) {
+    // best-effort — a read-only home just means no persisted device id
+  }
+}
+
+// Baked-in production defaults (shipped in the build) so a distributed app
+// reaches the server with no local config. Env and user config still win.
+const DEFAULTS = (() => { try { return require('./defaults.cjs'); } catch (e) { return {}; } })();
+
+const CONFIG = readConfig();
+const SERVER_URL = (process.env.PP_SERVER_URL || CONFIG.serverUrl || DEFAULTS.SERVER_URL || '').replace(/\/+$/, '');
+const APP_TOKEN = process.env.PP_APP_TOKEN || CONFIG.appToken || DEFAULTS.APP_TOKEN || '';
+
+let DEVICE_ID = CONFIG.deviceId;
+if (!DEVICE_ID) {
+  DEVICE_ID = require('crypto').randomUUID();
+  writeConfig({ deviceId: DEVICE_ID });
+}
+
+async function serverFetch(pathname, { method = 'GET', body, timeout = 28000 } = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (APP_TOKEN) headers['x-pp-app'] = APP_TOKEN;
+  return fetch(`${SERVER_URL}${pathname}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(timeout),
+  });
+}
+
+// ── IPC: Claude API fallback (key never enters the renderer) ──
+// Used only when no serverUrl is configured (local dev). Otherwise the Worker
+// holds the keys and picks the provider.
 let anthropic = null;
 let anthropicFailed = false;
 
 function readLocalConfigKey() {
-  // ~/.config/positive-potato/config.json — {"apiKey": "sk-ant-..."}
-  // Lives outside the repo so the key is never committed.
-  try {
-    const p = path.join(app.getPath('home'), '.config', 'positive-potato', 'config.json');
-    const cfg = JSON.parse(require('fs').readFileSync(p, 'utf8'));
-    return cfg.apiKey || null;
-  } catch (e) {
-    return null;
-  }
+  return CONFIG.apiKey || null;
 }
 
 function getClient() {
@@ -209,6 +256,17 @@ function textOf(response) {
 
 // Chat reply — persona system prompt + emotion tag, from the design prototype.
 ipcMain.handle('ai-reply', async (_e, p) => {
+  if (SERVER_URL) {
+    try {
+      const res = await serverFetch('/chat', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
+      if (res.status === 429) return { limited: true }; // daily budget spent
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data && data.text ? { tag: data.tag || 'calm', text: data.text } : null;
+    } catch (e) {
+      return null; // offline / server down → renderer uses its in-voice fallback
+    }
+  }
   const client = getClient();
   if (!client) return null;
   try {
@@ -247,6 +305,16 @@ ipcMain.handle('ai-reply', async (_e, p) => {
 
 // Golden card — AI-knit from what he remembers.
 ipcMain.handle('ai-golden', async (_e, p) => {
+  if (SERVER_URL) {
+    try {
+      const res = await serverFetch('/golden', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
+      if (!res.ok) return null; // incl. 429 → renderer falls back to a pool line
+      const data = await res.json();
+      return data && data.text ? data.text : null;
+    } catch (e) {
+      return null;
+    }
+  }
   const client = getClient();
   if (!client) return null;
   try {
@@ -270,6 +338,26 @@ ipcMain.handle('ai-golden', async (_e, p) => {
   } catch (e) {
     return null;
   }
+});
+
+// Daily card batch — pulled from the server (cron pre-generates it), cached to
+// disk so draws still work offline. Returns null with no server configured, so
+// the renderer falls back to its built-in DAILY pool.
+ipcMain.handle('cards-today', async () => {
+  if (!SERVER_URL) return null;
+  try {
+    const res = await serverFetch('/cards', { method: 'GET', timeout: 12000 });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.cards && Object.keys(data.cards).length) {
+        try { fs.writeFileSync(CARDS_CACHE, JSON.stringify(data)); } catch (e) {}
+        return data;
+      }
+    }
+  } catch (e) {
+    // fall through to the last cached batch
+  }
+  try { return JSON.parse(fs.readFileSync(CARDS_CACHE, 'utf8')); } catch (e) { return null; }
 });
 
 // ── cursor watch: he turns to look at your pointer (Turn 5 followCursor) ──

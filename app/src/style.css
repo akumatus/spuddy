@@ -157,7 +157,14 @@ html, body {
 /* ── hover panel (left of pet) ── */
 #hoverpanel {
   position: absolute;
-  right: 300px;
+  /* above the stage (z-index 50): the panel overlaps the stage's left edge
+     (stage spans right:16–316px), so without this the right of the icon row /
+     chat box would fall under the stage and lose clicks (e.g. ♪ mute) */
+  z-index: 51;
+  /* tucked in close to the potato's left edge (~right:256px). Nudge this value
+     down to move nearer, up to back off — keep it ≳ his silhouette so the chat
+     box doesn't paint over him (the panel now sits above the stage). */
+  right: 270px;
   /* the chat box (panel's bottom edge) sits level with the pet's base — his
      model bottom renders ~78px above the window bottom (fixed for every buddy) */
   bottom: 78px;

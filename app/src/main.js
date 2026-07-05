@@ -4,9 +4,10 @@ import { CLIPS, WOBBLE } from './motions.js';
 import { sfx, setSoundEnabled } from './sfx.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
+import * as remote from './remote.js';
 import {
   DAILY, POKE, RETAP, CARDHINT, SEDENTARY, NIGHTMSG, WEAVELINES, DRAWLINES,
-  CHARS, UNLOCK, PERS, chatFallback, goldenFallback,
+  CHARS, UNLOCK, PERS, chatFallback, goldenFallback, limitReply,
 } from './content.js';
 
 const $ = (id) => document.getElementById(id);
@@ -27,6 +28,10 @@ setSoundEnabled(state.sound);
 const scene = new PetScene($('pet'));
 await scene.setCharacter(state.active);
 const anim = () => scene.animator;
+
+// pull today's server-generated card pool (non-blocking — draws fall back to the
+// built-in DAILY pool until it arrives)
+remote.refresh();
 
 // ── personality engine (7a) — needs-driven autonomy, ported from lib/spud-brain.js ──
 const per = state.personality || {};
@@ -183,10 +188,13 @@ function drawToday() {
     return weaveGolden();
   }
   state.pity++;
-  // random daily line each draw, skipping an immediate repeat of the last card
-  const pool = DAILY.filter((d) => d.m !== state.msg);
-  const src = pool.length ? pool : DAILY;
-  const msg = src[Math.floor(Math.random() * src.length)].m;
+  // random daily line each draw, skipping an immediate repeat of the last card.
+  // Prefer today's server-generated pool; fall back to the built-in DAILY pool
+  // when the server isn't reachable (offline-safe).
+  const base = remote.normalPool(activeChar().id) || DAILY.map((d) => d.m);
+  const pool = base.filter((m) => m !== state.msg);
+  const src = pool.length ? pool : base;
+  const msg = src[Math.floor(Math.random() * src.length)];
   sfx.draw();
   ui.showDrawAnim();
   setTimeout(() => {
@@ -230,7 +238,11 @@ async function weaveGolden() {
   sfx.chime();
   state.drawn = true;
   state.rare = true;
-  state.msg = aiMsg || goldenFallback(ch.id);
+  // personalized weave first; if it couldn't reach the LLM (offline or over the
+  // daily budget), fall back to today's server golden pool, then the built-in one
+  const gPool = remote.goldenPool(ch.id);
+  const gFallback = gPool ? gPool[Math.floor(Math.random() * gPool.length)] : goldenFallback(ch.id);
+  state.msg = aiMsg || gFallback;
   state.keptToday = false;
   persist();
   updateCardScreen();
@@ -263,22 +275,27 @@ function openCard() {
 
 // ── tap / poke ──
 // Tap reaction pool: each tap plays a random motion (user feedback: a fixed
-// squish got monotonous). squish keeps the highest weight to preserve the
-// "squashed" feel, the rest are easter eggs; part-rigged models unlock a few
-// more part-specific motions. The last two motions are excluded from the pool
-// — any run of 3 taps is guaranteed not to repeat (user feedback: a single
-// re-roll still collided too often). shy (cover-eyes) was pulled from the pool
-// per the user's request. A '@' prefix = brain's full mini-skit (multi-step
-// sequence + self-talk), a low-weight easter egg; body taps during playback
-// are debounced so motions don't stack (per the user's request).
+// squish got monotonous). A '@' prefix = the brain's full mini-skit (multi-step
+// sequence + self-talk — tail-chase, hum, card-study…), and those are now the
+// star attraction: the user loves the autonomous-personality routines but was
+// barely seeing them on tap, so they carry the heaviest weight and a plain body
+// tap lands on a skit ~half the time. The basic one-shots are connective tissue
+// between skits, not the main event — hop and spin were dialed way down (user
+// feedback: "跳跃次数特别多，很枯燥"). squish keeps a moderate weight for the
+// signature "squashed" feel; part-rigged models unlock a few more part-specific
+// motions. The last two motions are excluded from the pool — any run of 3 taps
+// is guaranteed not to repeat (user feedback: a single re-roll still collided
+// too often). shy (cover-eyes) was pulled from the pool per the user's request.
+// Body taps during a skit's playback are debounced so motions don't stack —
+// which also means a launched skit gets watched to the end (per user request).
 const TAP_POOL = [
-  ['squish', 3], ['hop', 2], ['wobble', 2], ['peek', 1.5], ['spin', 1.5],
-  ['sneeze', 1], ['pirouette', 0.8],
-  ['@chase', 0.7], ['@hum', 0.7],
+  ['squish', 1.5], ['hop', 0.6], ['wobble', 1], ['peek', 1], ['spin', 0.6],
+  ['sneeze', 1.4], ['pirouette', 1],
+  ['@chase', 3], ['@hum', 3],
 ];
 const TAP_POOL_RIG = [
-  ['eyeroll', 1.5], ['bounceCard', 1.5], ['wave', 1],
-  ['@study', 0.7], ['@juggle', 0.6], ['@practice', 0.5],
+  ['eyeroll', 1], ['bounceCard', 1.4], ['wave', 1.2],
+  ['@study', 2.6], ['@juggle', 2.4], ['@practice', 2.2],
 ];
 let tapHistory = [];
 let tapBusyUntil = 0;
@@ -306,6 +323,10 @@ function playTapReaction() {
 // the card popup only opens from the white card itself (user request);
 // body taps are pure play — random reaction, hearts, poke lines
 function tapPet(target) {
+  // the stage fills a 300×400 rectangle, but only the potato answers: a tap
+  // on empty air (raycast hit nothing) is inert — no reaction, no waking, and
+  // no need-nudge in the brain — so play tracks his silhouette, not the box.
+  if (!target) return;
   if (anim().asleep) {
     wakeFromEdge(); // a tap rouses him from his edge nap
     return;
@@ -386,7 +407,10 @@ async function chatSend() {
 
   let tag = 'calm';
   let reply = chatFallback(ch.id);
-  if (res && res.text) {
+  if (res && res.limited) {
+    // daily real-time budget spent — warm "let's pick this up tomorrow" line
+    reply = limitReply(ch.id);
+  } else if (res && res.text) {
     tag = res.tag || 'calm';
     reply = res.text;
   }

@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld('pp', {
     reply: (payload) => ipcRenderer.invoke('ai-reply', payload),
     golden: (payload) => ipcRenderer.invoke('ai-golden', payload),
   },
+  cards: {
+    today: () => ipcRenderer.invoke('cards-today'),
+  },
   win: {
     setIgnoreMouse: (v) => ipcRenderer.send('set-ignore-mouse', v),
     moveBy: (dx, dy) => ipcRenderer.send('move-by', dx, dy),

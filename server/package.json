@@ -1,0 +1,15 @@
+{
+  "name": "spuddy-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "gen:dev": "curl -s -X POST http://localhost:8787/admin/generate -H \"x-pp-admin: dev\""
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

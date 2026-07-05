@@ -337,3 +337,21 @@ export function chatFallback(charId) {
   const pool = CHAT_FALLBACK[charId];
   return pickOne(pool && pool.length ? pool : [FALLBACK_REPLY]);
 }
+
+// Shown when the day's real-time chat budget is spent (server returns 429). The
+// server meters live replies to keep the shared API bill in check — these are
+// warm, in-voice "let's pick this up tomorrow" lines so the cap never feels
+// like an error. He'll still draw cards; only the live back-and-forth rests.
+export const CHAT_LIMIT = {
+  spud: "we've done a lot of good talking today, friend. i'm here — let's pick this back up tomorrow.",
+  taco: "ok my little brain is FULL of feelings for one day. same time tomorrow? i'll bring snacks.",
+  donut: "sugar, i've been chatting my glaze off — let me rest my sprinkles and we'll talk more tomorrow, hm?",
+  bloom: "we've watered enough words today. let them settle overnight; i'll be right here tomorrow.",
+  leo: "great rounds today, champion. even fighters rest — regroup with me tomorrow, i'm in your corner.",
+  grad: "per my notes, we've reached today's word quota. the research resumes tomorrow. class dismissed, warmly.",
+};
+
+// Limit line for the active buddy, falling back to the steady friend's.
+export function limitReply(charId) {
+  return CHAT_LIMIT[charId] || CHAT_LIMIT.spud;
+}
