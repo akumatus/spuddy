@@ -34,7 +34,7 @@ DEEPSEEK_MODEL = "deepseek-chat"
 OPENAI_MODEL = "gpt-4o-mini"
 GEMINI_MODEL = "gemini-2.0-flash"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
-CHAT_DAILY_LIMIT = "40"
+CHAT_DAILY_LIMIT = "100"
 # How many lines each persona's daily pool holds.
 CARDS_PER_DAY = "24"
 GOLDEN_PER_DAY = "10"
