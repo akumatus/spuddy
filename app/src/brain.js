@@ -158,12 +158,16 @@ export function routineMs(key) {
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 export class SpudBrain {
-  constructor({ animator, on = {}, personality, timeScale = 1, canAct }) {
+  constructor({ animator, on = {}, personality, timeScale = 1, canAct, serverMutters = null, mutterFreshChance = 0.5 }) {
     this.A = animator;
     this.on = on;                       // callbacks: mutter/speak/emote/state/log/needs/sfx
     this.P = { curious: 0.65, clingy: 0.6, drama: 0.55, sleepy: 0.35, ...(personality || {}) };
     this.timeScale = timeScale;
     this.canAct = canAct || (() => true);
+    // optional (mood) => string[] source of fresh, pre-generated daily mutters;
+    // ~mutterFreshChance of idle mutters come from it, the rest stay built-in
+    this.serverMutters = serverMutters;
+    this.mutterFreshChance = mutterFreshChance;
     this.needs = { energy: 74, boredom: 38, social: 30 };
     this.state = 'alone';
     this.clock = 0;                     // scaled seconds lived
@@ -235,6 +239,18 @@ export class SpudBrain {
   nearBy() { return !this.simAway && performance.now() - this.lastPointer < 60000; }
   randMutterGap() { return (9 + Math.random() * 8) / (0.55 + this.P.curious * 0.75); }
   fresh(poolKey) {
+    // sometimes pull today's fresh server-generated line for this mood (only
+    // watch/alone/lonely have server pools; other moods fall through to built-in)
+    if (this.serverMutters && Math.random() < this.mutterFreshChance) {
+      const sp = this.serverMutters(poolKey);
+      if (sp && sp.length) {
+        const k = 'srv:' + poolKey;
+        let m = pick(sp);
+        if (sp.length > 2 && m === this.lastPool[k]) m = pick(sp);
+        this.lastPool[k] = m;
+        return m;
+      }
+    }
     const pool = MUTTER[poolKey];
     let m = pick(pool);
     if (pool.length > 2 && m === this.lastPool[poolKey]) m = pick(pool);

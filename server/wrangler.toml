@@ -38,6 +38,8 @@ CHAT_DAILY_LIMIT = "100"
 # How many lines each persona's daily pool holds.
 CARDS_PER_DAY = "24"
 GOLDEN_PER_DAY = "10"
+# Mutters (private inner-monologue) per mood (watch/alone/lonely) per persona.
+MUTTERS_PER_DAY = "12"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:
 #   DEEPSEEK_API_KEY   (CN traffic + cron generation)

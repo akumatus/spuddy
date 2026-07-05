@@ -10,7 +10,7 @@
 // from KV so ordinary draws never hit an LLM. Real-time endpoints route by the
 // caller's country and are metered against a per-device daily budget.
 
-import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildBatchPrompt, parseTag } from './personas.js';
+import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildBatchPrompt, buildMutterPrompt, parseTag } from './personas.js';
 import { callLLM, pickChatProvider } from './providers.js';
 
 const CORS = {
@@ -116,7 +116,14 @@ export default {
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         const data = await generateAll(env);
         const counts = Object.fromEntries(
-          Object.entries(data.cards).map(([k, v]) => [k, { normal: v.normal.length, golden: v.golden.length }])
+          Object.entries(data.cards).map(([k, v]) => [
+            k,
+            {
+              normal: v.normal.length,
+              golden: v.golden.length,
+              mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
+            },
+          ])
         );
         return json({ ok: true, date: data.date, counts });
       }
@@ -158,28 +165,67 @@ async function generateForChar(env, id, opts) {
   return last;
 }
 
+const MOODS = ['watch', 'alone', 'lonely'];
+
+async function generateMuttersForChar(env, id, opts) {
+  const prompt = buildMutterPrompt(PERSONAS[id], opts.nMutters);
+  const empty = { watch: [], alone: [], lonely: [] };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await callLLM(env, opts.genProvider, {
+        system: '',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 1200,
+        temperature: 1.0,
+        json: true,
+      });
+      const parsed = extractJson(text);
+      const mutters = {};
+      for (const k of MOODS) mutters[k] = sanitizeList(parsed?.[k], opts.nMutters);
+      if (MOODS.some((k) => mutters[k].length)) return { mutters };
+    } catch (e) {
+      // transient — fall through to retry
+    }
+  }
+  return { mutters: empty };
+}
+
 async function generateAll(env) {
   const opts = {
     genProvider: env.GEN_PROVIDER || 'deepseek',
     nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
     nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),
+    nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
   };
-  // Generate every persona CONCURRENTLY. Sequential calls accumulate wall time
-  // and the later ones get throttled/cut; concurrent keeps total time ~= one call.
+  // Generate every persona CONCURRENTLY (cards + mutters). Sequential calls
+  // accumulate wall time and the later ones get throttled/cut; concurrent keeps
+  // total time ~= one call.
   const results = await Promise.all(
-    CHAT_IDS.map((id) => generateForChar(env, id, opts).catch(() => ({ normal: [], golden: [] })))
+    CHAT_IDS.map(async (id) => {
+      const [c, m] = await Promise.all([
+        generateForChar(env, id, opts).catch(() => ({ normal: [], golden: [] })),
+        generateMuttersForChar(env, id, opts).catch(() => ({ mutters: { watch: [], alone: [], lonely: [] } })),
+      ]);
+      return { ...c, ...m };
+    })
   );
   const cards = {};
   CHAT_IDS.forEach((id, i) => { cards[id] = results[i]; });
 
-  // Never clobber a good pool with an empty one — if a persona hiccups this run,
-  // keep whatever it had last time so no character is ever left with no cards.
+  // Never clobber good content with empties — if a field hiccups this run, keep
+  // whatever it had last time so no character is ever left with nothing.
   const prevRaw = await env.KV.get('cards:current');
   if (prevRaw) {
     try {
       const prev = JSON.parse(prevRaw).cards || {};
       for (const id of CHAT_IDS) {
-        if (!cards[id].normal.length && !cards[id].golden.length && prev[id]) cards[id] = prev[id];
+        const p = prev[id];
+        if (!p) continue;
+        if (!cards[id].normal.length && p.normal?.length) cards[id].normal = p.normal;
+        if (!cards[id].golden.length && p.golden?.length) cards[id].golden = p.golden;
+        if (p.mutters) for (const k of MOODS) {
+          if (!cards[id].mutters[k]?.length && p.mutters[k]?.length) cards[id].mutters[k] = p.mutters[k];
+        }
       }
     } catch (e) {}
   }

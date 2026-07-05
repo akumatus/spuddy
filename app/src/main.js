@@ -48,6 +48,10 @@ const brain = new SpudBrain({
   canAct: () =>
     !anim().tucked && !anim().asleep && !ui.isOverlayOpen() && !chatBusy && !weaving &&
     document.visibilityState !== 'hidden' && document.activeElement !== $('chatInput'),
+  // fresh daily mutters (pre-generated server-side, no real-time LLM); ~half of
+  // idle mutters come from today's batch, the rest from the built-in lines
+  serverMutters: (mood) => remote.mutterPool(activeChar().id, mood),
+  mutterFreshChance: 0.5,
   on: {
     mutter: (text) => showMutter(text),
     speak: (text, ms) => bubble(text, { hold: ms }),

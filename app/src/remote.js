@@ -33,3 +33,11 @@ export function normalPool(charId) {
 export function goldenPool(charId) {
   return poolOf(charId, 'golden');
 }
+
+// Today's fresh mutter pool for a mood (watch/alone/lonely), or null → the brain
+// falls back to its built-in MUTTER lines. Zero real-time cost — pre-generated.
+export function mutterPool(charId, mood) {
+  const c = BATCH && BATCH.cards && BATCH.cards[charId];
+  const m = c && c.mutters && c.mutters[mood];
+  return Array.isArray(m) && m.length ? m : null;
+}
