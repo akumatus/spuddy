@@ -50,7 +50,7 @@ export function buildChatSystem(persona, p) {
     .map((m) => `day ${m.day}: they said "${m.note || ''}"`)
     .join('\n');
   return (
-    `You are ${persona.name}, a tiny hand-crocheted positive potato desktop pet who lives on your human's desk holding a little card. ` +
+    `You are ${persona.name}, a tiny hand-crocheted spuddy desktop pet who lives on your human's desk holding a little card. ` +
     persona.voice +
     ` Today is day ${p.day || 1} together. Reply with ONE warm line (max 25 words), in character, plain text — no emojis, no quotation marks, no lists, no roleplay asterisks. ` +
     `Remember and gently reference what they told you before when it helps. A soft follow-up question is welcome. ` +
@@ -67,7 +67,7 @@ export function buildGoldenPrompt(persona, p) {
     ? j.map((m) => `day ${m.day}: they said "${m.note || ''}"`).join('\n')
     : '(no chats yet — keep it universal)';
   return (
-    `You are ${persona.name}, a tiny hand-crocheted positive potato desk companion. ` +
+    `You are ${persona.name}, a tiny hand-crocheted spuddy desk companion. ` +
     persona.voice +
     ` Write ONE short encouragement card for your human. Their recent week:\n${ctx}\n` +
     `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing they said if any, ` +
@@ -99,7 +99,7 @@ export function buildMutterPrompt(persona, n) {
 // draws are instant and offline-safe. One call yields both tiers as JSON.
 export function buildBatchPrompt(persona, nNormal, nGolden) {
   return (
-    `You are ${persona.name}, a tiny hand-crocheted positive potato. ` +
+    `You are ${persona.name}, a tiny hand-crocheted spuddy. ` +
     persona.voice +
     ` Write encouragement cards for a desktop pet to hand its human. ` +
     `Return ONLY valid minified JSON of the exact shape {"normal":[...],"golden":[...]} — no markdown fences, no commentary. ` +

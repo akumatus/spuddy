@@ -1,8 +1,16 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 
+// name used by Electron APIs (userData path, notifications, menu). The dock
+// tooltip / menu-bar label additionally need the bundle plist — see
+// scripts/set-dev-name.cjs (dev) and the electron-builder config (packaged).
+app.setName('Spuddy');
+
 const WIN_W = 680;
 const WIN_H = 640;
+
+// app icon — design 4b「从底边升起」, rebuilt by scripts/make-icon.cjs
+const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 
 let win = null;
 let tray = null;
@@ -14,6 +22,7 @@ function createWindow() {
     height: WIN_H,
     x: workArea.x + workArea.width - WIN_W - 8,
     y: workArea.y + workArea.height - WIN_H,
+    icon: ICON_PATH,
     transparent: true,
     frame: false,
     resizable: false,
@@ -30,6 +39,11 @@ function createWindow() {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+
+  // Null out the reference once the native window is gone, so the cursor /
+  // sedentary timers below stop poking a destroyed object ("Object has been
+  // destroyed" on quit).
+  win.on('closed', () => { win = null; });
 
   win.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) console.log(`[renderer:${level}]`, message);
@@ -66,11 +80,13 @@ function createWindow() {
 
 function createTray() {
   try {
-    const img = nativeImage
-      .createFromPath(path.join(__dirname, '..', 'public', 'chars', 'char-spud.png'))
-      .resize({ width: 18, height: 18 });
+    // monochrome template — macOS tints it for the light/dark menu bar
+    const img = nativeImage.createFromPath(
+      path.join(__dirname, '..', 'assets', 'trayTemplate.png')
+    );
+    img.setTemplateImage(true);
     tray = new Tray(img);
-    tray.setToolTip('Positive Potato');
+    tray.setToolTip('Spuddy');
     tray.setContextMenu(
       Menu.buildFromTemplate([
         {
@@ -78,7 +94,7 @@ function createTray() {
           click: () => (win.isVisible() ? win.hide() : win.show()),
         },
         { type: 'separator' },
-        { label: 'Quit Positive Potato', click: () => app.quit() },
+        { label: 'Quit Spuddy', click: () => app.quit() },
       ])
     );
   } catch (e) {
@@ -162,14 +178,14 @@ function reportEdge() {
 }
 
 // ── app config + server gateway ──
-// ~/.config/positive-potato/config.json — { serverUrl, appToken, deviceId, apiKey }
+// ~/.config/spuddy/config.json — { serverUrl, appToken, deviceId, apiKey }
 //   serverUrl : the Cloudflare Worker (below) — when set, all AI goes through it
 //   appToken  : optional shared token sent as x-pp-app
 //   deviceId  : stable anonymous id the server meters a daily budget against
 //   apiKey    : legacy local Anthropic key, used only when no serverUrl is set
 // serverUrl/appToken may also come from env (PP_SERVER_URL / PP_APP_TOKEN).
 const fs = require('fs');
-const CONFIG_DIR = path.join(app.getPath('home'), '.config', 'positive-potato');
+const CONFIG_DIR = path.join(app.getPath('home'), '.config', 'spuddy');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const CARDS_CACHE = path.join(CONFIG_DIR, 'cards-cache.json');
 
@@ -274,7 +290,7 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       .map((m) => `day ${m.day}: they said "${m.note || ''}"`)
       .join('\n');
     const system =
-      `You are ${p.charName}, a tiny hand-crocheted positive potato desktop pet who lives on your human's desk holding a little card. ` +
+      `You are ${p.charName}, a tiny hand-crocheted spuddy desktop pet who lives on your human's desk holding a little card. ` +
       p.voice +
       ` Today is day ${p.day} together. Reply with ONE warm line (max 25 words), in character, plain text — no emojis, no quotation marks, no lists, no roleplay asterisks. ` +
       `Remember and gently reference what they told you before when it helps. A soft follow-up question is welcome. ` +
@@ -323,7 +339,7 @@ ipcMain.handle('ai-golden', async (_e, p) => {
       ? j.map((m) => `day ${m.day}: they said "${m.note || ''}"`).join('\n')
       : '(no chats yet — keep it universal)';
     const prompt =
-      `You are ${p.charName}, a tiny hand-crocheted positive potato desk companion. ` +
+      `You are ${p.charName}, a tiny hand-crocheted spuddy desk companion. ` +
       p.voice +
       ` Write ONE short encouragement card for your human. Their recent week:\n${ctx}\n` +
       `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing they said if any, ` +
@@ -365,7 +381,7 @@ ipcMain.handle('cards-today', async () => {
 // renderer only sees the cursor while it hovers the window itself.
 let lastCursor = { x: -1, y: -1 };
 setInterval(() => {
-  if (!win || !win.isVisible()) return;
+  if (!win || win.isDestroyed() || !win.isVisible()) return;
   const p = screen.getCursorScreenPoint();
   if (Math.abs(p.x - lastCursor.x) + Math.abs(p.y - lastCursor.y) < 3) return;
   lastCursor = p;
@@ -376,7 +392,7 @@ setInterval(() => {
 // ── sedentary watch: 90 min of continuous activity → stretch reminder ──
 let activeSec = 0;
 setInterval(() => {
-  if (!win) return;
+  if (!win || win.isDestroyed()) return;
   const idle = powerMonitor.getSystemIdleTime();
   if (idle < 120) activeSec += 30;
   else if (idle >= 300) activeSec = 0;
@@ -394,6 +410,14 @@ if (!app.requestSingleInstanceLock()) {
     if (win) win.show();
   });
   app.whenReady().then(() => {
+    // dock icon on macOS (BrowserWindow.icon doesn't cover the dock there)
+    if (process.platform === 'darwin' && app.dock) {
+      try {
+        app.dock.setIcon(nativeImage.createFromPath(ICON_PATH));
+      } catch (e) {
+        // non-fatal — just leaves the default Electron dock icon
+      }
+    }
     createWindow();
     createTray();
   });

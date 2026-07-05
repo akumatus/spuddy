@@ -62,6 +62,7 @@ export class CardScreen {
     this.basePos = new THREE.Vector3();
     this.height = 1;
     this.pulse = false;
+    this.thinking = false; // chat: animate three dots while the AI writes
     this.raiseStart = 0;
     this.content = { top: '· ♥ ·', main: 'tap me :)', footL: '', footR: '' };
 
@@ -179,6 +180,26 @@ export class CardScreen {
       ctx.fill();
     }
 
+    // chat "thinking" — three dots that bounce in a staggered wave while the
+    // AI writes, redrawn every frame from update(). Drawn straight on the card
+    // (its soul), not a bubble, and centered like the message it replaces.
+    if (this.thinking) {
+      const now = performance.now();
+      const r = Math.min(W, H) * 0.05;
+      const gap = r * 3.4;
+      ctx.fillStyle = '#8A7455';
+      for (let i = 0; i < 3; i++) {
+        const w = 0.5 + 0.5 * Math.sin(now / 175 - i * 1.1); // ~1.1s loop, each dot trails
+        ctx.globalAlpha = 0.34 + 0.56 * w;
+        ctx.beginPath();
+        ctx.arc(W / 2 + (i - 1) * gap, H / 2 - r * 1.15 * w, r * (0.72 + 0.42 * w), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      this.texture.needsUpdate = true;
+      return;
+    }
+
     // fixed-aspect content box, centered — quad aspects vary per scan,
     // but the layout inside stays identical across the crew.
     // Text is sized for readability over hand clearance: it fills nearly the
@@ -237,6 +258,11 @@ export class CardScreen {
     this.pulse = v;
   }
 
+  setThinking(v) {
+    this.thinking = v;
+    this.redraw(); // start/stop the dots on this frame instead of waiting a tick
+  }
+
   raise() {
     this.raiseStart = performance.now();
   }
@@ -253,6 +279,9 @@ export class CardScreen {
       this.material.emissive.set('#ffffff');
       this.material.emissiveIntensity = 0.35;
     }
+
+    // keep the thinking dots moving — redraw the card texture each frame
+    if (this.thinking) this.redraw();
 
     // Rigged card: the Animator's card track ('present' lift/tilt/wiggle,
     // idle-life drift) owns the transform — only the texture/pulse live here.

@@ -60,7 +60,7 @@ curl -s -X POST localhost:8787/chat -H 'x-pp-geo: CN' \
 ## Point the app at it
 
 In the Electron app, set the server URL + token (env or the app config file
-`~/.config/positive-potato/config.json`):
+`~/.config/spuddy/config.json`):
 
 ```jsonc
 { "serverUrl": "https://<your-worker>.workers.dev", "appToken": "<APP_TOKEN>" }

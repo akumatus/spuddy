@@ -134,7 +134,7 @@ export function showDrawAnim() {
       <div class="inner">
         <div class="ring">♥</div>
         <div class="label">today's card</div>
-        <div class="brand">POSITIVE POTATO</div>
+        <div class="brand">SPUDDY</div>
       </div>
     </div>`);
 }

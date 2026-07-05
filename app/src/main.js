@@ -392,6 +392,7 @@ async function chatSend() {
   hideBubble();
   anim().setMode('rock'); // 08 · Golden Weave — while AI writes
   scene.setCardPulse(true);
+  scene.setCardThinking(true); // animated three dots on the card while he thinks
   updateCardScreen();
 
   state.chat.push({ who: 'user', text: note });
@@ -407,6 +408,7 @@ async function chatSend() {
   chatBusy = false;
   anim().setMode('idle');
   scene.setCardPulse(false);
+  scene.setCardThinking(false);
   updateCardScreen();
 
   let tag = 'calm';
@@ -548,13 +550,6 @@ function debugRedraw() {
 function debugReset() {
   store.reset();
   location.reload();
-}
-
-if (pp.debug) {
-  $('dbgDrawBtn').classList.remove('hidden');
-  $('dbgResetBtn').classList.remove('hidden');
-  $('dbgDrawBtn').onclick = () => { sfx.pop(); debugRedraw(); };
-  $('dbgResetBtn').onclick = () => { sfx.pop(); debugReset(); };
 }
 
 // ── input wiring ──

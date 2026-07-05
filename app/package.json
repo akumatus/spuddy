@@ -1,15 +1,23 @@
 {
-  "name": "positive-potato",
-  "productName": "Positive Potato",
+  "name": "spuddy",
+  "productName": "Spuddy",
   "version": "0.1.0",
-  "description": "A crocheted positive potato desktop pet that brings you encouragement",
+  "description": "A crocheted spuddy desktop pet that brings you encouragement",
   "main": "electron/main.cjs",
   "private": true,
   "scripts": {
     "postinstall": "node scripts/copy-assets.cjs",
-    "dev": "vite build && electron .",
-    "start": "vite build && electron .",
+    "icon": "node scripts/make-icon.cjs",
+    "dev": "node scripts/set-dev-name.cjs && vite build && electron .",
+    "start": "node scripts/set-dev-name.cjs && vite build && electron .",
     "build": "vite build"
+  },
+  "build": {
+    "appId": "com.spuddy.app",
+    "productName": "Spuddy",
+    "mac": {
+      "icon": "assets/icon.icns"
+    }
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.4.1",

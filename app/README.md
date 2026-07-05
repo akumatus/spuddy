@@ -1,8 +1,10 @@
-# Positive Potato 🥔
+# Spuddy 🥔
 
-一只住在你桌面右下角的钩织土豆，举着小卡片给你正能量。基于 Claude Design 的「Positive Potato 桌宠原型」实现。
+A hand-crocheted potato that lives in the bottom-right corner of your desktop,
+holding a little card and handing you encouragement. Built from the Claude
+Design "Spuddy desktop-pet prototype".
 
-## 运行
+## Run
 
 ```bash
 cd app
@@ -10,50 +12,130 @@ npm install
 npm start
 ```
 
-菜单栏有一个小土豆托盘图标：Show / Hide、Quit。
+There's a small potato tray icon in the menu bar: Show / Hide, Quit.
 
-## 玩法
+> Dev note: `npm start` / `npm run dev` run `scripts/set-dev-name.cjs` first so the
+> dock tooltip and menu-bar name read "Spuddy" instead of "Electron" (the dev
+> bundle's default). Packaged builds get the name from the `build` config.
 
-- **戳它（身体）** — 随机一种反应：压扁 / 跳 / 不倒翁 / 张望 / 转圈 / 打喷嚏 / 跳跃转体…（拆件角色还会翻白眼、颠卡片、挥手），小概率抽中完整小剧场（追尾巴、哼小曲、读卡片、颠卡片表演、练习挥手——带自言自语和音效）；最近两个动作不会重复，反应播放期间连点不叠加——不会弹窗。打瞌睡和敲玻璃搭讪只由它自己的状态触发
-- **点它手里的白卡片** — 唯一打开卡片弹窗的方式：当天没抽过就抽当日卡片（卡片上写着 tap me :)），抽过则重看今日卡片；点 Keep it ♥ 收进卡册
-- **移动鼠标** — 它会转头看你的光标（眼珠先到、头再跟上）；发呆时自己眨眼、扫视
-- **第 3、8、13… 天** — 金线卡片（Golden Stitch）：AI 会根据你聊过的话为你亲手织一张
-- **悬停土豆** — 左侧出现聊天框和图标；跟它说说心事，它会记住（Memory 标签页可随时删除）
-- **卡册（♥ 图标）** — Cards / Buddies / Memory 三个标签页；集卡解锁 5 位新伙伴（Taco、Sprinkles、Bloom、Leo、Prof），解锁后可切换值班角色
-- **z z 图标** — 把它收起来打个盹，点小脑袋叫醒
-- **拖拽** — 把整只土豆拖到屏幕任何地方；横向拖会把它甩得转起来，松手后欠阻尼弹簧回正
-- 连续工作 90 分钟会提醒你伸展；23 点后会劝你睡觉
-- **它自己会过日子（7a 人格引擎）** — 三条需求（精力/无聊/想你）随时间涨落：无聊了自娱自乐（追尾巴、颠卡片、给自己读卡片、练挥手、哼小曲）；困了打瞌睡（点头栽倒又猛地扶正，戳一下惊醒）；想你想过头会敲玻璃搭讪——回应它（戳一下）会欢呼，被无视只蔫 3 秒且退避翻倍绝不烦人；离开 30 秒以上回来会被迎接。全程用虚线手写泡喃喃自语，开口说话才用实线泡
+## What it does
 
-## 接入 Claude API（聊天 + 金线卡片）
+- **Poke him (the body)** — a random reaction each time: squash / hop / wobble /
+  peek / spin / sneeze / jump-twist… (part-rigged characters also roll their
+  eyes, flip the card, wave), with a small chance of a full skit (chasing his
+  tail, humming, reading the card, a card-flip routine, wave practice — with
+  mutters and sound). The last two actions never repeat, and rapid pokes don't
+  stack while a reaction is playing — no popups. Dozing off and tapping on the
+  glass to say hi are triggered only by his own state.
+- **Tap the white card in his hands** — the only way to open the card popup: if
+  you haven't drawn today, it draws the daily card (which reads `tap me :)`);
+  otherwise it re-shows today's card. Tap `Keep it ♥` to file it into the book.
+- **Move the mouse** — he turns to follow your cursor (eyes lead, head follows);
+  when idle he blinks and glances around on his own.
+- **Days 3, 8, 13…** — a Golden Stitch card: the AI knits one by hand from the
+  things you've talked about.
+- **Hover the potato** — a chat box and icons appear on the left; tell him what's
+  on your mind and he'll remember (delete anything anytime in the Memory tab).
+- **Card book (♥ icon)** — three tabs: Cards / Buddies / Memory. Collecting cards
+  unlocks 5 new buddies (Taco, Sprinkles, Bloom, Leo, Prof); once unlocked you
+  can switch who's on duty.
+- **z z icon** — tuck him away for a nap; tap his little head to wake him.
+- **Drag** — drag the whole potato anywhere on screen; a horizontal fling sets
+  him spinning and he settles back with an underdamped spring.
+- Working 90 minutes straight prompts a stretch; after 11pm he nudges you to
+  sleep.
+- **He lives his own life (7a personality engine)** — three needs (energy /
+  boredom / missing-you) rise and fall over time: bored, he entertains himself
+  (chasing his tail, flipping the card, reading it to himself, wave practice,
+  humming); sleepy, he dozes (nods off and jerks upright, a poke startles him
+  awake); missing you too much, he taps the glass to get your attention —
+  responding (a poke) makes him cheer, being ignored just wilts him for 3s and
+  doubles his back-off so he never nags; coming back after 30s+ away earns a
+  welcome. He mutters in dashed hand-drawn bubbles throughout, and only uses a
+  solid bubble when he actually speaks.
 
-任选其一，都不会进仓库：
+## Claude API (chat + Golden Stitch)
 
-1. 把 key 写进 `~/.config/positive-potato/config.json`：
+Pick any one — none of these enter the repo:
+
+1. Put the key in `~/.config/spuddy/config.json`:
    ```json
    { "apiKey": "sk-ant-..." }
    ```
-2. 或设置环境变量 `ANTHROPIC_API_KEY`
-3. 或安装 `ant` CLI 后 `ant auth login`
+2. Or set the `ANTHROPIC_API_KEY` environment variable.
+3. Or install the `ant` CLI and run `ant auth login`.
 
-没有 key 时自动降级为内置台词，全部功能仍可用。
+With no key it falls back to built-in lines automatically — everything still
+works.
 
-## 结构
+## App icon
 
-- `electron/main.cjs` — 透明置顶窗口、托盘、Claude API 调用（key 只在主进程）、久坐检测、全局光标轮询
-- `src/motions.js` — 设计稿 Turn 6/7 的缓动关键帧动作系统（移植自 `claude-design/project/lib/spud-scene2.js`）：分段缓动、部件轨道（爪/眼/卡）、待机生命感、光标跟随、甩转弹簧、doze/hum 待机模式
-- `src/brain.js` — 7a 人格引擎（移植自 `claude-design/project/lib/spud-brain.js`）：需求驱动的自主行为（0.2s 决策 tick），四维人格（好奇/粘人/戏精/嗜睡，默认 65/60/55/35，存在 `state.personality`）；presence 来自全局光标是否在动
-- `src/content.js` — 设计稿的全部文案、人设、解锁规则
-- `src/cardscreen.js` — 模型手中卡片上的动态文字（CanvasTexture）+ 金织自发光脉冲；拆件模型的卡片位移由动作系统驱动
-- `src/scene.js` — three.js 场景：部件铰链（爪=肩点 · 眼=自心 · 卡=底边）、接触阴影、镜头呼吸、PBR 光照（RoomEnvironment IBL + ACES tone mapping + 暖主光/rim；legacy 烘焙材质关 tone mapping 保持原样）
-- `public/models/*.glb` — 拆件角色（spud、donut、taco、grad）由 Rodin **PBR 导出**（`base_basic_pbr.glb`）经 `scripts/process_rodin_pbr.mjs` 处理：识别部件（body / card / 两侧手 / 最小的两颗眼；多出来的装饰件如 taco 生菜壳、毕业帽命名为 `trim`，无绑定槽，静态跟随身体一起挤压/位移/旋转）、albedo 深腔扩散填充（眼睛与 trim UV 一同保护——它们的近黑是本色，别抹掉黑帽子）、图集边缘填充、简化 + Draco，保留 baseColor/normal/metallicRoughness 三张贴图交给实时光照——PBR 导出不含烘焙光照层，遮挡黑/接触阴影/接缝压痕从根上不存在；其余角色（bloom、leo）暂为单网格扫描，由 `3d-models/*.usdz` 经 Blender 转换
-- `public/models/cards.json` — 每个角色卡片平面的标定数据：拆件角色由 `process_rodin_pbr.mjs` 输出，单网格角色由 `scripts/detect_cards.py` 生成
+The app icon is design 4b「从底边升起」(rising from the bottom edge): the potato
+rises from the bottom of a soft-blue squircle, holding its own white card with a
+red heart. Rebuild all icon assets with:
 
-## 卡片平面标定（新角色接入时）
+```bash
+npm run icon
+```
+
+`scripts/make-icon.cjs` composes the art from `public/chars/char-spud.png` and
+writes:
+
+- `assets/icon.png` — 1024px master, and `assets/icon.icns` (16→1024 iconset)
+  for the dock / packaged app.
+- `assets/trayTemplate.png` (+`@2x`) — a monochrome menu-bar template (macOS
+  tints it for the light/dark bar).
+
+## Project layout
+
+- `electron/main.cjs` — transparent always-on-top window, tray, dock icon,
+  Claude API calls (the key never leaves the main process), sedentary detection,
+  global cursor polling.
+- `src/motions.js` — the eased-keyframe motion system from prototype Turn 6/7
+  (ported from `claude-design/project/lib/spud-scene2.js`): segmented easing,
+  part tracks (claws / eyes / card), idle life, cursor follow, fling spring,
+  doze/hum idle modes.
+- `src/brain.js` — the 7a personality engine (ported from
+  `claude-design/project/lib/spud-brain.js`): need-driven autonomous behavior
+  (0.2s decision tick), four personality axes (curious / clingy / dramatic /
+  sleepy, default 65/60/55/35, stored in `state.personality`); presence comes
+  from whether the global cursor is moving.
+- `src/content.js` — all copy, personas, and unlock rules from the design.
+- `src/cardscreen.js` — the live text on the card in the model's hands
+  (CanvasTexture) plus the Golden Stitch glow pulse; part-rigged models get their
+  card displacement from the motion system.
+- `src/scene.js` — the three.js scene: part hinges (claw = shoulder point · eye =
+  own center · card = bottom edge), contact shadow, camera breathing, PBR
+  lighting (RoomEnvironment IBL + ACES tone mapping + warm key/rim; legacy baked
+  materials keep tone mapping off to stay as-is).
+- `src/store.js` · `src/ui.js` · `src/sfx.js` · `src/remote.js` — persistence,
+  DOM UI (bubbles / panel / book), sound, and the server gateway client.
+- `public/models/*.glb` — part-rigged characters (spud, donut, taco, grad)
+  exported by Rodin **PBR export** (`base_basic_pbr.glb`) and processed by
+  `scripts/process_rodin_pbr.mjs`: part detection (body / card / two side hands /
+  the two smallest eyes; extra trim like taco's lettuce shell or the grad cap is
+  named `trim`, has no rig slot, and rides the body statically for
+  squash/displace/rotate), albedo deep-cavity diffusion fill (eyes and trim are
+  protected along with their UVs — their near-black is intentional, don't wipe
+  out the black cap), atlas edge padding, simplify + Draco, keeping the
+  baseColor/normal/metallicRoughness maps for real-time lighting — the PBR export
+  carries no baked lighting layer, so occlusion black / contact shadow / seam
+  creases simply don't exist to begin with; the remaining characters (bloom, leo)
+  are still single-mesh scans converted from `3d-models/*.usdz` via Blender.
+- `public/models/cards.json` — per-character card-plane calibration: part-rigged
+  characters are emitted by `process_rodin_pbr.mjs`, single-mesh characters by
+  `scripts/detect_cards.py`.
+
+## Card-plane calibration (when adding a character)
 
 ```bash
 /Applications/Blender.app/Contents/MacOS/Blender -b -P scripts/detect_cards.py -- \
   public/models/<id>.glb /tmp/<id>.json /tmp/<id>
 ```
 
-脚本按「高亮度 + 低饱和 + 朝前法线 + 下半身」筛选卡片面片，RANSAC 拟合平面，输出中心/法线/宽高/前移量（卡面外鼓补偿），并渲染 `-front/-side/-tex` 三张验证图（红色标定块应与贴图参照图里的白卡重合）。确认无误后把 JSON 合入 `public/models/cards.json`。
+The script picks card faces by "high brightness + low saturation + forward
+normal + lower body", fits a plane with RANSAC, and outputs the center / normal /
+width-height / forward offset (compensating for the card's outward bulge), plus
+`-front/-side/-tex` verification renders (the red calibration block should line
+up with the white card in the texture reference). Once it checks out, merge the
+JSON into `public/models/cards.json`.

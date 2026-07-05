@@ -1,5 +1,5 @@
 // All written content and rules come from the Claude Design prototype
-// (claude-design/project/Positive Potato 桌宠原型.dc.html) — keep in sync with it.
+// (claude-design/project/Spuddy 桌宠原型.dc.html) — keep in sync with it.
 
 // Daily draw pool — always offline-safe (drawn by day index, never the LLM).
 // The first 10 come from the design prototype; the rest are app-side additions

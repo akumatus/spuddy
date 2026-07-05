@@ -229,6 +229,10 @@ export class PetScene {
     this.cardScreen.setPulse(v);
   }
 
+  setCardThinking(v) {
+    this.cardScreen.setThinking(v);
+  }
+
   // what the pointer landed on: 'card' (the held white card — but only its
   // center; the rim reads as body, see CARD_DRAW_ZONE), 'body', or null (air).
   // Closest hit wins, so a card tucked behind a paw still counts as body.
