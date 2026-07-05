@@ -179,9 +179,14 @@ html, body {
 }
 #hoverpanel.show {
   opacity: 1;
-  pointer-events: auto;
   transform: translateX(0);
 }
+/* Only the visible controls catch the mouse — the panel's empty column space
+   (left of the narrow icon row, the row gaps) stays click-through so the
+   reactive footprint hugs the icons + chat box instead of a big rectangle. */
+#hoverpanel.show #said,
+#hoverpanel.show #icons,
+#hoverpanel.show #chatrow { pointer-events: auto; }
 #said {
   max-width: 220px;
   text-align: right;
@@ -228,7 +233,9 @@ html, body {
   animation: pp-sparkle 1.4s ease-in-out infinite;
 }
 /* buddies button — placeholder (original peek-head look) pending a redesign */
-#buddiesBtn { transform: rotate(2.5deg); overflow: hidden; }
+#buddiesBtn { transform: rotate(2.5deg); }
+/* clip the peek-head to the button, but let the notification dot escape the corner */
+#buddiesBtn .peekclip { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; }
 #buddiesBtn .zzlabel {
   position: absolute;
   top: 4px;

@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('pp', {
   },
   win: {
     setIgnoreMouse: (v) => ipcRenderer.send('set-ignore-mouse', v),
-    moveBy: (dx, dy) => ipcRenderer.send('move-by', dx, dy),
+    moveBy: (dx, dy) => ipcRenderer.invoke('move-by', dx, dy),
     setModal: (v) => ipcRenderer.send('set-modal', v),
     modalGeometry: () => ipcRenderer.invoke('modal-geometry'),
   },

@@ -66,11 +66,15 @@ parts.sort((a, c) => c.vol - a.vol);
 // biggest = body; flattest wide = card. Of what's left, hands are the two
 // most lateral meshes (arms reaching out to the sides) and eyes the two
 // smallest (little symmetric buttons). Anything still unclaimed — a taco's
-// shell, a grad cap — is decorative: it gets a neutral 'trim' name so the
-// 6-part rig (scene.js rigParts) ignores it and it simply rides the body
-// (root squash/move/spin) statically, with no hinge of its own.
-// NB: don't pick eyes/hands by height — extra toppings can sit above the
-// real eyes and steal their slot.
+// shell, a grad cap, a flower bouquet, the pot half the face is baked onto —
+// is decorative: it gets a neutral 'trim' name so the 6-part rig (scene.js
+// rigParts) ignores it and it simply rides the body (root squash/move/spin)
+// statically, with no hinge of its own.
+// NB: don't pick eyes/hands by height — extra toppings can sit above the real
+// eyes and steal their slot. And only accept the two smallest as eyes if they
+// are actually eye-sized: some Rodin exports bake the bead eyes into the body
+// and give us no eye mesh at all. Then eyes stay painted-on and fixed (no
+// blink / dart) — which is fine, that's how the legacy single-mesh crew looks.
 const body = parts[0];
 const rest = parts.slice(1);
 const card = rest.reduce((best, p) => {
@@ -81,7 +85,10 @@ const card = rest.reduce((best, p) => {
 const pool = rest.filter((p) => p !== card);
 const byX = [...pool].sort((a, c) => a.b.center[0] - c.b.center[0]);
 const hands = pool.length >= 2 ? [byX[0], byX[byX.length - 1]] : [];
-const eyes = pool.filter((p) => !hands.includes(p)).sort((a, c) => a.vol - c.vol).slice(0, 2);
+const eyeCand = pool.filter((p) => !hands.includes(p)).sort((a, c) => a.vol - c.vol).slice(0, 2);
+// eye-sized = under 5% of the body's bbox volume; a real bead pair clears this
+// by orders of magnitude, a stray body/topping never does.
+const eyes = eyeCand.length === 2 && eyeCand.every((p) => p.vol < 0.05 * body.vol) ? eyeCand : [];
 const name = (p) => {
   if (p === body) return 'body';
   if (p === card) return 'card';

@@ -110,18 +110,21 @@ writes:
   materials keep tone mapping off to stay as-is).
 - `src/store.js` · `src/ui.js` · `src/sfx.js` · `src/remote.js` — persistence,
   DOM UI (bubbles / panel / book), sound, and the server gateway client.
-- `public/models/*.glb` — part-rigged characters (spud, donut, taco, grad)
-  exported by Rodin **PBR export** (`base_basic_pbr.glb`) and processed by
-  `scripts/process_rodin_pbr.mjs`: part detection (body / card / two side hands /
-  the two smallest eyes; extra trim like taco's lettuce shell or the grad cap is
-  named `trim`, has no rig slot, and rides the body statically for
-  squash/displace/rotate), albedo deep-cavity diffusion fill (eyes and trim are
-  protected along with their UVs — their near-black is intentional, don't wipe
-  out the black cap), atlas edge padding, simplify + Draco, keeping the
+- `public/models/*.glb` — the whole crew (spud, donut, taco, grad, bloom, leo) is
+  part-rigged, exported by Rodin **PBR export** (`base_basic_pbr.glb`) and
+  processed by `scripts/process_rodin_pbr.mjs`: part detection (body / card / two
+  side hands / the two smallest eyes; extra trim like taco's lettuce shell, the
+  grad cap, or bloom's bouquet + pot and leo's mane is named `trim`, has no rig
+  slot, and rides the body statically for squash/displace/rotate), albedo
+  deep-cavity diffusion fill (eyes and trim are protected along with their UVs —
+  their near-black is intentional, don't wipe out the black cap or the bead
+  eyes), atlas edge padding, simplify + Draco, keeping the
   baseColor/normal/metallicRoughness maps for real-time lighting — the PBR export
   carries no baked lighting layer, so occlusion black / contact shadow / seam
-  creases simply don't exist to begin with; the remaining characters (bloom, leo)
-  are still single-mesh scans converted from `3d-models/*.usdz` via Blender.
+  creases simply don't exist to begin with. When an export bakes the bead eyes
+  into the body instead of leaving them as separate meshes (bloom, leo), no eye
+  mesh is rigged and the painted-on eyes stay fixed — no blink/dart, same as the
+  legacy single-mesh look.
 - `public/models/cards.json` — per-character card-plane calibration: part-rigged
   characters are emitted by `process_rodin_pbr.mjs`, single-mesh characters by
   `scripts/detect_cards.py`.

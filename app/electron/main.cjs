@@ -107,11 +107,18 @@ ipcMain.on('set-ignore-mouse', (_e, ignore) => {
   if (win) win.setIgnoreMouseEvents(ignore, { forward: true });
 });
 
-ipcMain.on('move-by', (_e, dx, dy) => {
-  if (!win) return;
+// Returns how many pixels the window fell short of the requested vertical move —
+// macOS pins a window's top under the menu bar, so a drag toward the top edge
+// stalls there. The renderer uses the shortfall to slide the potato up *within*
+// the window so he can still be dragged to the very top of the screen.
+ipcMain.handle('move-by', (_e, dx, dy) => {
+  if (!win) return 0;
   const [x, y] = win.getPosition();
-  win.setPosition(Math.round(x + dx), Math.round(y + dy));
+  const targetY = Math.round(y + dy);
+  win.setPosition(Math.round(x + dx), targetY);
   reportEdge();
+  const [, actualY] = win.getPosition();
+  return actualY - targetY; // > 0 ⇒ clamped below where we asked (couldn't rise)
 });
 
 // ── modal mode: while an overlay is open, blow the (normally small, bottom-

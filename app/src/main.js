@@ -14,9 +14,13 @@ const $ = (id) => document.getElementById(id);
 const pp = window.pp; // preload bridge
 
 let state = store.load();
+// dev: PP_DEBUG=1 unlocks the whole crew so you can switch characters and test
+// them without grinding each unlock condition
+if (pp?.debug) state.unlockedIds = CHARS.map((c) => c.id);
 let bookTab = 'cards';
 let bookFilter = 'all';
 let chatBusy = false;
+const chatPending = []; // notes fired while he's mid-reply — answered next, never dropped
 let weaving = false;
 let retapIdx = 0;
 let bubbleTimer = null;
@@ -378,54 +382,74 @@ function tapPet(target) {
 }
 
 // ── chat (heart-to-heart) ──
-async function chatSend() {
+// Sending never blocks: whatever you type goes straight into the transcript and
+// a pending queue. If he's already writing, it folds into his next turn instead
+// of being dropped — so you can fire off several lines in a row.
+function chatSend() {
   const input = $('chatInput');
   const note = (input.value || '').trim();
-  if (!note || chatBusy) return;
+  if (!note) return;
   sfx.pop();
-  chatBusy = true;
   brain.interrupt();
   input.value = '';
   const saidEl = $('said');
   saidEl.textContent = `“${note}”`;
   saidEl.classList.remove('hidden');
   hideBubble();
+
+  state.chat.push({ who: 'user', text: note });
+  chatPending.push(note);
+
+  if (chatBusy) return; // a reply is already brewing — he'll pick this up next
+  runChat();
+}
+
+async function runChat() {
+  chatBusy = true;
   anim().setMode('rock'); // 08 · Golden Weave — while AI writes
   scene.setCardPulse(true);
   scene.setCardThinking(true); // animated three dots on the card while he thinks
   updateCardScreen();
 
-  state.chat.push({ who: 'user', text: note });
-  const ch = activeChar();
-  const res = await pp.ai.reply({
-    charId: ch.id,
-    charName: ch.name,
-    voice: PERS[ch.id].voice,
-    day: state.day,
-    memory: state.journal.slice(-10),
-    messages: state.chat.slice(-12),
-  }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy
+  // Answer everything queued so far; anything typed mid-reply loops back around.
+  while (chatPending.length) {
+    const covered = chatPending.slice(); // the notes this reply speaks to
+    const ch = activeChar();
+    const res = await pp.ai.reply({
+      charId: ch.id,
+      charName: ch.name,
+      voice: PERS[ch.id].voice,
+      day: state.day,
+      memory: state.journal.slice(-10),
+      messages: state.chat.slice(-12),
+    }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy
+    chatPending.splice(0, covered.length); // clear what he just answered; keep mid-flight arrivals
+
+    let tag = 'calm';
+    let reply = chatFallback(ch.id);
+    if (res && res.limited) {
+      // daily real-time budget spent — warm "let's pick this up tomorrow" line
+      reply = limitReply(ch.id);
+    } else if (res && res.text) {
+      tag = res.tag || 'calm';
+      reply = res.text;
+    }
+    reactEmotion(tag);
+    state.chat.push({ who: 'pet', text: reply });
+    state.journal.push({ day: state.day, note: covered.join('\n'), reply });
+    persist();
+    bubble(reply, { hold: 9000, type: true });
+    setTimeout(() => $('said').classList.add('hidden'), 4200);
+
+    // let the reply land before he turns to whatever you said meanwhile
+    if (chatPending.length) await new Promise((r) => setTimeout(r, 1200));
+  }
+
   chatBusy = false;
   anim().setMode('idle');
   scene.setCardPulse(false);
   scene.setCardThinking(false);
   updateCardScreen();
-
-  let tag = 'calm';
-  let reply = chatFallback(ch.id);
-  if (res && res.limited) {
-    // daily real-time budget spent — warm "let's pick this up tomorrow" line
-    reply = limitReply(ch.id);
-  } else if (res && res.text) {
-    tag = res.tag || 'calm';
-    reply = res.text;
-  }
-  reactEmotion(tag);
-  state.chat.push({ who: 'pet', text: reply });
-  state.journal.push({ day: state.day, note, reply });
-  persist();
-  bubble(reply, { hold: 9000, type: true });
-  setTimeout(() => saidEl.classList.add('hidden'), 4200);
 }
 
 // ── Card Book ──
@@ -567,8 +591,12 @@ function hidePanelSoon() {
 }
 stage.addEventListener('mouseenter', showPanel);
 stage.addEventListener('mouseleave', hidePanelSoon);
-panel.addEventListener('mouseenter', showPanel);
-panel.addEventListener('mouseleave', hidePanelSoon);
+// The panel container is click-through now (only its controls catch the mouse),
+// so keep-alive listens on each control instead of the whole panel box.
+for (const el of [$('said'), $('icons'), $('chatrow')]) {
+  el.addEventListener('mouseenter', showPanel);
+  el.addEventListener('mouseleave', hidePanelSoon);
+}
 
 // tap vs drag: dragging the potato moves the whole window; horizontal drag
 // also spins him — release lets the underdamped spring swing him back.
@@ -607,13 +635,23 @@ pp.on('edge', (side) => {
 });
 
 let drag = null;
+// How far the potato is shifted up WITHIN the window. macOS pins the window's
+// top under the menu bar, and he's drawn ~490px below that top, so without this
+// he could never be dragged past mid-screen. When the window stalls at the top,
+// we slide the whole stage up instead so he keeps tracking the cursor to the top.
+let lift = 0;
+const LIFT_MAX = 360; // brings his head to the top edge without clipping it off
+function applyLift() {
+  stage.style.transform = lift ? `translateY(${-lift}px)` : '';
+}
+
 stage.addEventListener('pointerdown', (e) => {
   if (ui.isOverlayOpen()) return; // visible behind the modal, but hands off —
   // dragging would move the fullscreen window and taps could stack modals
   drag = { x: e.screenX, y: e.screenY, moved: false };
   stage.setPointerCapture(e.pointerId);
 });
-stage.addEventListener('pointermove', (e) => {
+stage.addEventListener('pointermove', async (e) => {
   if (!drag) return;
   const dx = e.screenX - drag.x;
   const dy = e.screenY - drag.y;
@@ -623,12 +661,22 @@ stage.addEventListener('pointermove', (e) => {
     anim().setDragging(true);
     wakeFromEdge(); // grabbing a sleeping potato wakes him
   }
-  if (drag.moved) {
-    pp.win.moveBy(dx, dy);
-    anim().dragBy(dx * 0.5);
-    drag.x = e.screenX;
-    drag.y = e.screenY;
+  if (!drag.moved) return;
+  drag.x = e.screenX;
+  drag.y = e.screenY;
+  anim().dragBy(dx * 0.5);
+
+  // Dragging back down: spend the in-window lift before the window itself moves,
+  // so he peels off the top smoothly instead of the window lurching down first.
+  let winDy = dy;
+  if (dy > 0 && lift > 0) {
+    const take = Math.min(lift, dy);
+    lift -= take;
+    winDy -= take;
   }
+  const shortfall = await pp.win.moveBy(dx, winDy); // px the window couldn't rise
+  if (shortfall > 0) lift = Math.min(lift + shortfall, LIFT_MAX);
+  applyLift();
 });
 stage.addEventListener('pointerup', (e) => {
   if (!drag) return;
