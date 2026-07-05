@@ -5,6 +5,10 @@
   "description": "A crocheted spuddy desktop pet that brings you encouragement",
   "main": "electron/main.cjs",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akumatus/spuddy.git"
+  },
   "scripts": {
     "postinstall": "node scripts/copy-assets.cjs",
     "icon": "node scripts/make-icon.cjs",
@@ -41,7 +45,9 @@
     },
     "publish": [
       {
-        "provider": "github"
+        "provider": "github",
+        "owner": "akumatus",
+        "repo": "spuddy"
       }
     ]
   },
