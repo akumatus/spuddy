@@ -650,7 +650,9 @@ stage.addEventListener('pointerup', (e) => {
 });
 
 $('chatInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') chatSend();
+  // Ignore the Enter that only confirms an IME candidate — otherwise chatSend
+  // clears the field and the IME re-commits its text into it, so it never empties.
+  if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) chatSend();
   if (e.key === 'Escape') $('chatInput').blur();
 });
 $('chatInput').addEventListener('focus', () => { brain.interrupt(); anim().setMode('lean'); }); // 04 · Listen Lean
