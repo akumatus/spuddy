@@ -189,7 +189,7 @@ function reportEdge() {
 //   serverUrl : the Cloudflare Worker (below) — when set, all AI goes through it
 //   appToken  : optional shared token sent as x-pp-app
 //   deviceId  : stable anonymous id the server meters a daily budget against
-//   apiKey    : legacy local Anthropic key, used only when no serverUrl is set
+//   apiKey    : local DeepSeek key, used only when no serverUrl is set (dev)
 // serverUrl/appToken may also come from env (PP_SERVER_URL / PP_APP_TOKEN).
 const fs = require('fs');
 const CONFIG_DIR = path.join(app.getPath('home'), '.config', 'spuddy');
@@ -237,44 +237,41 @@ async function serverFetch(pathname, { method = 'GET', body, timeout = 28000 } =
   });
 }
 
-// ── IPC: Claude API fallback (key never enters the renderer) ──
+// ── IPC: local AI fallback (key never enters the renderer) ──
 // Used only when no serverUrl is configured (local dev). Otherwise the Worker
-// holds the keys and picks the provider.
-let anthropic = null;
-let anthropicFailed = false;
-
-function readLocalConfigKey() {
-  return CONFIG.apiKey || null;
-}
-
-function getClient() {
-  if (anthropic || anthropicFailed) return anthropic;
-  try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const Ctor = Anthropic.default || Anthropic;
-    const opts = { timeout: 30_000, maxRetries: 1 };
-    // env / `ant auth login` profile resolve inside the SDK; the config file is the app-local fallback
-    const localKey = !process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN ? readLocalConfigKey() : null;
-    anthropic = localKey ? new Ctor({ ...opts, apiKey: localKey }) : new Ctor(opts);
-  } catch (e) {
-    anthropicFailed = true;
-    anthropic = null;
-  }
-  return anthropic;
-}
-
-const MODEL = 'claude-opus-4-8';
+// holds the keys and picks the provider. Talks to DeepSeek's OpenAI-compatible
+// /chat/completions endpoint — the same provider the Worker uses for CN traffic.
+const LOCAL_API_BASE = process.env.DEEPSEEK_API_BASE || 'https://api.deepseek.com';
+const LOCAL_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const TAG_RE = /^\s*\[(comfort|cheer|proud|calm)\]\s*/i;
+
+function localApiKey() {
+  return process.env.DEEPSEEK_API_KEY || CONFIG.apiKey || null;
+}
 
 function clean(out) {
   return (out || '').trim().replace(/^["'“”]+|["'“”]+$/g, '');
 }
 
-function textOf(response) {
-  for (const block of response.content) {
-    if (block.type === 'text') return block.text;
+// One-shot DeepSeek chat completion. Returns the reply text, or null on any
+// failure (no key, network, non-2xx) so callers fall back to built-in lines.
+async function localChat({ system, messages, maxTokens = 300, temperature = 0.9 }) {
+  const key = localApiKey();
+  if (!key) return null;
+  const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
+  try {
+    const res = await fetch(`${LOCAL_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: LOCAL_MODEL, max_tokens: maxTokens, temperature, messages: msgs }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch (e) {
+    return null;
   }
-  return '';
 }
 
 // Chat reply — persona system prompt + emotion tag, from the design prototype.
@@ -290,8 +287,6 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       return null; // offline / server down → renderer uses its in-voice fallback
     }
   }
-  const client = getClient();
-  if (!client) return null;
   try {
     const mem = (p.memory || [])
       .map((m) => `day ${m.day}: they said "${m.note || ''}"`)
@@ -308,13 +303,7 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       role: m.who === 'user' ? 'user' : 'assistant',
       content: m.text,
     }));
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 300,
-      system,
-      messages,
-    });
-    const raw = clean(textOf(response));
+    const raw = clean(await localChat({ system, messages, maxTokens: 300 }));
     if (!raw) return null;
     const m = raw.match(TAG_RE);
     return {
@@ -338,8 +327,6 @@ ipcMain.handle('ai-golden', async (_e, p) => {
       return null;
     }
   }
-  const client = getClient();
-  if (!client) return null;
   try {
     const j = p.memory || [];
     const ctx = j.length
@@ -351,12 +338,7 @@ ipcMain.handle('ai-golden', async (_e, p) => {
       ` Write ONE short encouragement card for your human. Their recent week:\n${ctx}\n` +
       `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing they said if any, ` +
       `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.`;
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const out = clean(textOf(response));
+    const out = clean(await localChat({ messages: [{ role: 'user', content: prompt }], maxTokens: 200 }));
     return out && out.length > 4 && out.length < 220 ? out : null;
   } catch (e) {
     return null;

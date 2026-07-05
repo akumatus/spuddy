@@ -54,19 +54,23 @@ There's a small potato tray icon in the menu bar: Show / Hide, Quit.
   welcome. He mutters in dashed hand-drawn bubbles throughout, and only uses a
   solid bubble when he actually speaks.
 
-## Claude API (chat + Golden Stitch)
+## AI (chat + Golden Stitch)
 
-Pick any one — none of these enter the repo:
+The app never holds a provider key. Chat and Golden Stitch go through the
+Cloudflare Worker gateway in `server/`, which keeps the key server-side and
+routes to a provider (CN → DeepSeek). Point the app at a gateway in
+`~/.config/spuddy/config.json`:
 
-1. Put the key in `~/.config/spuddy/config.json`:
-   ```json
-   { "apiKey": "sk-ant-..." }
-   ```
-2. Or set the `ANTHROPIC_API_KEY` environment variable.
-3. Or install the `ant` CLI and run `ant auth login`.
+```json
+{ "serverUrl": "http://localhost:8787" }
+```
 
-With no key it falls back to built-in lines automatically — everything still
-works.
+…or via the `PP_SERVER_URL` env var. Run the gateway locally with
+`cd server && cp .dev.vars.example .dev.vars` (add `DEEPSEEK_API_KEY=...`) then
+`npm run dev`. See [`../server/README.md`](../server/README.md).
+
+With no gateway reachable it falls back to built-in lines automatically —
+everything still works.
 
 ## App icon
 
@@ -89,7 +93,7 @@ writes:
 ## Project layout
 
 - `electron/main.cjs` — transparent always-on-top window, tray, dock icon,
-  Claude API calls (the key never leaves the main process), sedentary detection,
+  AI gateway calls (keys stay server-side), sedentary detection,
   global cursor polling.
 - `src/motions.js` — the eased-keyframe motion system from prototype Turn 6/7
   (ported from `claude-design/project/lib/spud-scene2.js`): segmented easing,
