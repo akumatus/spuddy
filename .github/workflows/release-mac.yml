@@ -1,0 +1,47 @@
+name: Release macOS client
+
+# Cuts a macOS build and attaches the .dmg to a GitHub Release.
+# Trigger by pushing a version tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`),
+# or run manually from the Actions tab.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write # electron-builder needs this to create/upload the Release
+
+jobs:
+  build-mac:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # 22.12+ supports require(ESM), which electron-builder 26 needs
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish DMG
+        # Unsigned build (identity: null) — see release notes about first-open on macOS.
+        # --publish always uploads the dmg to a draft GitHub Release for this tag.
+        run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload build artifact
+        # Keeps the dmg on the workflow run too (handy for manual/dispatch runs).
+        uses: actions/upload-artifact@v4
+        with:
+          name: spuddy-mac-dmg
+          path: app/release/*.dmg
+          if-no-files-found: error
