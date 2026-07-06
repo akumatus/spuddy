@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spuddy — a little desktop friend</title>
+  <meta name="description" content="A hand-crocheted potato who lives in the corner of your screen — watches your cursor, plays by itself, and holds up a little card of encouragement. Free for macOS.">
+  <meta name="theme-color" content="#EFE0C4">
+  <link rel="icon" href="assets/icon.png">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="canonical" href="https://spud.cherry.surf/">
+
+  <!-- Open Graph / social -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://spud.cherry.surf/">
+  <meta property="og:title" content="Spuddy — a little desktop friend">
+  <meta property="og:description" content="A hand-crocheted potato who lives in the corner of your screen — watches your cursor, plays by itself, and holds up a little card of encouragement.">
+  <meta property="og:image" content="https://spud.cherry.surf/assets/spuddy-3d.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Spuddy — a little desktop friend">
+  <meta name="twitter:description" content="A hand-crocheted potato who lives on your desktop and holds up a little card of encouragement.">
+  <meta name="twitter:image" content="https://spud.cherry.surf/assets/spuddy-3d.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{font-family:'Nunito',system-ui,-apple-system,'PingFang SC',sans-serif;color:#3E3226;-webkit-font-smoothing:antialiased;background:#EFE0C4}
+    a{color:inherit}
+    img{max-width:100%}
+    ::selection{background:#C9A227;color:#fff}
+    @keyframes spuddyBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+    @keyframes twinkle{0%,100%{opacity:.28;transform:scale(.82)}50%{opacity:1;transform:scale(1.12)}}
+    @keyframes noteFloat{0%{opacity:0;transform:translateY(10px) rotate(-10deg) scale(.65)}25%{opacity:1}100%{opacity:0;transform:translateY(-54px) rotate(12deg) scale(1.2)}}
+    @keyframes zzzFloat{0%{opacity:0;transform:translate(0,10px) scale(.6)}30%{opacity:1}100%{opacity:0;transform:translate(28px,-48px) scale(1.25)}}
+    @keyframes wakeBob{0%,100%{transform:translateY(3px) scale(1.02,0.98)}50%{transform:translateY(-9px) scale(0.98,1.02)}}
+    @keyframes wakeSpin{to{transform:rotate(360deg)}}
+    @keyframes wakeGlow{0%,100%{opacity:.45;transform:scale(0.88)}50%{opacity:.95;transform:scale(1.08)}}
+
+    /* interaction affordances (design used a runtime for these) */
+    .navlink{transition:color .18s}
+    .navlink:hover{color:#3E3226}
+    .gh-icon{transition:background .18s}
+    .gh-icon:hover{background:rgba(62,50,38,0.08)}
+    .gh-btn{transition:all .18s}
+    .gh-btn:hover{background:rgba(233,221,198,0.08);border-color:rgba(233,221,198,0.45)}
+    .btn{transition:transform .18s ease, box-shadow .18s ease}
+    .btn:hover{transform:translateY(-2px)}
+
+    /* responsive layout (the design was a fixed-width desktop mock) */
+    .wrap{max-width:1200px;margin:0 auto}
+    .hero-grid{display:grid;grid-template-columns:1.02fr 0.98fr;gap:24px;align-items:center}
+    .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+    .buddies-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+    .split{display:grid;gap:56px;align-items:center}
+    .split-cards{grid-template-columns:0.92fr 1.08fr}
+    .split-chat{grid-template-columns:1.05fr 0.95fr}
+
+    @media (max-width:920px){
+      .hero-grid{grid-template-columns:1fr;gap:8px}
+      .hero-h1{font-size:clamp(64px,15vw,92px)!important}
+      .hero-stage{height:400px!important}
+      .split{grid-template-columns:1fr!important;gap:34px}
+      .split .split-media-first{order:-1}
+    }
+    @media (max-width:640px){
+      .nav-mid{display:none!important}
+      .feat-grid{grid-template-columns:1fr!important}
+      .buddies-grid{grid-template-columns:1fr 1fr!important}
+      .feat-card{flex-direction:column!important;text-align:center}
+      .feat-card>div:first-child{width:100%!important;height:180px!important}
+      .section-pad{padding-left:22px!important;padding-right:22px!important}
+      .nav-pad{padding-left:20px!important;padding-right:20px!important}
+    }
+  </style>
+</head>
+<body>
+<div style="background:linear-gradient(176deg,#FAF4E6 0%,#F3E7CD 60%,#EBDBBB 100%)">
+
+  <!-- nav -->
+  <nav class="wrap nav-pad" style="display:flex;align-items:center;justify-content:space-between;padding:24px 40px">
+    <div style="display:flex;align-items:center;gap:11px">
+      <img src="assets/icon.png" alt="Spuddy" style="width:40px;height:40px;object-fit:cover;border-radius:11px;box-shadow:0 2px 7px rgba(62,50,38,0.2)">
+      <span style="font-family:'Caveat',cursive;font-weight:700;font-size:32px;line-height:1;color:#3E3226">Spuddy</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:30px">
+      <span class="nav-mid" style="display:flex;align-items:center;gap:30px">
+        <a class="navlink" href="#a-what" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">What it does</a>
+        <a class="navlink" href="#a-cards" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">Cards</a>
+        <a class="navlink" href="#a-buddies" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">Buddies</a>
+      </span>
+      <a class="gh-icon" href="https://github.com/akumatus/spuddy" target="_blank" rel="noopener" title="View source on GitHub" aria-label="Spuddy on GitHub" style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;color:#3E3226;text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.05.14 3 .4 2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.49 5.93.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58C20.57 22.29 24 17.79 24 12.5 24 5.87 18.63.5 12 .5z"/></svg></a>
+    </div>
+  </nav>
+
+  <!-- hero -->
+  <div class="wrap hero-grid section-pad" style="padding:44px 40px 72px">
+    <div>
+      <div style="display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#A98A52;margin-bottom:20px">
+        <span style="width:24px;height:2px;background:#C9A227;display:inline-block"></span>A little desktop friend
+      </div>
+      <h1 class="hero-h1" style="font-size:108px;line-height:0.9;font-weight:900;letter-spacing:-0.035em;margin:0 0 6px;color:#2E251B">Spuddy</h1>
+      <p style="font-family:'Caveat',cursive;font-size:31px;color:#B07C3B;margin:0 0 22px;transform:rotate(-1.5deg)">a crocheted potato for your screen</p>
+      <p style="font-size:20px;line-height:1.55;color:#5E5142;max-width:452px;margin:0 0 32px;text-wrap:pretty">A hand-crocheted potato who lives in the corner of your screen — watches your cursor, plays by itself, and holds up a little card of encouragement.</p>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <a class="btn" href="https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg" download style="display:inline-flex;align-items:center;gap:10px;background:#3E3226;color:#FBF3E2;font-weight:800;font-size:16px;padding:15px 26px;border-radius:14px;text-decoration:none;box-shadow:0 10px 24px rgba(62,50,38,0.26)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBF3E2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v13M6 11l6 6 6-6"/></svg>Download for macOS</a>
+        <a class="navlink" href="#a-what" style="display:inline-flex;align-items:center;gap:7px;color:#3E3226;font-weight:800;font-size:16px;padding:15px 12px;text-decoration:none">See it live<span style="font-size:18px">↓</span></a>
+      </div>
+      <p style="font-size:13.5px;color:#8A7B66;margin:18px 0 0;font-weight:700">Free · macOS 12+ · works offline</p>
+    </div>
+
+    <!-- live 3D hero -->
+    <div id="hero-stage" class="hero-stage" style="position:relative;height:560px;touch-action:none">
+      <canvas id="hero-canvas" style="position:absolute;inset:0;width:100%;height:100%;cursor:grab;display:block"></canvas>
+      <img id="hero-fallback" src="assets/spuddy-3d.png" alt="Spuddy" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);width:232px;filter:drop-shadow(0 16px 22px rgba(62,50,38,0.2));display:none">
+      <div style="position:absolute;left:50%;bottom:74px;transform:translateX(-50%);width:200px;height:26px;background:radial-gradient(closest-side,rgba(62,50,38,0.2),transparent 72%);pointer-events:none"></div>
+      <div style="position:absolute;right:0;top:88px;display:flex;align-items:center;gap:8px;font-family:'Caveat',cursive;font-size:23px;color:#9A6B32;transform:rotate(4deg);pointer-events:none"><svg width="58" height="34" viewBox="0 0 58 34" fill="none" stroke="#9A6B32" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M55 9 C 38 4, 16 8, 4 21"/><path d="M4 21 L 15 18"/><path d="M4 21 L 7 10"/></svg>poke me</div>
+      <div id="hero-singing" style="position:absolute;left:59%;top:12%;pointer-events:none;z-index:6;display:none"><span style="position:absolute;font-size:34px;line-height:1;color:#C9A227;animation:noteFloat 2.1s ease-in-out infinite">♪</span><span style="position:absolute;left:30px;top:6px;font-size:24px;line-height:1;color:#B07C3B;animation:noteFloat 2.1s ease-in-out .55s infinite">♫</span><span style="position:absolute;left:-18px;top:10px;font-size:21px;line-height:1;color:#D9B24D;animation:noteFloat 2.1s ease-in-out 1.05s infinite">♩</span></div>
+      <div id="hero-sleeping" style="position:absolute;left:60%;top:13%;pointer-events:none;z-index:6;font-family:'Nunito',sans-serif;font-weight:900;color:#9A876A;display:none"><span style="position:absolute;font-size:18px;line-height:1;animation:zzzFloat 2.4s ease-in-out infinite">z</span><span style="position:absolute;left:12px;top:-7px;font-size:24px;line-height:1;animation:zzzFloat 2.4s ease-in-out .75s infinite">z</span><span style="position:absolute;left:26px;top:-16px;font-size:32px;line-height:1;animation:zzzFloat 2.4s ease-in-out 1.5s infinite">Z</span></div>
+      <div id="hero-waking" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;pointer-events:none"><div style="position:relative;width:132px;height:132px;display:flex;align-items:center;justify-content:center"><div style="position:absolute;width:118px;height:118px;border-radius:50%;background:radial-gradient(closest-side,rgba(201,162,39,0.30),transparent 72%);animation:wakeGlow 2.2s ease-in-out infinite"></div><div style="position:absolute;width:118px;height:118px;border-radius:50%;border:5px dotted rgba(176,124,59,0.42);animation:wakeSpin 4.6s linear infinite"></div><img src="assets/spuddy-3d.png" alt="" style="width:78px;height:auto;filter:drop-shadow(0 8px 12px rgba(62,50,38,0.22));animation:wakeBob 1.9s ease-in-out infinite"></div><div style="display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:#B07C3B;animation:twinkle 1.3s ease-in-out infinite"></span><span style="width:7px;height:7px;border-radius:50%;background:#B07C3B;animation:twinkle 1.3s ease-in-out .22s infinite"></span><span style="width:7px;height:7px;border-radius:50%;background:#B07C3B;animation:twinkle 1.3s ease-in-out .44s infinite"></span></div><div style="font-family:'Caveat',cursive;font-size:21px;color:#9A876A">waking up…</div></div>
+    </div>
+  </div>
+
+  <!-- what it does -->
+  <div id="a-what" class="section-pad" style="background:#FBF6EA;padding:100px 40px">
+    <div style="max-width:1120px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:56px">
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">What it does</div>
+        <h2 style="font-size:46px;font-weight:900;letter-spacing:-0.02em;margin:0 0 14px;color:#2E251B;text-wrap:balance">Small, alive, and entirely its own thing</h2>
+        <p style="font-size:18px;color:#6B5C48;max-width:560px;margin:0 auto;text-wrap:pretty">No windows, no notifications, no nagging. Just a little friend getting on with its day in the corner of yours.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat-card" style="display:flex;gap:22px;align-items:center;background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:20px;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="flex:none;width:136px;height:136px;border-radius:16px;overflow:hidden;background:#F4EDDD;display:flex;align-items:center;justify-content:center"><img src="assets/motion-sneeze.gif" alt="" style="width:100%;height:100%;object-fit:cover"></div>
+          <div>
+            <h3 style="font-size:21px;font-weight:800;margin:0 0 7px;color:#2E251B">Poke it</h3>
+            <p style="font-size:14.5px;line-height:1.5;color:#6B5C48;margin:0">Tap for a reaction — squish, hop, wobble, a sudden sneeze — and every so often a whole little skit. It never repeats the same line twice.</p>
+          </div>
+        </div>
+        <div class="feat-card" style="display:flex;gap:22px;align-items:center;background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:20px;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="flex:none;width:136px;height:136px;border-radius:16px;overflow:hidden;background:#F4EDDD;display:flex;align-items:center;justify-content:center"><img src="assets/motion-hum.gif" alt="" style="width:100%;height:100%;object-fit:cover"></div>
+          <div>
+            <h3 style="font-size:21px;font-weight:800;margin:0 0 7px;color:#2E251B">It lives its own life</h3>
+            <p style="font-size:14.5px;line-height:1.5;color:#6B5C48;margin:0">A quiet needs-driven brain ticks in the background. Bored, it entertains itself; sleepy, it dozes off; missing you, it knocks to say hi.</p>
+          </div>
+        </div>
+        <div class="feat-card" style="display:flex;gap:22px;align-items:center;background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:20px;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="flex:none;width:136px;height:136px;border-radius:16px;overflow:hidden;background:#F4EDDD;display:flex;align-items:center;justify-content:center"><img src="assets/motion-wave.gif" alt="" style="width:100%;height:100%;object-fit:cover"></div>
+          <div>
+            <h3 style="font-size:21px;font-weight:800;margin:0 0 7px;color:#2E251B">It watches your cursor</h3>
+            <p style="font-size:14.5px;line-height:1.5;color:#6B5C48;margin:0">Eyes lead, the head follows. It blinks, glances around, and looks right at you — then drifts back to daydreaming when you wander off.</p>
+          </div>
+        </div>
+        <div class="feat-card" style="display:flex;gap:22px;align-items:center;background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:20px;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="flex:none;width:136px;height:136px;border-radius:16px;overflow:hidden;background:#F4EDDD;display:flex;align-items:center;justify-content:center"><img src="assets/motion-doze.gif" alt="" style="width:100%;height:100%;object-fit:cover"></div>
+          <div>
+            <h3 style="font-size:21px;font-weight:800;margin:0 0 7px;color:#2E251B">Drag it anywhere</h3>
+            <p style="font-size:14.5px;line-height:1.5;color:#6B5C48;margin:0">Fling it sideways and it spins with real momentum, then springs upright. Nudge it to a screen edge and it curls up for a nap.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- daily card + golden -->
+  <div id="a-cards" class="section-pad" style="background:linear-gradient(180deg,#F3E7CD,#EFDFC0);padding:100px 40px">
+    <div class="split split-cards" style="max-width:1080px;margin:0 auto">
+      <div>
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">A card, whenever you need one</div>
+        <h2 style="font-size:44px;font-weight:900;letter-spacing:-0.02em;margin:0 0 18px;color:#2E251B;text-wrap:balance">Pull one. Keep the ones that land.</h2>
+        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0 0 16px;text-wrap:pretty">Tap the little card in his hands and a fresh line appears — painted right onto the card he holds, never a speech bubble. Pull as many as you like; the good ones don't run out.</p>
+        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0;text-wrap:pretty">Every few days it knits a rare <b style="color:#A9861A">Golden Stitch</b> — a one-off card written just for you, in your buddy's voice, from the things you've actually talked about.</p>
+      </div>
+      <div style="border-radius:18px;overflow:hidden;border:1px solid rgba(62,50,38,0.12);box-shadow:0 22px 50px rgba(62,50,38,0.2)"><img src="assets/golden.png" alt="A rare Golden Stitch — the popup card is the very one he holds out to you" style="width:100%;display:block"></div>
+    </div>
+  </div>
+
+  <!-- chat -->
+  <div class="section-pad" style="background:#FBF6EA;padding:100px 40px">
+    <div class="split split-chat" style="max-width:1080px;margin:0 auto">
+      <div class="split-media-first" style="border-radius:20px;overflow:hidden;border:1px solid rgba(62,50,38,0.1);box-shadow:0 18px 44px rgba(62,50,38,0.14);max-width:496px"><img src="assets/chat.png" alt="Chatting with Bloom, who replies in character" style="width:100%;display:block"></div>
+      <div>
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">Say what's on your mind</div>
+        <h2 style="font-size:42px;font-weight:900;letter-spacing:-0.02em;margin:0 0 18px;color:#2E251B;text-wrap:balance">It listens — and remembers what matters</h2>
+        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0 0 16px;text-wrap:pretty">Hover over Spuddy to open a little chat and tell it how the day went. It replies in character, keeps it to a warm line or two, and weaves what matters back into your golden cards later.</p>
+        <p style="font-size:15px;line-height:1.55;color:#8A7B66;margin:0">It's not a therapist — if you're really struggling, it'll gently point you toward a human you trust.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- buddies -->
+  <div id="a-buddies" class="section-pad" style="background:#EFE1C6;padding:100px 40px">
+    <div style="max-width:1120px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:48px">
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">Meet the buddies</div>
+        <h2 style="font-size:46px;font-weight:900;letter-spacing:-0.02em;margin:0 0 14px;color:#2E251B;text-wrap:balance">Six friends, each for a different kind of care</h2>
+        <p style="font-size:18px;color:#6B5C48;max-width:540px;margin:0 auto;text-wrap:pretty">Each has its own voice and its own way in. Once a friend, always a friend.</p>
+      </div>
+      <div class="buddies-grid">
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/spud.png" alt="Spud" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Spud</h3>
+          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Steady Friend</div>
+          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">starts with you</div>
+        </div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/taco.png" alt="Taco" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Taco</h3>
+          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Hype Gremlin</div>
+          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">keep 2 cards</div>
+        </div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/sprinkles.png" alt="Sprinkles" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Sprinkles</h3>
+          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Sweet Talker</div>
+          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">mark 3 favorites</div>
+        </div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/bloom.png" alt="Bloom" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Bloom</h3>
+          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Quiet Gardener</div>
+          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">tell him 5 things</div>
+        </div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/leo.png" alt="Leo" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Leo</h3>
+          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Brave Heart</div>
+          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">reach a 7-day streak</div>
+        </div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
+          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/prof.png" alt="Prof" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Prof</h3>
+          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Tenured Tuber</div>
+          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">keep 3 golden cards</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- footer -->
+  <div style="background:#2E251B;color:#E9DDC6;padding:44px;text-align:center">
+    <img src="assets/icon.png" alt="" style="width:52px;height:52px;border-radius:13px;display:block;margin:0 auto 12px">
+    <span style="font-family:'Caveat',cursive;font-size:28px;color:#FBF3E2">Spuddy</span>
+    <p style="font-size:13px;color:rgba(233,221,198,0.6);margin:8px 0 0">Made with yarn and good intentions.</p>
+    <a class="gh-btn" href="https://github.com/akumatus/spuddy" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:9px 17px;border-radius:999px;border:1px solid rgba(233,221,198,0.22);color:#E9DDC6;text-decoration:none;font-size:13.5px;font-weight:800"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.05.14 3 .4 2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.49 5.93.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58C20.57 22.29 24 17.79 24 12.5 24 5.87 18.63.5 12 .5z"/></svg>Open source on GitHub</a>
+  </div>
+
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
