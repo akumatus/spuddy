@@ -30,6 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build renderer
+        # electron-builder only packages the prebuilt dist/ — it does not run Vite.
+        # Without this, the app ships with no dist/index.html and opens a blank
+        # white window. (Mirrors the local `dist:mac` script's `vite build` step.)
+        run: npm run build
+
       - name: Build and publish DMG
         # Unsigned build (identity: null) — see release notes about first-open on macOS.
         # --publish always uploads the dmg to a draft GitHub Release for this tag.
