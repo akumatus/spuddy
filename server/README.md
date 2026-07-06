@@ -50,12 +50,23 @@ curl -X POST https://<your-worker>.workers.dev/admin/generate \
 ```bash
 cp .dev.vars.example .dev.vars   # fill in real keys
 npm run dev                      # http://localhost:8787
-npm run gen:dev                  # generate a batch locally
+
+# Pick the LLM for the session — A/B chat models, or swap the cron generator.
+# Names: deepseek | openai (gpt) | gemini | anthropic (claude). Restart to switch.
+npm run dev -- --llm claude               # chat + cron both on Claude
+npm run dev -- --llm gpt --gen deepseek   # chat on GPT, cron on DeepSeek
+# (the chosen provider needs its key in .dev.vars, else /chat returns null)
+
+npm run gen:dev                  # generate a batch locally (uses the session's --gen)
 
 # test geo routing without leaving your desk:
 curl -s -X POST localhost:8787/chat -H 'x-pp-geo: CN' \
   -d '{"deviceId":"t","charId":"spud","day":1,"messages":[{"who":"user","text":"rough day"}]}'
 ```
+
+To A/B in the actual app, point it at the local Worker
+(`~/.config/spuddy/config.json` → `{ "serverUrl": "http://localhost:8787" }`),
+then restart `npm run dev -- --llm <name>` between models.
 
 ## Point the app at it
 
@@ -74,5 +85,17 @@ key) — so dev builds keep working without the server.
 
 - `CHAT_DAILY_LIMIT` — real-time calls per device per day (chat + golden).
 - `CARDS_PER_DAY` / `GOLDEN_PER_DAY` — pool sizes per persona per day.
-- `INTL_PROVIDER` / `GEN_PROVIDER` + `*_MODEL` — swap providers/models without
-  touching the app.
+- `CN_PROVIDER` / `INTL_PROVIDER` / `GEN_PROVIDER` + `*_MODEL` — swap
+  providers/models without touching the app.
+- Change providers/models **live** (no redeploy) via KV config:
+
+  ```bash
+  # read current
+  curl https://<worker>/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>'
+  # switch international chat to Claude, keep cron on DeepSeek
+  curl -XPOST https://<worker>/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>' \
+    -d '{"intl":"anthropic","gen":"deepseek","models":{"anthropic":"claude-haiku-4-5"}}'
+  ```
+
+  Keys: `cn`, `intl`, `gen` (provider per path) + optional `models` (per-provider
+  model id). Missing keys fall back to the `[vars]` defaults above.
