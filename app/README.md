@@ -72,6 +72,27 @@ routes to a provider (CN → DeepSeek). Point the app at a gateway in
 With no gateway reachable it falls back to built-in lines automatically —
 everything still works.
 
+## Release (macOS)
+
+Cutting a release is one command — it bumps the version, commits, tags, and
+pushes; the tag triggers the `Release macOS client` GitHub Action, which builds
+the `.dmg` and attaches it to a GitHub Release.
+
+```bash
+cd app
+npm version patch   # 0.1.0 -> 0.1.1   (use minor / major, or an exact version)
+```
+
+`npm version` writes the new version to `package.json`, makes a `Release vX.Y.Z`
+commit and matching `vX.Y.Z` tag, then the `postversion` script runs
+`git push --follow-tags`. The app version always comes from `package.json`, not
+the tag — this keeps the two in sync automatically.
+
+The build is ad-hoc signed (`mac.identity: "-"`) but not notarized, so it runs
+on Apple Silicon; first launch needs a one-time right-click → Open (or System
+Settings → Privacy & Security → Open Anyway). Swap in Developer ID signing +
+notarization later for double-click-to-open.
+
 ## App icon
 
 The app icon is design 4b「从底边升起」(rising from the bottom edge): the potato

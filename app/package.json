@@ -15,7 +15,8 @@
     "dev": "node scripts/set-dev-name.cjs && vite build && electron .",
     "start": "node scripts/set-dev-name.cjs && vite build && electron .",
     "build": "vite build",
-    "dist:mac": "vite build && electron-builder --mac --publish never"
+    "dist:mac": "vite build && electron-builder --mac --publish never",
+    "postversion": "git push --follow-tags"
   },
   "build": {
     "appId": "com.spuddy.app",
