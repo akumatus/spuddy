@@ -3,6 +3,7 @@
   "productName": "Spuddy",
   "version": "0.1.0",
   "description": "A crocheted spuddy desktop pet that brings you encouragement",
+  "license": "MIT",
   "main": "electron/main.cjs",
   "private": true,
   "repository": {

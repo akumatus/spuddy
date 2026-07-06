@@ -1,0 +1,11 @@
+Spuddy character portraits — original renders © 2026 Yue Wu.
+
+These portraits are renders the author produced of the Spuddy buddies. The
+buddies are based on hand-crocheted dolls originally designed by third parties;
+those underlying doll designs are NOT claimed by the author. The author's own
+render work is NOT covered by the MIT code license: it may not be
+redistributed, reused outside the Spuddy app, modified, or used to train AI/ML
+models without written permission.
+
+Full terms: ASSETS-LICENSE.md in the repository root.
+Contact: akumatus@gmail.com

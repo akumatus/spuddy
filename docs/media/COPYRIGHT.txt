@@ -1,0 +1,12 @@
+Spuddy renders, animations & screenshots — original work © 2026 Yue Wu.
+
+The renders, motion GIFs, and screenshots in this directory are the author's
+own work (animation and composition). The buddies depicted are based on
+hand-crocheted dolls originally designed by third parties; those underlying
+doll designs are NOT claimed by the author. The author's own work here is NOT
+covered by the MIT code license: it may not be redistributed, reused outside
+the Spuddy app or its official promotion, modified, or used to train AI/ML
+models without written permission.
+
+Full terms: ASSETS-LICENSE.md in the repository root.
+Contact: akumatus@gmail.com

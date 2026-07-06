@@ -1,0 +1,10 @@
+Spuddy app & tray icons — original brand work © 2026 Yue Wu.
+
+These icons are the author's original branding for the Spuddy app. They are NOT
+covered by the MIT code license: they may not be redistributed, reused outside
+the Spuddy app, modified, or rebranded without written permission. (The buddy
+likeness they depict derives from a third-party crocheted doll, whose
+underlying design the author does not claim.)
+
+Full terms: ASSETS-LICENSE.md in the repository root.
+Contact: akumatus@gmail.com

@@ -190,6 +190,18 @@ The 3D pipeline (real doll → scan → Blender + `gltf-transform` → Draco/WEB
 
 ---
 
+## 📜 License
+
+Spuddy is **split-licensed**, on purpose:
+
+- **The code is open.** The source under `app/` and `server/` is **MIT** — fork it, learn from it, build your own thing with it. See [`LICENSE`](LICENSE).
+- **My work on Spuddy isn't.** The parts I actually made — the 3D modeling & rigging, the hand-keyed animations, the renders, the written lines, and the *Spuddy* app & name — are all-rights-reserved. Please don't lift them. See [`ASSETS-LICENSE.md`](ASSETS-LICENSE.md).
+- **The dolls aren't mine to give.** Each buddy is based on a hand-crocheted doll originally made by someone else — I don't claim those underlying designs, and neither should you.
+
+In short: **take the engine and learn from it — just don't lift my models, animations, or writing.** 🥔
+
+---
+
 <div align="center">
 <br />
 <img src="docs/media/char-spud.png" height="72" alt="" />

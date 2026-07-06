@@ -1,0 +1,11 @@
+Spuddy 3D models — original modeling, rigging & animation work © 2026 Yue Wu.
+
+These .glb files were built by the author (retopology, rig, materials) from
+hand-crocheted dolls originally designed by third parties. The underlying doll
+designs are NOT claimed by the author and belong to their creators. The
+author's own original work in these files is NOT covered by the MIT code
+license: it may not be redistributed, reused outside the Spuddy app, modified,
+or used to train AI/ML models without written permission.
+
+Full terms: ASSETS-LICENSE.md in the repository root.
+Contact: akumatus@gmail.com
