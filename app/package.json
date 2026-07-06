@@ -41,7 +41,8 @@
           ]
         }
       ],
-      "identity": null
+      "identity": "-",
+      "hardenedRuntime": false
     },
     "publish": [
       {
