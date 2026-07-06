@@ -118,7 +118,8 @@ html, body {
   box-shadow: 0 8px 20px -12px rgba(90, 70, 40, 0.4);
   animation: pp-mut 0.28s ease-out;
   z-index: 5;
-  pointer-events: none;
+  /* hoverable (like #bubble) so resting the pointer on the thought card
+     freezes its auto-hide — elementFromPoint must be able to hit it */
 }
 #mutter::after {
   content: '';
@@ -295,6 +296,10 @@ html, body {
   justify-content: center;
   z-index: 40;
 }
+/* floating panels (Card Book / Buddies): no dim — the screen stays fully lit
+   and the backdrop is click-through (see the mousemove handler in main.js), so
+   the panel hovers over the desktop without trapping you in a modal */
+#overlay.panel { background: transparent; }
 
 .cardbox {
   width: 330px;

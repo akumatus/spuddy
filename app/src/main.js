@@ -7,7 +7,7 @@ import * as ui from './ui.js';
 import * as remote from './remote.js';
 import {
   DAILY, POKE, RETAP, CARDHINT, SEDENTARY, NIGHTMSG, WEAVELINES, DRAWLINES,
-  CHARS, UNLOCK, PERS, chatFallback, goldenFallback, limitReply,
+  CHARS, UNLOCK, PERS, greet, daypart, chatFallback, goldenFallback, limitReply,
 } from './content.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,6 +26,10 @@ let retapIdx = 0;
 let bubbleTimer = null;
 let typeTimer = null;
 let mutterTimer = null;
+let bubbleHover = false; // pointer resting on the reply — freeze its auto-hide
+let bubbleHold = 0; // full lifespan of the current bubble, so hover can resume it
+let mutterHover = false; // pointer resting on the thought card — freeze its auto-hide
+let mutterHold = 0; // lifespan of the current mutter, so hover can resume it
 
 setSoundEnabled(state.sound);
 
@@ -34,8 +38,11 @@ await scene.setCharacter(state.active);
 const anim = () => scene.animator;
 
 // pull today's server-generated card pool (non-blocking — draws fall back to the
-// built-in DAILY pool until it arrives)
+// built-in DAILY pool until it arrives), then re-poll hourly: the pet runs for
+// days on end, and without this the "daily" pool would only ever change on app
+// restart (the cron flips it at midnight Asia/Shanghai)
 remote.refresh();
+setInterval(() => remote.refresh(), 60 * 60 * 1000);
 
 // ── personality engine (7a) — needs-driven autonomy, ported from lib/spud-brain.js ──
 const per = state.personality || {};
@@ -111,13 +118,26 @@ function bubble(text, { hold = 2600, type = false } = {}) {
       if (i >= text.length + 1) clearInterval(typeTimer);
     }, 30);
   }
-  if (hold) bubbleTimer = setTimeout(() => el.classList.add('hidden'), hold + (type ? text.length * 15 : 0));
+  bubbleHold = hold ? hold + (type ? text.length * 15 : 0) : 0;
+  // while the pointer rests on the reply we leave it up — hoverEnd resumes the countdown
+  if (bubbleHold && !bubbleHover) bubbleTimer = setTimeout(() => el.classList.add('hidden'), bubbleHold);
 }
 
 function hideBubble() {
   clearTimeout(bubbleTimer);
   clearInterval(typeTimer);
   $('bubble').classList.add('hidden');
+}
+
+// Reading a reply shouldn't race a timer: hovering the bubble freezes its
+// auto-hide, and pulling the pointer away lets it linger a beat, then go.
+function setBubbleHover(on) {
+  if (on === bubbleHover) return;
+  bubbleHover = on;
+  const el = $('bubble');
+  if (el.classList.contains('hidden') || !bubbleHold) return;
+  clearTimeout(bubbleTimer);
+  if (!on) bubbleTimer = setTimeout(() => el.classList.add('hidden'), 700);
 }
 
 // ── mutter — dashed thought bubble for the inner monologue (7a) ──
@@ -131,7 +151,20 @@ function showMutter(text) {
   el.style.animation = 'none';
   void el.offsetWidth; // restart the pop-in
   el.style.animation = '';
-  mutterTimer = setTimeout(() => el.classList.add('hidden'), 2300 + text.length * 40);
+  mutterHold = 2300 + text.length * 40;
+  // like the reply bubble, resting the pointer on the thought card freezes its auto-hide
+  if (!mutterHover) mutterTimer = setTimeout(() => el.classList.add('hidden'), mutterHold);
+}
+
+// Hovering the thought card freezes its auto-hide the same way the reply bubble
+// does; pulling the pointer away lets it linger a beat, then go.
+function setMutterHover(on) {
+  if (on === mutterHover) return;
+  mutterHover = on;
+  const el = $('mutter');
+  if (el.classList.contains('hidden') || !mutterHold) return;
+  clearTimeout(mutterTimer);
+  if (!on) mutterTimer = setTimeout(() => el.classList.add('hidden'), 700);
 }
 
 // ── floating emotes (♪ ♥ Z) drifting off his head (7a) ──
@@ -171,6 +204,42 @@ function reactEmotion(tag) {
   else { sfx.pop(); anim().play('squish'); }
 }
 
+// ── chat gestures: a named action → the clip that acts it out (kept in sync
+// with GESTURES in server/src/personas.js and GESTURE_RE in electron/main.cjs) ──
+const GESTURE_CLIP = {
+  wave: 'wave', hug: 'hug', dance: 'pirouette', spin: 'spin', cheer: 'cheer',
+  hop: 'hop', sing: 'sing', stretch: 'stretch', shy: 'shy', peek: 'peek',
+  sulk: 'sulk', sneeze: 'sneeze', present: 'present',
+};
+// which sfx suits a gesture (upbeat ones chime, a hug is soft, the rest pop)
+const GESTURE_SFX = { sing: 'chime', dance: 'chime', cheer: 'chime', hop: 'chime', hug: 'low', sulk: 'low' };
+
+// Client-side safety net so "sing me a song" still moves him when the LLM is
+// offline / over budget and returned no gesture of its own. Keyword-matched
+// against what the human just said.
+function detectGesture(text) {
+  const t = (text || '').toLowerCase();
+  if (/\b(sing|song|serenade|a tune)\b/.test(t)) return 'sing';
+  if (/\b(hug|cuddle|hold me|squeeze|embrace)\b/.test(t)) return 'hug';
+  if (/\b(dance|boogie|twirl|pirouette)\b/.test(t)) return 'dance';
+  if (/\b(spin|turn around)\b/.test(t)) return 'spin';
+  if (/\b(wave|say hi|greet)\b/.test(t)) return 'wave';
+  if (/\b(jump|hop|bounce)\b/.test(t)) return 'hop';
+  if (/\b(stretch|yawn)\b/.test(t)) return 'stretch';
+  if (/\b(cheer|celebrate|hooray|hurray|yay|woohoo|party)\b/.test(t)) return 'cheer';
+  if (/\b(hide|be shy|peekaboo|peek-?a-?boo)\b/.test(t)) return 'shy';
+  return null;
+}
+
+// Play a chat reply's body: a specific gesture if one fits, else the emotion clip.
+function reactToReply(tag, gesture) {
+  const clip = gesture && GESTURE_CLIP[gesture];
+  if (!clip) { reactEmotion(tag); return; }
+  const s = GESTURE_SFX[gesture] || 'pop';
+  if (sfx[s]) sfx[s]();
+  anim().play(clip);
+}
+
 // ── daily card ──
 // Daily draw limit. Left uncapped for now; to throttle, set a concrete number
 // (e.g. 3 = the first 3 draws a day give new cards, after that tapping the
@@ -183,11 +252,25 @@ const DAILY_DRAW_LIMIT = Infinity;
 // each miss ramps the chance up, and hitting a golden resets it to zero.
 // Persists across days: a once-a-day user builds up pity over a few days and
 // is guaranteed one, naturally recreating the "a golden every few days" rhythm.
-// Start 10% + 10% per miss ⇒ guaranteed by the 10th draw; averages ~1 in 3–4 (≈27%).
+// Start 20% + 15% per miss ⇒ guaranteed by the 7th draw; averages ~1 in 2.7 (≈37%).
 // Want rarer: lower BASE/RAMP; more generous: raise them. Just after a golden it
 // drops back to BASE, so goldens rarely cluster.
-const GOLDEN_BASE = 0.10; // starting chance right after a golden
-const GOLDEN_RAMP = 0.10; // how much the chance grows per miss
+const GOLDEN_BASE = 0.20; // starting chance right after a golden
+const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
+
+// How often a draw dips into the hand-written built-in DAILY pool when the
+// server pool is available. Kept rare: built-ins never refresh, so they'd wear
+// out fast — and each one retires permanently once drawn (state.usedBuiltins).
+const BUILTIN_CARD_CHANCE = 0.08;
+
+const pickOf = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// No-replacement bookkeeping: the per-batch used list resets when a fresh
+// daily pool lands (its date stamp changes — including the first fetch).
+function syncUsedCards() {
+  const d = remote.batchDate();
+  if (!state.usedCards || state.usedCards.date !== d) state.usedCards = { date: d, used: [] };
+}
 
 function drawToday() {
   state.draws++;
@@ -196,13 +279,38 @@ function drawToday() {
     return weaveGolden();
   }
   state.pity++;
-  // random daily line each draw, skipping an immediate repeat of the last card.
-  // Prefer today's server-generated pool; fall back to the built-in DAILY pool
-  // when the server isn't reachable (offline-safe).
-  const base = remote.normalPool(activeChar().id) || DAILY.map((d) => d.m);
-  const pool = base.filter((m) => m !== state.msg);
-  const src = pool.length ? pool : base;
-  const msg = src[Math.floor(Math.random() * src.length)];
+  // Gacha without replacement: every drawn line is marked and sits out until
+  // the day's pool is exhausted (then the marks clear and the pool laps).
+  // Built-ins are a rare seasoning and never come back once seen; offline the
+  // built-in DAILY pool carries alone.
+  syncUsedCards();
+  const serverPool = remote.normalPool(activeChar().id);
+  const freshBuiltins = DAILY.map((d) => d.m).filter((m) => !state.usedBuiltins.includes(m));
+  let msg;
+  let fromBuiltin = false;
+  if (serverPool) {
+    const unseen = serverPool.filter((m) => !state.usedCards.used.includes(m) && m !== state.msg);
+    if (freshBuiltins.length && Math.random() < BUILTIN_CARD_CHANCE) {
+      msg = pickOf(freshBuiltins);
+      fromBuiltin = true;
+    } else if (unseen.length) {
+      msg = pickOf(unseen);
+    } else {
+      state.usedCards.used = [];
+      const lap = serverPool.filter((m) => m !== state.msg);
+      msg = pickOf(lap.length ? lap : serverPool);
+    }
+  } else if (freshBuiltins.length) {
+    const noRepeat = freshBuiltins.filter((m) => m !== state.msg);
+    msg = pickOf(noRepeat.length ? noRepeat : freshBuiltins);
+    fromBuiltin = true;
+  } else {
+    // offline with every built-in retired — reruns beat showing nothing
+    const all = DAILY.map((d) => d.m).filter((m) => m !== state.msg);
+    msg = pickOf(all.length ? all : DAILY.map((d) => d.m));
+  }
+  if (fromBuiltin) state.usedBuiltins.push(msg);
+  else if (serverPool) state.usedCards.used.push(msg);
   sfx.draw();
   ui.showDrawAnim();
   setTimeout(() => {
@@ -247,9 +355,12 @@ async function weaveGolden() {
   state.drawn = true;
   state.rare = true;
   // personalized weave first; if it couldn't reach the LLM (offline or over the
-  // daily budget), fall back to today's server golden pool, then the built-in one
+  // daily budget), fall back 50/50 between today's server golden pool and the
+  // hand-written voiced pool — the built-ins are strong, keep them in rotation
   const gPool = remote.goldenPool(ch.id);
-  const gFallback = gPool ? gPool[Math.floor(Math.random() * gPool.length)] : goldenFallback(ch.id);
+  const gFallback = gPool && Math.random() < 0.5
+    ? gPool[Math.floor(Math.random() * gPool.length)]
+    : goldenFallback(ch.id);
   state.msg = aiMsg || gFallback;
   state.keptToday = false;
   persist();
@@ -289,7 +400,7 @@ function openCard() {
 // barely seeing them on tap, so they carry the heaviest weight and a plain body
 // tap lands on a skit ~half the time. The basic one-shots are connective tissue
 // between skits, not the main event — hop and spin were dialed way down (user
-// feedback: "跳跃次数特别多，很枯燥"). squish keeps a moderate weight for the
+// feedback: "way too many jumps, it gets dull"). squish keeps a moderate weight for the
 // signature "squashed" feel; part-rigged models unlock a few more part-specific
 // motions. The last two motions are excluded from the pool — any run of 3 taps
 // is guaranteed not to repeat (user feedback: a single re-roll still collided
@@ -404,6 +515,15 @@ function chatSend() {
   runChat();
 }
 
+// Greetings and drive-by compliments make useless long-term memories — the pet
+// can never call back to "hello" later. Only notes with real content enter the
+// journal (which feeds chat memory, golden cards, and the Memory tab).
+const SMALL_TALK_RE = /^(hi+|hey+|hello+|yo+|sup|ok(ay)?|thanks?( you)?|good ?(morning|night|evening)|how are you|(you( a|')re |you are )?(so+ )?(cute|sweet|adorable|the best))\W*$/i;
+function isMemorable(note) {
+  const t = note.trim();
+  return t.length >= 6 && !SMALL_TALK_RE.test(t);
+}
+
 async function runChat() {
   chatBusy = true;
   anim().setMode('rock'); // 08 · Golden Weave — while AI writes
@@ -426,17 +546,23 @@ async function runChat() {
     chatPending.splice(0, covered.length); // clear what he just answered; keep mid-flight arrivals
 
     let tag = 'calm';
+    let gesture = null;
     let reply = chatFallback(ch.id);
     if (res && res.limited) {
       // daily real-time budget spent — warm "let's pick this up tomorrow" line
       reply = limitReply(ch.id);
     } else if (res && res.text) {
       tag = res.tag || 'calm';
+      gesture = res.gesture || null;
       reply = res.text;
     }
-    reactEmotion(tag);
+    // let the LLM lead; fall back to a keyword read of what they asked for so
+    // "sing me a song" still lands even offline / over budget
+    if (!gesture) gesture = detectGesture(covered.join(' '));
+    reactToReply(tag, gesture);
     state.chat.push({ who: 'pet', text: reply });
-    state.journal.push({ day: state.day, note: covered.join('\n'), reply });
+    const memorable = covered.filter(isMemorable);
+    if (memorable.length) state.journal.push({ day: state.day, note: memorable.join('\n'), reply });
     persist();
     bubble(reply, { hold: 9000, type: true });
     setTimeout(() => $('said').classList.add('hidden'), 4200);
@@ -531,13 +657,13 @@ function renderBuddies() {
       sfx.pop();
       brain.interrupt();
       state.active = id;
-      state.chat.push({ who: 'pet', text: PERS[id].hi });
+      state.chat.push({ who: 'pet', text: greet(id) });
       persist();
       ui.closeOverlay();
       await scene.setCharacter(id);
       updateCardScreen();
       anim().play(scene.hasRig() ? 'wave' : 'hop'); // reporting for duty
-      bubble(PERS[id].hi, { hold: 3600 });
+      bubble(greet(id), { hold: 3600 });
       $('chatInput').placeholder = `tell ${activeChar().name} what's on your mind…`;
     },
   });
@@ -720,10 +846,20 @@ $('soundBtn').classList.toggle('off', !state.sound);
 // click-through everywhere except interactive elements
 document.addEventListener('mousemove', (e) => {
   const el = document.elementFromPoint(e.clientX, e.clientY);
-  const interactive = !!(el && el.closest('[data-interactive]'));
-  pp.win.setIgnoreMouse(!interactive || (el.id === 'overlay' && false));
+  // In panel mode (Card Book / Buddies) the overlay backdrop is click-through,
+  // so the desktop and other apps stay usable around the floating panel. The
+  // panel content itself still carries data-interactive, so it stays clickable.
+  const onPanelBackdrop = !!(el && el.id === 'overlay' && el.classList.contains('panel'));
+  const interactive = !onPanelBackdrop && !!(el && el.closest('[data-interactive]'));
+  pp.win.setIgnoreMouse(!interactive);
+  setBubbleHover(!!(el && el.closest('#bubble')));
+  setMutterHover(!!(el && el.closest('#mutter')));
 });
-document.addEventListener('mouseleave', () => pp.win.setIgnoreMouse(true));
+document.addEventListener('mouseleave', () => {
+  pp.win.setIgnoreMouse(true);
+  setBubbleHover(false);
+  setMutterHover(false);
+});
 
 // turns to watch your cursor (Turn 5) — the main process polls the global cursor so he
 // keeps watching even while the pointer roams other windows; eyes lead, head
@@ -788,7 +924,39 @@ window._pp = {
   },
 };
 
-setTimeout(() => {
-  anim().play(scene.hasRig() ? 'wave' : 'hop'); // morning greeting
-  if (!state.drawn) bubble(PERS[state.active].hi, { hold: 5200 });
+// Open-the-app greeting: a fresh, personalized hello from the LLM, coloured by
+// what he remembers and the time of day. Falls back to a built-in daypart line
+// when the LLM is unreachable / over budget. Returns null on any failure.
+async function personalGreeting() {
+  if (!pp?.ai?.greet) return null; // no bridge (older preload)
+  const ch = activeChar();
+  try {
+    return await pp.ai.greet({
+      charId: ch.id,
+      charName: ch.name,
+      voice: PERS[ch.id].voice,
+      daypart: daypart(),
+      day: state.day,
+      memory: state.journal.slice(-6),
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
+// Fire the greeting request at launch so it's usually ready by the time he
+// speaks — no built-in-then-swap flicker.
+const greetingReq = personalGreeting();
+
+setTimeout(async () => {
+  anim().play(scene.hasRig() ? 'wave' : 'hop'); // time-of-day greeting
+  if (state.drawn) return;
+  // prefer the personalized line, but never leave him silent: fall back to the
+  // built-in daypart greeting if the LLM is slow / offline / over budget
+  const line = await Promise.race([
+    greetingReq,
+    new Promise((r) => setTimeout(() => r(null), 2200)),
+  ]);
+  if (state.drawn) return;
+  bubble(line || greet(state.active), { hold: 5200 });
 }, 900);

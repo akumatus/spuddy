@@ -46,8 +46,12 @@ async function expandForModal(seq) {
   overlay().classList.remove('hidden');
 }
 
-export function openOverlay(html) {
+// panel: true → a lightweight floating panel (Card Book / Buddies) with no dim
+// backdrop; the area around it stays click-through so the rest of the screen
+// remains usable. Default (false) is a dim, blocking modal (daily card, weave).
+export function openOverlay(html, { panel = false } = {}) {
   modal().innerHTML = html;
+  overlay().classList.toggle('panel', panel);
   if (modalUp) { overlay().classList.remove('hidden'); return; } // draw → weave → card chain: window already big
   modalUp = true;
   // Hide the hover panel instantly. It's anchored bottom:78px INSIDE the window
@@ -63,6 +67,7 @@ export function closeOverlay() {
   const seq = ++modalSeq;
   modalUp = false;
   overlay().classList.add('hidden');
+  overlay().classList.remove('panel');
   modal().innerHTML = '';
   window.pp?.win?.setModal(false);
   // release the stage offset only after the window is small again — resetting
@@ -102,7 +107,7 @@ export function showCard(state, { onKeep, onLater }) {
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
         <div class="tag">${gold ? 'RARE · GOLDEN STITCH' : "TODAY'S CARD"}</div>
         <div class="msg" style="font-size:${cardFont(state.msg)}px">${esc(state.msg)}</div>
-        <div class="sign">— ${ch.name} · morning ${state.day}</div>
+        <div class="sign">— ${ch.name} · day ${state.day}</div>
         <div class="row">
           <button class="btn ${state.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>
           <button class="btn ghost" id="mLater">Later</button>
@@ -186,7 +191,7 @@ export function showBook(state, tab, filter, handlers) {
               <button class="del" data-del="${c.i}">×</button>
             </div>
             <div class="m">${esc(c.m)}</div>
-            <div class="foot"><span>morning ${c.day} — ${esc(c.by)}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
+            <div class="foot"><span>day ${c.day} — ${esc(c.by)}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
           </div>`
           )
           .join('')}
@@ -236,7 +241,7 @@ export function showBook(state, tab, filter, handlers) {
       <div id="book">
         <div class="head">${headInner}</div>
         ${body}
-      </div>`);
+      </div>`, { panel: true });
   }
 
   document.getElementById('bookClose').onclick = handlers.onClose;
@@ -281,7 +286,7 @@ export function showBuddies(state, handlers) {
         }).join('')}
       </div>
       <div class="hint">each buddy joins for a different kind of care — keep · favorite · confide · show up · go gold. once a friend, always a friend</div>
-    </div>`);
+    </div>`, { panel: true });
 
   document.getElementById('buddiesClose').onclick = handlers.onClose;
   modal().querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => handlers.onPick(b.dataset.pick)));

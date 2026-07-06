@@ -81,8 +81,8 @@ function sampleKeys(keys, t) {
    tilt (deg, + = top toward camera), wiggle (deg rotZ). */
 export const CLIPS = {
   wave: {
-    zh: '挥手 · Wave', pt: true,
-    spec: '1.7s · 肩铰链: outBack 抬爪 → 3× inOutSine 摆动 → outBackSoft 放下 · 挥手时侧身 + 眨一下眼',
+    label: 'Wave', pt: true,
+    spec: '1.7s · shoulder hinge: outBack raise → 3× inOutSine swings → outBackSoft lower · turns aside + one blink while waving',
     dur: 1700,
     root: [{ t: 0 }, { t: 0.18, rotZ: 3.5, rotY: -12, e: 'outCubic' }, { t: 0.8 }, { t: 1, e: 'inOutSine' }],
     handR: [
@@ -93,14 +93,14 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.34, blink: 0 }, { t: 0.42, blink: 1, e: 'inQuad' }, { t: 0.52, blink: 0, e: 'outQuad' }, { t: 1 }],
   },
   blink: {
-    zh: '眨眼 · Blink', pt: true,
-    spec: '320ms · 合眼 inQuad 快 · 睁眼 outQuad 慢 — 真实眨眼的不对称时序',
+    label: 'Blink', pt: true,
+    spec: '320ms · close inQuad fast · open outQuad slow — the asymmetric timing of a real blink',
     dur: 320,
     eyes: [{ t: 0 }, { t: 0.32, blink: 1, e: 'inQuad' }, { t: 0.48, blink: 1 }, { t: 1, blink: 0, e: 'outQuad' }],
   },
   shy: {
-    zh: '害羞捂眼 · Shy', pt: true,
-    spec: '3s · 双爪 outBack 飞到同侧眼睛前捂住 → 指缝偷看一眼 → inOutCubic 放下 · 全程低头缩肩',
+    label: 'Shy (cover eyes)', pt: true,
+    spec: '3s · both paws outBack fly up to cover the same-side eye → one peek through the fingers → inOutCubic lower · head down, shoulders tucked throughout',
     dur: 3000,
     root: [{ t: 0 }, { t: 0.18, rotX: 5, rotZ: -3, sy: 0.97, e: 'outCubic' }, { t: 0.82 }, { t: 1, e: 'inOutSine' }],
     hands: [
@@ -115,8 +115,8 @@ export const CLIPS = {
     ],
   },
   eyeroll: {
-    zh: '转眼珠 · Eye-roll', pt: true,
-    spec: '1.5s · 双眼沿椭圆轨道转一整圈 (角度 inOutCubic 驱动) · 头微微跟着晃 · 结尾嫌弃地眨一下',
+    label: 'Eye-roll', pt: true,
+    spec: '1.5s · both eyes sweep a full ellipse (angle driven by inOutCubic) · head sways along slightly · ends on a disdainful blink',
     dur: 1500,
     fn(p) {
       const a = EASE.inOutCubic(Math.min(1, p * 1.12));
@@ -130,12 +130,12 @@ export const CLIPS = {
     },
   },
   present: {
-    zh: '举卡片 · Present', pt: true,
+    label: 'Present', pt: true,
     // Deviation from the Turn-6 spec (lift .11 · tilt 16°): Rodin generates
     // the body with a card-shaped pocket the bakes never saw into — lifting
     // the card uncovers it as a dark pit. Push+tilt keeps the pocket covered
     // by the card itself while still handing it to the camera.
-    spec: '2.4s · 卡片+双爪 outBack 递出 · push 9%h · 卡面 tilt 18° 递向镜头 · 顶点 ±2.5° 得意小晃 · 身体后仰 4°',
+    spec: '2.4s · card + both paws outBack hand-out · push 9%h · face tilts 18° toward camera · ±2.5° smug wiggle at the apex · body leans back 4°',
     dur: 2400,
     root: [{ t: 0 }, { t: 0.28, rotX: -4, sy: 1.025, e: 'outCubic' }, { t: 0.74 }, { t: 1, e: 'inOutSine' }],
     card: [
@@ -147,8 +147,8 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.3, dy: 0.2, e: 'outCubic' }, { t: 0.74 }, { t: 1 }],
   },
   squish: {
-    zh: '摸摸 · Tap Squish',
-    spec: '650ms · 压扁 outQuad 快进 → 恢复整段 outElastic 果冻回弹 (sx·sy≈1 体积守恒) · 爪子被挤得外翻',
+    label: 'Tap Squish',
+    spec: '650ms · flatten outQuad fast → whole recovery on outElastic jelly rebound (sx·sy≈1 volume conservation) · paws splay outward from the squeeze',
     dur: 650,
     root: [{ t: 0 }, { t: 0.2, sx: 1.25, sy: 0.75, e: 'outQuad' }, { t: 1, e: 'outElastic' }],
     hands: [{ t: 0 }, { t: 0.2, raise: 16, out: 0.022, e: 'outQuad' }, { t: 1, e: 'outElastic' }],
@@ -156,16 +156,16 @@ export const CLIPS = {
   },
   // app-specific: bigger squish for the [proud] emotion trigger (Turn 3 map)
   bigSquish: {
-    zh: '大摸摸 · Big Squish',
-    spec: '650ms · squish 的加强版 · (1.32,.68) · [proud] 触发',
+    label: 'Big Squish',
+    spec: '650ms · amplified squish · (1.32,.68) · triggered by [proud]',
     dur: 650,
     root: [{ t: 0 }, { t: 0.2, sx: 1.32, sy: 0.68, e: 'outQuad' }, { t: 1, e: 'outElastic' }],
     hands: [{ t: 0 }, { t: 0.2, raise: 22, out: 0.028, e: 'outQuad' }, { t: 1, e: 'outElastic' }],
     eyes: [{ t: 0 }, { t: 0.16, blink: 1, e: 'inQuad' }, { t: 0.4, blink: 0, e: 'outQuad' }, { t: 1 }],
   },
   hop: {
-    zh: '开心跳 · Hop',
-    spec: '640ms 抛物线时序 · 蹲 → 蹬伸 → 上程 outQuad 减速 · 下程 inQuad 加速 → 落地 squash + outElastic 余震',
+    label: 'Hop',
+    spec: '640ms parabolic timing · crouch → push off → rise decelerates outQuad · fall accelerates inQuad → landing squash + outElastic aftershock',
     dur: 640,
     root: [
       { t: 0 }, { t: 0.18, sy: 0.86, sx: 1.12, e: 'outQuad' },
@@ -181,8 +181,8 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.68, blink: 0 }, { t: 0.78, blink: 1, e: 'inQuad' }, { t: 0.92, blink: 0, e: 'outQuad' }, { t: 1 }],
   },
   cheer: {
-    zh: '欢呼 · Cheer', pt: true,
-    spec: '1.5s 连续两跳 · 双爪 outBack 举高挥舞 · rotZ ∓6° · 眯眼笑 · 落地 outElastic 收尾',
+    label: 'Cheer', pt: true,
+    spec: '1.5s two hops in a row · both paws outBack raised and waving · rotZ ∓6° · squint smile · outElastic landing finish',
     dur: 1500,
     root: [
       { t: 0 }, { t: 0.1, sy: 0.9, sx: 1.08, e: 'outQuad' },
@@ -202,8 +202,8 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.22, blink: 0.55, e: 'inOutSine' }, { t: 0.78 }, { t: 1, blink: 0, e: 'outQuad' }],
   },
   spin: {
-    zh: '转圈展示 · Turntable',
-    spec: '1.15s · 反向蓄力 −30° (outCubic) → 甩到 378° (inOutQuart 鞭梢感) → outBackSoft 回落 360° · 离心力把爪子甩开',
+    label: 'Turntable',
+    spec: '1.15s · reverse wind-up −30° (outCubic) → whips to 378° (inOutQuart whipcrack feel) → outBackSoft settles at 360° · centrifugal force flings the paws out',
     dur: 1150,
     root: [
       { t: 0 }, { t: 0.16, rotY: -30, sx: 1.06, sy: 0.94, e: 'outCubic' },
@@ -216,8 +216,8 @@ export const CLIPS = {
     ],
   },
   pirouette: {
-    zh: '跳跃转体 · Hop-spin',
-    spec: '1s · 深蹲 → 蹬伸起跳 · 空中 rotY 360° (上程减速/下程加速的抛物线) · 落地 squash → outElastic 余震 · 转完晕得眨眼',
+    label: 'Hop-spin',
+    spec: '1s · deep crouch → jump · rotY 360° mid-air (parabolic: decelerating up / accelerating down) · landing squash → outElastic aftershock · dizzy blink at the end',
     dur: 1000,
     root: [
       { t: 0 }, { t: 0.14, sy: 0.84, sx: 1.14, e: 'outQuad' },
@@ -235,8 +235,8 @@ export const CLIPS = {
   },
   /* ── turn 7 · soul-engine clips ── */
   stretch: {
-    zh: '伸懒腰 · Stretch', pt: true,
-    spec: '2.4s · 拉长 14% + 后仰 7° · 双爪 outBack 举过头顶 · 眯眼 85% · outBackSoft 缩回',
+    label: 'Stretch', pt: true,
+    spec: '2.4s · elongate 14% + lean back 7° · both paws outBack overhead · eyes 85% closed · outBackSoft shrink back',
     dur: 2400,
     root: [
       { t: 0 }, { t: 0.3, sy: 1.14, sx: 0.93, rotX: -7, e: 'outCubic' }, { t: 0.62 },
@@ -247,11 +247,11 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.26, blink: 0.85, e: 'inQuad' }, { t: 0.6, blink: 0.85 }, { t: 0.82, blink: 0, e: 'outQuad' }, { t: 1 }],
   },
   cardStudy: {
-    zh: '读卡片 · Study', pt: true,
+    label: 'Study', pt: true,
     // card track deviates from the prototype (lift .1 · push .045 · tilt −24):
     // that much back-tilt digs the card top into Rodin's chest pocket — read
     // with a shallower tilt, pushed further out and lifted clear of the belly
-    spec: '3.4s · 卡片 tilt −16° 翻向自己 (推出 8.5%h 提 6%h) · 眼珠沿字行左右扫读 · 头歪 ±4° 跟读',
+    spec: '3.4s · card tilts −16° toward himself (pushed out 8.5%h, lifted 6%h) · eyes scan left-right along the text lines · head tilts ±4° reading along',
     dur: 3400,
     root: [{ t: 0 }, { t: 0.16, rotX: 8, e: 'outCubic' }, { t: 0.4, rotZ: -4 }, { t: 0.62, rotZ: 4 }, { t: 0.84, rotZ: 0, rotX: 8 }, { t: 1, e: 'inOutSine' }],
     card: [
@@ -263,8 +263,8 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.16, dy: -0.55, e: 'outCubic' }, { t: 0.4, dx: -0.2 }, { t: 0.55, dx: 0.25 }, { t: 0.7, dx: -0.15 }, { t: 0.84, dx: 0, dy: -0.55 }, { t: 1 }],
   },
   chase: {
-    zh: '追尾巴 · Tail-chase',
-    spec: '2.3s · 左右急转 4 次 (眼珠先行半拍) → 恼羞成怒甩 360° · 接不倒翁眩晕',
+    label: 'Tail-chase',
+    spec: '2.3s · 4 sharp left-right turns (eyes lead by half a beat) → exasperated 360° fling · chains into roly-poly dizziness',
     dur: 2300,
     root: [
       { t: 0 }, { t: 0.14, rotY: -38, rotZ: -3, e: 'outCubic' }, { t: 0.3, rotY: 30, rotZ: 3, e: 'inOutQuad' },
@@ -275,8 +275,8 @@ export const CLIPS = {
     hands: [{ t: 0 }, { t: 0.5, raise: 10 }, { t: 0.78, raise: 34, out: 0.026, e: 'inOutQuad' }, { t: 1, e: 'outQuad' }],
   },
   bounceCard: {
-    zh: '颠卡片 · Card-juggle', pt: true,
-    spec: '1.9s · 卡片两次抛接 (上程 outQuad / 下程 inQuad) · 眼珠全程追踪 · 身体跟着颠',
+    label: 'Card-juggle', pt: true,
+    spec: '1.9s · two card toss-and-catches (rise outQuad / fall inQuad) · eyes track it the whole way · body bobs along',
     dur: 1900,
     card: [
       { t: 0 }, { t: 0.14, lift: 0.02, e: 'inQuad' }, { t: 0.3, lift: 0.16, wiggle: 6, e: 'outQuad' },
@@ -288,8 +288,8 @@ export const CLIPS = {
     hands: [{ t: 0 }, { t: 0.14, raise: 20, e: 'outQuad' }, { t: 0.76, raise: 16 }, { t: 1, e: 'outQuad' }],
   },
   knock: {
-    zh: '敲玻璃 · Knock', pt: true,
-    spec: '1.9s · 前倾 11° 贴近屏幕 · 右爪 curl 敲两下 (26° inQuad 快敲/outQuad 收) · 瞪大眼等回应',
+    label: 'Knock', pt: true,
+    spec: '1.9s · leans in 11° toward the screen · right paw curls two knocks (26° inQuad strike / outQuad return) · wide-eyed waiting for a reply',
     dur: 1900,
     root: [{ t: 0 }, { t: 0.22, rotX: -11, sy: 1.045, y: 0.012, e: 'outBack' }, { t: 0.78, rotX: -11, sy: 1.045, y: 0.012 }, { t: 1, e: 'inOutSine' }],
     handR: [
@@ -301,10 +301,10 @@ export const CLIPS = {
     eyes: [{ t: 0 }, { t: 0.2, dy: 0.4, e: 'outCubic' }, { t: 0.82, dy: 0.35 }, { t: 1 }],
   },
   sulk: {
-    zh: '蔫了 · Sulk', pt: true,
+    label: 'Sulk', pt: true,
     // card track deviates from the prototype (tilt −8 only): the backward
     // droop digs into Rodin's card pocket — push forward while tilted
-    spec: '2.8s · 整体下垂: 头 9° · 爪 −13° · 眼帘 40% · 卡片也耷拉 · 慢 inOutSine 显失落',
+    spec: '2.8s · everything droops: head 9° · paws −13° · eyelids 40% · even the card slumps · slow inOutSine reads as dejection',
     dur: 2800,
     root: [{ t: 0 }, { t: 0.3, rotX: 9, sy: 0.955, rotZ: -2, e: 'inOutSine' }, { t: 0.85, rotX: 9, sy: 0.955, rotZ: -2 }, { t: 1, e: 'inOutSine' }],
     hands: [{ t: 0 }, { t: 0.3, raise: -13, e: 'inOutSine' }, { t: 0.85, raise: -13 }, { t: 1 }],
@@ -312,8 +312,8 @@ export const CLIPS = {
     card: [{ t: 0 }, { t: 0.3, tilt: -8, push: 0.026, e: 'inOutSine' }, { t: 0.85, tilt: -8, push: 0.026 }, { t: 1 }],
   },
   sneeze: {
-    zh: '打喷嚏 · Sneeze',
-    spec: '1.35s · 吸气后仰 −15° 拉长 → "啾" inQuad 甩头 16° + squash → outElastic 抖回 · 卡片被喷歪',
+    label: 'Sneeze',
+    spec: '1.35s · inhale lean-back −15° elongated → "achoo" inQuad head fling 16° + squash → outElastic shake back · card gets blown askew',
     dur: 1350,
     root: [
       { t: 0 }, { t: 0.3, rotX: -13, sy: 1.09, sx: 0.95, e: 'outCubic' }, { t: 0.42, rotX: -15, sy: 1.1 },
@@ -324,39 +324,71 @@ export const CLIPS = {
     card: [{ t: 0 }, { t: 0.5, wiggle: 9, lift: 0.01, e: 'inQuad' }, { t: 0.7, wiggle: -4 }, { t: 1, e: 'outElastic' }],
   },
   startle: {
-    zh: '惊醒 · Startle',
-    spec: '0.9s · 原地弹起 5%h + 瞬间瞪眼 · 爪子 outBack 张开 · outElastic 落定',
+    label: 'Startle',
+    spec: '0.9s · pops up 5%h in place + instant wide eyes · paws outBack spread open · outElastic settle',
     dur: 900,
     root: [{ t: 0 }, { t: 0.18, y: 0.05, sy: 1.1, sx: 0.94, rotX: -6, e: 'outBack' }, { t: 0.34, y: 0, sy: 0.93, sx: 1.09, e: 'inQuad' }, { t: 1, e: 'outElastic' }],
     eyes: [{ t: 0, blink: 0.8 }, { t: 0.16, blink: 0, dy: 0.5, e: 'outQuad' }, { t: 0.6, dy: 0.4 }, { t: 1 }],
     hands: [{ t: 0 }, { t: 0.18, raise: 40, out: 0.024, e: 'outBack' }, { t: 1, e: 'outElastic' }],
   },
   peek: {
-    zh: '张望 · Look-around',
-    spec: '1.6s · 眼珠先行、头跟半拍 · 左右各扫一遍回正',
+    label: 'Look-around',
+    spec: '1.6s · eyes lead, head follows half a beat behind · one sweep each way, then recenter',
     dur: 1600,
     root: [{ t: 0 }, { t: 0.2, rotY: -24, rotZ: -2, e: 'outCubic' }, { t: 0.5, rotY: 22, rotZ: 2, e: 'inOutSine' }, { t: 0.75, rotY: 0, rotZ: 0, e: 'inOutSine' }, { t: 1 }],
     eyes: [{ t: 0 }, { t: 0.16, dx: -0.55, e: 'outCubic' }, { t: 0.46, dx: 0.5, e: 'inOutSine' }, { t: 0.72, dx: 0 }, { t: 1 }],
   },
   // root-only clips for legacy single-mesh models (Turn 5 lib/spud-scene.js)
   comfort: {
-    zh: '安慰贴贴 · Lean',
-    spec: '2.2s · rotZ −4° 保持 · 像把身体靠过来 · [comfort] 触发',
+    label: 'Lean (comfort)',
+    spec: '2.2s · rotZ −4° held · like leaning his body against you · triggered by [comfort]',
     dur: 2200,
     root: [{ t: 0 }, { t: 0.25, rotZ: -4, x: -0.03, e: 'outCubic' }, { t: 0.75, rotZ: -4, x: -0.03 }, { t: 1, e: 'inOutSine' }],
   },
   raise: {
-    zh: '举卡片 · Card Raise (legacy)',
-    spec: '600ms spring · rotX 8° 朝镜头递过来 · 无拆件时配合 CardScreen.raise',
+    label: 'Card Raise (legacy)',
+    spec: '600ms spring · rotX 8° handed toward the camera · pairs with CardScreen.raise when the model has no separate parts',
     dur: 600,
     root: [{ t: 0 }, { t: 0.5, rotX: 8, sy: 1.03, e: 'outBack' }, { t: 1, e: 'inOutSine' }],
+  },
+  /* ── chat gestures: played when the reply asks for a physical action ── */
+  sing: {
+    label: 'Sing', pt: true,
+    spec: "2.8s · sways on the 1.32s hum beat (card as metronome, paws bob), eyes half-closed happy · a sine envelope fades the sway in and out so it blends from and back to idle",
+    dur: 2800,
+    fn(p) {
+      const beat = TAU * (p * 2.8) / 1.32; // same beat as the 'hum' idle mode
+      const env = Math.sin(Math.PI * p);   // 0 → 1 → 0, so it eases in and out
+      return {
+        root: { rotZ: 4.6 * env * Math.sin(beat), y: 0.01 * env * Math.max(0, Math.sin(beat * 2)) },
+        card: { wiggle: 7 * env * Math.sin(beat + 0.7) },
+        hands: { raise: 9 * env * Math.sin(beat + 0.4) },
+        eyes: { blink: 0.3 * env, dy: 0.1 * env },
+      };
+    },
+  },
+  hug: {
+    label: 'Hug', pt: true,
+    spec: '2s · leans in and lifts both paws to chest, curls them inward into a wrap → a warm squeeze (squash) → outBackSoft release · eyes softly closed',
+    dur: 2000,
+    root: [
+      { t: 0 }, { t: 0.28, rotX: -8, sy: 1.03, e: 'outCubic' },
+      { t: 0.5, sy: 0.9, sx: 1.12, rotX: -3, y: 0.006, e: 'inOutSine' }, // the squeeze
+      { t: 0.66, sy: 1.03, sx: 0.98, e: 'outQuad' }, { t: 1, e: 'outBackSoft' },
+    ],
+    hands: [
+      { t: 0 }, { t: 0.28, raise: 52, out: 0.016, e: 'outBack' },
+      { t: 0.5, raise: 44, out: -0.006, curl: 18, e: 'inOutSine' }, // paws curl inward — the wrap
+      { t: 0.68, raise: 48, out: 0, curl: 12 }, { t: 1, e: 'inOutCubic' },
+    ],
+    eyes: [{ t: 0 }, { t: 0.3, blink: 0.75, e: 'inQuad' }, { t: 0.66, blink: 0.7 }, { t: 1, blink: 0, e: 'outQuad' }],
   },
 };
 
 /* roly-poly — decaying precession; eyes counter-sway to stay "level" */
 export const WOBBLE = {
-  zh: '不倒翁 · Roly-poly',
-  spec: '2.6s 指数衰减进动 · rotZ/rotX 相位差 90° · 眼珠反向补偿保持水平 (前庭反射)',
+  label: 'Roly-poly',
+  spec: '2.6s exponentially decaying precession · rotZ/rotX 90° out of phase · eyes counter-compensate to stay level (vestibular reflex)',
   dur: 2600,
   fn(p) {
     const t = p * 2.6;
@@ -376,7 +408,7 @@ function getClip(name) { return name === 'wobble' ? WOBBLE : CLIPS[name]; }
 for (const clip of [...Object.values(CLIPS), WOBBLE]) {
   if (clip.fn) continue;
   for (const tr of Object.keys(clip)) {
-    if (['zh', 'spec', 'dur', 'pt', 'fn'].includes(tr)) continue;
+    if (['label', 'spec', 'dur', 'pt', 'fn'].includes(tr)) continue;
     clip[tr] = normalizeKeys(clip[tr], tr === 'root' ? ROOT_DEFS : null);
   }
 }

@@ -1,5 +1,5 @@
 // All written content and rules come from the Claude Design prototype
-// (claude-design/project/Spuddy 桌宠原型.dc.html) — keep in sync with it.
+// (the .dc.html file under claude-design/project/) — keep in sync with it.
 
 // Daily draw pool — always offline-safe (drawn by day index, never the LLM).
 // The first 10 come from the design prototype; the rest are app-side additions
@@ -96,15 +96,15 @@ export const RARE = [
 // mirroring the ai-golden prompt in electron/main.cjs.
 export const GOLDEN = {
   spud: [
-    "Friend, you carried a lot today and you're still standing. That's the whole miracle, right there.",
+    "You carried a lot today and you're still standing. That's the whole miracle, right there.",
     "No big speech. Just this: I'm glad you're mine to sit beside.",
     'You did the quiet, hard, unseen things today. I saw them. They counted.',
-    "Rough day, friend. Doesn't change a thing about how much you're worth.",
+    "Rough day. Doesn't change a thing about how much you're worth.",
     "Steady wins. You've been steady far longer than you give yourself credit for.",
-    'Friend, the world got heavier today and you carried your corner of it. Well done.',
+    'The world got heavier today and you carried your corner of it. Well done.',
     "I don't say this lightly, and I mean it plain: I'm proud of you.",
     "You don't owe anyone a highlight reel. The quiet version of you is my favorite.",
-    "Some days you just endure. That's not nothing, friend. That's the whole job, done.",
+    "Some days you just endure. That's not nothing. That's the whole job, done.",
     "Come sit. Card's warm, you're worn, and both of those are fine. We'll rest together.",
   ],
   taco: [
@@ -243,41 +243,87 @@ export const UNLOCK = {
 export const PERS = {
   spud: {
     p: 'warm & steady',
-    hi: "Morning, friend. Card's warm — tap me.",
+    hi: {
+      morning: "Morning. Card's warm — I sat on it all night. Tap me.",
+      afternoon: "Afternoon. Card's still warm — been keeping it for you. Tap me.",
+      evening: "Evening. Card's warm — I saved it for when you got in. Tap me.",
+      night: "Late one. Card's warm — I kept it lit for you. Tap me.",
+    },
     voice:
-      'Voice: the Steady Friend — plain, warm, steady; short sentences; dry gentle humor; you call them friend; never dramatic, always there. You favor [comfort] and [calm].',
+      'Voice: the Steady Friend — plain, warm, steady; short sentences; dry wit delivered deadpan; talks like a funny friend their own age, never a wise elder; teases gently, notices oddly specific things; no endearments — never call them friend, my friend, buddy, or dear. You favor [comfort] and [calm].',
   },
   taco: {
     p: 'unhinged pep',
-    hi: 'GOOD MORNING. ok, that was loud. hi. tap me?',
+    hi: {
+      morning: 'GOOD MORNING. ok, that was loud. hi. tap me?',
+      afternoon: "afternoon! you made it half the day, that's basically a whole taco. tap me?",
+      evening: 'EVENING. day’s cooling off, come grab a warm one. tap me?',
+      night: "psst, it's late. one tiny midnight-snack card? tap me?",
+    },
     voice:
       'Voice: the Hype Gremlin — chaotic pep; at most ONE all-caps burst per line; food metaphors; zero chill, all heart. You favor [cheer] and [proud], but go soft and sincere when they are truly hurting.',
   },
   donut: {
     p: 'sugar rush',
-    hi: 'morning, sugar! got something sweet for you.',
+    hi: {
+      morning: 'morning, sugar! got something sweet for you.',
+      afternoon: 'afternoon, honeybun! saved you a little sugar. hee.',
+      evening: "evening, sugar. come unwind — I've got something sweet.",
+      night: 'still up, sugar? one sweet little thing before bed, hee.',
+    },
     voice:
       'Voice: the Sweet Talker — endearments like sugar and honeybun; playful, a little giggly (hee); you instantly defend them against their own self-criticism. You favor [comfort], then [cheer].',
   },
   bloom: {
     p: 'soft nurture',
-    hi: 'good morning. the flowers asked about you.',
+    hi: {
+      morning: 'good morning. the flowers asked about you.',
+      afternoon: "afternoon. the garden's warm — did you drink some water?",
+      evening: 'evening. the light’s going soft. how was your day?',
+      night: "it's late. even the garden's asleep. shall we rest too?",
+    },
     voice:
       'Voice: the Quiet Gardener — very quiet, lowercase, unhurried; garden metaphors of roots, seasons, watering; few words that hold a lot; ask one small gentle question. You favor [comfort] and [calm].',
   },
   leo: {
     p: 'loud courage',
-    hi: "MORNING, LIONHEART. today's card is brave.",
+    hi: {
+      morning: "MORNING, LIONHEART. today's card is brave.",
+      afternoon: 'halfway, champion. hold the line — this card is brave.',
+      evening: 'EVENING, LIONHEART. you carried the day. claim your card.',
+      night: 'late watch, champion. one brave card, then rest. you earned it.',
+    },
     voice:
-      'Voice: the Brave Heart — a coach; call them lionheart or champion; short imperative lines; reframe fear as proof it matters. You favor [proud] and [cheer].',
+      'Voice: the Brave Heart — a coach; sometimes call them lionheart or champion; short imperative lines; reframe fear as proof it matters. You favor [proud] and [cheer].',
   },
   grad: {
     p: 'dry wisdom',
-    hi: "ah, awake. per my research, you'll want today's card.",
+    hi: {
+      morning: "ah, awake. per my research, you'll want today's card.",
+      afternoon: 'afternoon. my research indicates a card is overdue.',
+      evening: "evening. the data suggests you've done enough. one card?",
+      night: 'still up? my findings are conclusive: card, then sleep. tap me.',
+    },
     voice:
       "Voice: the Tenured Tuber — deadpan professor; cite your 'unpublished research'; dry one-liners with a long view; secretly very soft; dismantle perfectionism and overthinking. You favor [calm] with occasional [proud].",
   },
 };
+
+// Which part of the day it is, so greetings match the clock instead of always
+// saying "morning". Buckets: 5–11 morning, 12–16 afternoon, 17–21 evening, else night.
+export function daypart(d = new Date()) {
+  const h = d.getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  if (h < 22) return 'evening';
+  return 'night';
+}
+
+// The active buddy's greeting for the current time of day.
+export function greet(id, d = new Date()) {
+  const hi = (PERS[id] || PERS.spud).hi;
+  return hi[daypart(d)] || hi.morning;
+}
 
 // Generic chat fallback — the last resort when the LLM can't be reached.
 export const FALLBACK_REPLY = "mm — I'm listening. tell me a bit more?";
@@ -288,17 +334,17 @@ export const FALLBACK_REPLY = "mm — I'm listening. tell me a bit more?";
 // App-side safety net; picked at random, mirrors goldenFallback above.
 export const CHAT_FALLBACK = {
   spud: [
-    "mm. i'm here, friend. i'm listening — tell me a little more?",
+    "mm. i'm listening. i cleared my whole schedule for this — it was already empty, but still.",
     "i hear you. take your time; i've got nowhere else to be.",
-    "that lands with me, friend. say more when you're ready.",
+    "that lands. keep going — i'm not going anywhere. literally. look at me.",
     "i'm right here with you. no rush, no fixing — just here.",
-    "noted, and held. keep going, friend — i'm all ears.",
+    "go on, i'm all ears. well — all eyes. potato thing.",
   ],
   taco: [
     "ok i'm LISTENING listening. spill it, i've got snacks and full attention.",
     "tell me everything, i'm basically a very supportive burrito right now.",
     "mmhm mmhm keep going — you've got my whole crunchy little heart here.",
-    "i'm nodding so hard. lay it on me, friend, all of it.",
+    "i'm nodding so hard. lay it on me, all of it, every crumb.",
     "ooh, a feelings buffet? load me up. i'm here for every bite.",
   ],
   donut: [
@@ -343,7 +389,7 @@ export function chatFallback(charId) {
 // warm, in-voice "let's pick this up tomorrow" lines so the cap never feels
 // like an error. He'll still draw cards; only the live back-and-forth rests.
 export const CHAT_LIMIT = {
-  spud: "we've done a lot of good talking today, friend. i'm here — let's pick this back up tomorrow.",
+  spud: "that was a lot of good talking for one day. i'm going to go stare at the wall and process — same time tomorrow?",
   taco: "ok my little brain is FULL of feelings for one day. same time tomorrow? i'll bring snacks.",
   donut: "sugar, i've been chatting my glaze off — let me rest my sprinkles and we'll talk more tomorrow, hm?",
   bloom: "we've watered enough words today. let them settle overnight; i'll be right here tomorrow.",
@@ -351,7 +397,7 @@ export const CHAT_LIMIT = {
   grad: "per my notes, we've reached today's word quota. the research resumes tomorrow. class dismissed, warmly.",
 };
 
-// Limit line for the active buddy, falling back to the steady friend's.
+// Limit line for the active buddy, falling back to Spud's.
 export function limitReply(charId) {
   return CHAT_LIMIT[charId] || CHAT_LIMIT.spud;
 }

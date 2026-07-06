@@ -1,4 +1,4 @@
-import { PERS } from './content.js';
+import { greet } from './content.js';
 
 const KEY = 'pp_ritual_v1';
 
@@ -23,8 +23,10 @@ export function defaultState() {
     msg: '',
     keptToday: false,
     cards: [], // {m, rare, day, by, fav}
+    usedCards: { date: null, used: [] }, // server-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
+    usedBuiltins: [], // built-in DAILY lines ever drawn — each retires permanently once seen
     journal: [], // {day, note, reply}
-    chat: [{ who: 'pet', text: "Morning! I kept a card warm for you — tap me. Or just talk to me, I remember things." }],
+    chat: [{ who: 'pet', text: `${greet('spud')} Or just talk to me, I remember things.` }],
     active: 'spud',
     unlockedIds: ['spud'],
     buddyNew: false,
@@ -43,7 +45,7 @@ export function load() {
       s = { ...s, ...raw };
       if (!s.unlockedIds.includes('spud')) s.unlockedIds = ['spud', ...s.unlockedIds];
       if (!Array.isArray(s.chat) || !s.chat.length) {
-        s.chat = [{ who: 'pet', text: PERS[s.active]?.hi || PERS.spud.hi }];
+        s.chat = [{ who: 'pet', text: greet(s.active) }];
       }
     }
   } catch (e) {}

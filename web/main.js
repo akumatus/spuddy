@@ -16,7 +16,7 @@ const CARD_DECK = [
   { top: 'HEY', main: 'You made it through every hard day so far.' },
   { top: 'FOR YOU', main: 'Done beats perfect.' },
   { top: '· ♥ ·', main: 'You don’t have to bloom today — just stay rooted.' },
-  { top: 'GENTLE NUDGE', main: 'Go drink some water, friend.' },
+  { top: 'GENTLE NUDGE', main: 'Go drink some water. I’ll watch your stuff.' },
   { top: 'GOLDEN STITCH', main: 'You’re doing better than you think.', gold: true },
 ];
 

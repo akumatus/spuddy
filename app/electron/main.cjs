@@ -9,7 +9,7 @@ app.setName('Spuddy');
 const WIN_W = 680;
 const WIN_H = 640;
 
-// app icon — design 4b「从底边升起」, rebuilt by scripts/make-icon.cjs
+// app icon — design 4b "rising from the bottom edge", rebuilt by scripts/make-icon.cjs
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 
 let win = null;
@@ -244,6 +244,9 @@ async function serverFetch(pathname, { method = 'GET', body, timeout = 28000 } =
 const LOCAL_API_BASE = process.env.DEEPSEEK_API_BASE || 'https://api.deepseek.com';
 const LOCAL_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const TAG_RE = /^\s*\[(comfort|cheer|proud|calm)\]\s*/i;
+// Optional [gesture] tag after the emotion tag — the renderer maps it to an
+// animation clip. Kept in sync with GESTURE_CLIP in app/src/main.js.
+const GESTURE_RE = /^\s*\[(wave|hug|dance|spin|cheer|hop|sing|stretch|shy|peek|sulk|sneeze|present)\]\s*/i;
 
 function localApiKey() {
   return process.env.DEEPSEEK_API_KEY || CONFIG.apiKey || null;
@@ -282,7 +285,7 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       if (res.status === 429) return { limited: true }; // daily budget spent
       if (!res.ok) return null;
       const data = await res.json();
-      return data && data.text ? { tag: data.tag || 'calm', text: data.text } : null;
+      return data && data.text ? { tag: data.tag || 'calm', gesture: data.gesture || null, text: data.text } : null;
     } catch (e) {
       return null; // offline / server down → renderer uses its in-voice fallback
     }
@@ -298,6 +301,7 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       `Remember and gently reference what they told you before when it helps. A soft follow-up question is welcome. ` +
       `You are not a therapist: if they seem in real distress, warmly suggest also talking to a human they trust. ` +
       `Begin your reply with exactly one emotion tag in square brackets — [comfort] if they seem down, [cheer] if celebrating with them, [proud] if they did something good, [calm] otherwise — then the line itself.` +
+      ` When their message calls for a physical action — they ask you to sing, dance, hug, wave, spin, jump, stretch, hide, peek, sneeze, sulk, or show your card, or acting one out would clearly land the moment — add ONE gesture tag immediately AFTER the emotion tag, chosen from EXACTLY this list: [wave] [hug] [dance] [spin] [cheer] [hop] [sing] [stretch] [shy] [peek] [sulk] [sneeze] [present]. Use it only when it truly fits; most replies have no gesture tag. Never invent gesture words outside that list. Example: "[cheer][dance] you got it — watch this."` +
       (mem ? `\nLong-term memory of them:\n${mem}` : '');
     const messages = (p.messages || []).map((m) => ({
       role: m.who === 'user' ? 'user' : 'assistant',
@@ -306,9 +310,12 @@ ipcMain.handle('ai-reply', async (_e, p) => {
     const raw = clean(await localChat({ system, messages, maxTokens: 300 }));
     if (!raw) return null;
     const m = raw.match(TAG_RE);
+    const body = raw.replace(TAG_RE, '');
+    const g = body.match(GESTURE_RE);
     return {
       tag: m ? m[1].toLowerCase() : 'calm',
-      text: raw.replace(TAG_RE, '').slice(0, 220),
+      gesture: g ? g[1].toLowerCase() : null,
+      text: body.replace(GESTURE_RE, '').slice(0, 220),
     };
   } catch (e) {
     return null;
@@ -340,6 +347,41 @@ ipcMain.handle('ai-golden', async (_e, p) => {
       `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.`;
     const out = clean(await localChat({ messages: [{ role: 'user', content: prompt }], maxTokens: 200 }));
     return out && out.length > 4 && out.length < 220 ? out : null;
+  } catch (e) {
+    return null;
+  }
+});
+
+// Personalized greeting — a fresh hello knit from memory + time of day, spoken
+// when the app opens. Returns null on any failure so the renderer speaks its
+// built-in daypart greeting instead.
+ipcMain.handle('ai-greet', async (_e, p) => {
+  if (SERVER_URL) {
+    try {
+      const res = await serverFetch('/greet', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
+      if (!res.ok) return null; // incl. 429 → renderer falls back to a built-in line
+      const data = await res.json();
+      return data && data.text ? data.text : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  try {
+    const when = ['morning', 'afternoon', 'evening', 'night'].includes(p.daypart) ? p.daypart : 'day';
+    const j = p.memory || [];
+    const ctx = j.length ? j.map((m) => `day ${m.day}: they said "${m.note || ''}"`).join('\n') : '';
+    const prompt =
+      `You are ${p.charName}, a tiny hand-crocheted spuddy desktop pet who lives on your human's desk holding a little card. ` +
+      p.voice +
+      ` It is ${when} where they are, day ${p.day || 1} together. They just opened you on their desk. ` +
+      `Greet them: ONE short spoken hello in your voice, fit to the ${when}, and gently nudge them to tap you for today's card. ` +
+      (ctx
+        ? `Their recent notes:\n${ctx}\nLightly reference one concrete thing they mentioned if it fits naturally; otherwise keep it warm and general. `
+        : 'Keep it warm and general. ') +
+      `Rules: HARD LIMIT 20 words; sound spontaneous and a little different every time; plain text, ` +
+      `no emojis, no quotation marks, no emotion tag, no preamble. Output only the greeting.`;
+    const out = clean(await localChat({ messages: [{ role: 'user', content: prompt }], maxTokens: 120 }));
+    return out && out.length > 2 && out.length < 200 ? out : null;
   } catch (e) {
     return null;
   }

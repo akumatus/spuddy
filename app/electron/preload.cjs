@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('pp', {
   ai: {
     reply: (payload) => ipcRenderer.invoke('ai-reply', payload),
     golden: (payload) => ipcRenderer.invoke('ai-golden', payload),
+    greet: (payload) => ipcRenderer.invoke('ai-greet', payload),
   },
   cards: {
     today: () => ipcRenderer.invoke('cards-today'),

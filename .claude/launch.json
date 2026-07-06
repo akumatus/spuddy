@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4321", "--directory", "web"],
       "port": 4321
+    },
+    {
+      "name": "renderer-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4173", "--directory", "app/dist"],
+      "port": 4173
     }
   ]
 }

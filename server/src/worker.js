@@ -3,6 +3,7 @@
 //   GET  /cards          today's pre-generated card batch (all personas)
 //   POST /chat           real-time chat reply (geo-routed, per-device quota)
 //   POST /golden         real-time personalized golden card (same quota)
+//   POST /greet          real-time personalized open-the-app greeting (same quota)
 //   POST /admin/generate manual batch regen (protected) — run once after deploy
 //   GET  /health         liveness
 //
@@ -10,8 +11,8 @@
 // from KV so ordinary draws never hit an LLM. Real-time endpoints route by the
 // caller's country and are metered against a per-device daily budget.
 
-import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildBatchPrompt, buildMutterPrompt, parseTag } from './personas.js';
-import { callLLM, pickChatProvider } from './providers.js';
+import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, buildBatchPrompt, buildMutterPrompt, parseTag, parseGesture } from './personas.js';
+import { callLLM, pickChatProvider, pickGenProvider, loadConfig } from './providers.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -57,6 +58,23 @@ async function bumpQuota(env, q) {
   await env.KV.put(q.key, String(q.used + 1), { expirationTtl: 172800 });
 }
 
+// A few of today's cron-baked mutters, fed into the chat prompt as the pet's
+// inner life — conversational material the daily batch already paid for.
+// Best-effort: any KV miss or shape change just means no musings this turn.
+async function todaysMusings(env, charId) {
+  try {
+    const raw = await env.KV.get('cards:current');
+    const mutters = raw ? JSON.parse(raw).cards?.[charId]?.mutters : null;
+    if (!mutters) return [];
+    const pool = MOODS.flatMap((k) => mutters[k] || []);
+    const out = [];
+    while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -81,17 +99,20 @@ export default {
         if (!q.ok) return json({ limited: true, used: q.used, limit: q.limit }, 429);
 
         const persona = PERSONAS[p.charId] || PERSONAS.spud;
-        const system = buildChatSystem(persona, p);
+        const system = buildChatSystem(persona, p, await todaysMusings(env, p.charId));
         const messages = (p.messages || []).map((m) => ({
           role: m.who === 'user' ? 'user' : 'assistant',
           content: m.text,
         }));
-        const provider = pickChatProvider(geoOf(request), env);
-        const out = clean(await callLLM(env, provider, { system, messages, maxTokens: 300 }));
+        const cfg = await loadConfig(env);
+        const provider = pickChatProvider(geoOf(request), env, cfg);
+        // temperature 1.3 — DeepSeek's recommended conversation setting; the default 0.9 reads flat
+        const out = clean(await callLLM(env, provider, { system, messages, maxTokens: 300, temperature: 1.3, models: cfg.models }));
         if (!out) return json(null); // model failed/empty — don't spend budget
         await bumpQuota(env, q); // only a real reply counts
         const { tag, body } = parseTag(out);
-        return json({ tag, text: body.slice(0, 220), provider });
+        const { gesture, body: text } = parseGesture(body); // optional action to act out
+        return json({ tag, gesture, text: text.slice(0, 260), provider });
       }
 
       if (url.pathname === '/golden' && request.method === 'POST') {
@@ -102,13 +123,65 @@ export default {
 
         const persona = PERSONAS[p.charId] || PERSONAS.spud;
         const prompt = buildGoldenPrompt(persona, p);
-        const provider = pickChatProvider(geoOf(request), env);
+        const cfg = await loadConfig(env);
+        const provider = pickChatProvider(geoOf(request), env, cfg);
+        // temperature 1.3 — creative but coherent; DeepSeek's English degrades noticeably past this
         const out = clean(
-          await callLLM(env, provider, { system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200 })
+          await callLLM(env, provider, { system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200, temperature: 1.3, models: cfg.models })
         );
         if (!out) return json({ text: null, provider }); // failed — don't spend budget
         await bumpQuota(env, q); // successful weave counts
         return json({ text: out.length > 4 && out.length < 220 ? out : null, provider });
+      }
+
+      // Personalized open-the-app greeting — same per-device budget as chat.
+      // Over budget or model failure just returns null text and the app speaks
+      // its built-in daypart greeting instead.
+      if (url.pathname === '/greet' && request.method === 'POST') {
+        if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
+        const p = await request.json();
+        const q = await quotaState(env, p.deviceId);
+        if (!q.ok) return json({ text: null, limited: true }, 429);
+
+        const persona = PERSONAS[p.charId] || PERSONAS.spud;
+        const prompt = buildGreetPrompt(persona, p);
+        const cfg = await loadConfig(env);
+        const provider = pickChatProvider(geoOf(request), env, cfg);
+        const out = clean(
+          await callLLM(env, provider, { system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.3, models: cfg.models })
+        );
+        if (!out) return json({ text: null, provider }); // failed — don't spend budget
+        await bumpQuota(env, q); // a real greeting counts
+        return json({ text: out.length > 2 && out.length < 200 ? out : null, provider });
+      }
+
+      // Live provider/model switch. GET reads the current KV config, POST replaces
+      // it. No redeploy needed — the next chat/golden/cron call reads the new value.
+      //   curl -XPOST .../admin/config -H 'x-pp-admin: TOKEN' \
+      //     -d '{"intl":"anthropic","gen":"deepseek","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
+      if (url.pathname === '/admin/config') {
+        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
+        if (request.method === 'GET') {
+          const raw = await env.KV.get('config:current');
+          return json(raw ? JSON.parse(raw) : {});
+        }
+        if (request.method === 'POST') {
+          const body = await request.json();
+          const next = {};
+          for (const k of ['cn', 'intl', 'gen']) {
+            if (typeof body[k] === 'string' && body[k].trim()) next[k] = body[k].trim().toLowerCase();
+          }
+          if (body.models && typeof body.models === 'object') {
+            next.models = {};
+            for (const [k, v] of Object.entries(body.models)) {
+              if (typeof v === 'string' && v.trim()) next.models[k] = v.trim();
+            }
+          }
+          await env.KV.put('config:current', JSON.stringify(next));
+          return json({ ok: true, config: next });
+        }
+        return json({ error: 'method not allowed' }, 405);
       }
 
       if (url.pathname === '/admin/generate' && request.method === 'POST') {
@@ -139,63 +212,98 @@ export default {
   },
 };
 
+// Near-identical lines across runs collapse to one (punctuation/case ignored).
+function dedupeLines(lines) {
+  const seen = new Set();
+  return lines.filter((s) => {
+    const key = s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function generateForChar(env, id, opts) {
-  const { genProvider, nNormal, nGolden } = opts;
-  const prompt = buildBatchPrompt(PERSONAS[id], nNormal, nGolden);
-  let last = { normal: [], golden: [] };
-  // one retry — the batch call occasionally returns throttled/unparseable
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const text = await callLLM(env, genProvider, {
-        system: '',
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 3000, // 34 lines of JSON — 1600 truncated the tail (invalid JSON)
-        temperature: 0.9,
-        json: true, // force clean JSON so parsing can't silently drop a persona
-      });
-      const parsed = extractJson(text);
-      const normal = sanitizeList(parsed?.normal, nNormal);
-      const golden = sanitizeList(parsed?.golden, nGolden);
-      if (normal.length || golden.length) return { normal, golden };
-      last = { normal, golden };
-    } catch (e) {
-      // transient (rate limit / timeout) — fall through to retry
+  const { genProvider, nNormal, nGolden, runs } = opts;
+  // Several small calls instead of one big one: long single batches template
+  // out toward the tail, and each run draws its own inspiration seeds. Results
+  // are merged and deduped.
+  const perNormal = Math.ceil(nNormal / runs);
+  const perGolden = Math.ceil(nGolden / runs);
+  const runOnce = async () => {
+    const prompt = buildBatchPrompt(PERSONAS[id], perNormal, perGolden); // fresh seeds per run
+    // one retry — the batch call occasionally returns throttled/unparseable
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await callLLM(env, genProvider, {
+          system: '',
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 3000, // ~27 lines of JSON per run at ~90 tokens/line — truncation makes the run unparseable
+          temperature: 1.2, // tested sweet spot: DeepSeek's json mode emits corrupted JSON at 1.5, and 0.9 converges on templates
+          timeoutMs: 240000, // not latency-sensitive, and queued runs (Workers cap concurrent connections) eat into the timer
+          json: true, // force clean JSON so parsing can't silently drop a persona
+          models: opts.models,
+        });
+        const parsed = extractJson(text);
+        const normal = sanitizeList(parsed?.normal, perNormal);
+        const golden = sanitizeList(parsed?.golden, perGolden);
+        if (normal.length || golden.length) return { normal, golden };
+      } catch (e) {
+        // transient (rate limit / timeout) — fall through to retry
+      }
     }
-  }
-  return last;
+    return { normal: [], golden: [] };
+  };
+  const results = await Promise.all(Array.from({ length: runs }, runOnce));
+  return {
+    normal: dedupeLines(results.flatMap((r) => r.normal)).slice(0, nNormal),
+    golden: dedupeLines(results.flatMap((r) => r.golden)).slice(0, nGolden),
+  };
 }
 
 const MOODS = ['watch', 'alone', 'lonely'];
 
 async function generateMuttersForChar(env, id, opts) {
-  const prompt = buildMutterPrompt(PERSONAS[id], opts.nMutters);
-  const empty = { watch: [], alone: [], lonely: [] };
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const text = await callLLM(env, opts.genProvider, {
-        system: '',
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 1200,
-        temperature: 1.0,
-        json: true,
-      });
-      const parsed = extractJson(text);
-      const mutters = {};
-      for (const k of MOODS) mutters[k] = sanitizeList(parsed?.[k], opts.nMutters);
-      if (MOODS.some((k) => mutters[k].length)) return { mutters };
-    } catch (e) {
-      // transient — fall through to retry
+  // Same small-runs strategy as the cards: fresh seeds per run, merge + dedupe.
+  const per = Math.ceil(opts.nMutters / opts.runs);
+  const runOnce = async () => {
+    const prompt = buildMutterPrompt(PERSONAS[id], per); // fresh seeds per run
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await callLLM(env, opts.genProvider, {
+          system: '',
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 1500, // ~24 short lines of JSON per run — headroom against truncation
+          temperature: 1.1, // a notch below the cards: the mutter prompt already asks for absurdity, and 1.2 tips it into word salad
+          timeoutMs: 240000, // same relaxed budget as the cards
+          json: true,
+          models: opts.models,
+        });
+        const parsed = extractJson(text);
+        const out = {};
+        for (const k of MOODS) out[k] = sanitizeList(parsed?.[k], per);
+        if (MOODS.some((k) => out[k].length)) return out;
+      } catch (e) {
+        // transient — fall through to retry
+      }
     }
-  }
-  return { mutters: empty };
+    return null;
+  };
+  const results = (await Promise.all(Array.from({ length: opts.runs }, runOnce))).filter(Boolean);
+  const mutters = {};
+  for (const k of MOODS) mutters[k] = dedupeLines(results.flatMap((r) => r[k])).slice(0, opts.nMutters);
+  return { mutters };
 }
 
 async function generateAll(env) {
+  const cfg = await loadConfig(env);
   const opts = {
-    genProvider: env.GEN_PROVIDER || 'deepseek',
+    genProvider: pickGenProvider(env, cfg),
+    models: cfg.models,
     nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
     nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),
     nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
+    runs: Math.max(1, parseInt(env.GEN_RUNS || '2', 10)),
   };
   // Generate every persona CONCURRENTLY (cards + mutters). Sequential calls
   // accumulate wall time and the later ones get throttled/cut; concurrent keeps

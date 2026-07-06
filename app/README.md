@@ -95,7 +95,7 @@ notarization later for double-click-to-open.
 
 ## App icon
 
-The app icon is design 4b「从底边升起」(rising from the bottom edge): the potato
+The app icon is design 4b "rising from the bottom edge": the potato
 rises from the bottom of a soft-blue squircle, holding its own white card with a
 red heart. Rebuild all icon assets with:
 

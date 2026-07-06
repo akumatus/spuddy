@@ -15,9 +15,11 @@
 //     answering his knock); plain pokes fall through to the app's own lines
 //   - canAct() gate: no decisions or mutters while you're chatting, weaving,
 //     browsing the Book, or he's tucked away
-export const STATE_ZH = {
-  watch: '看你干活', alone: '自己呆着', play: '自娱自乐', doze: '打瞌睡',
-  knock: '搭讪中', wait: '等你回应', sulk: '被无视了', greet: '欢迎回来',
+//   - routine step mutter/speak lines are variant pools (arrays picked at
+//     random), not the prototype's single fixed strings
+export const STATE_LABEL = {
+  watch: 'watching you work', alone: 'hanging out', play: 'self-play', doze: 'dozing',
+  knock: 'saying hi', wait: 'waiting for you', sulk: 'feeling ignored', greet: 'welcome back',
 };
 
 const MUTTER = {
@@ -50,15 +52,20 @@ const MUTTER = {
     'not sleeping. thinking with my eyes closed…',
     'five more minutes…',
     'zz… mashed… no… whipped…',
+    'the pixels are going soft…',
+    'gonna rest my eyes. just the eyes.',
   ],
   ignored: [
     'noted. important human business.',
     "ok. filing this under 'later'.",
     "cool cool cool. i'll be right here.",
+    'the knock economy is rough right now.',
   ],
   wake: [
     "i wasn't sleeping. i was thinking with my eyes closed.",
     'awake! was awake the whole time. mostly.',
+    'mm. what year is it. ok good.',
+    'dreamt i was a croissant. troubling.',
   ],
 };
 
@@ -66,83 +73,133 @@ const SPEAK = {
   greet: [
     "oh! you're back. the desk is safe. i was very brave.",
     "you're back! nothing happened. except one dust bunny. it was huge.",
+    'there you are. the chair missed you. i can tell.',
+    'welcome back. i kept your pixels warm.',
   ],
   knock: [
     "knock knock. it's me. reason: none. just checking on you.",
     "hey. tiny check-in — water break? i'll wait.",
     "psst. shoulders down. they're not earrings.",
     "you've been at it a while. blink with me? one… two.",
+    "quick survey: how's the human doing? one word is fine.",
   ],
   delight: [
     "you're here! hi. hello. ok. that's all i needed.",
-    'worth it. carry on, friend.',
+    'worth it. carry on.',
+    'ah, there you are. as you were.',
+    "that's the stuff. ok. back to business.",
   ],
 };
 
 /* self-play routines: weight fn of personality, energy cost, step script.
-   step: { clip | mode | mutter | speak | sfx | emote | wait(ms real) } */
+   step: { clip | mode | mutter | speak | sfx | emote | wait(ms real) }
+   mutter/speak take a string or an array of variants (picked at random) */
 const ROUTINES = {
   chase: {
-    zh: '追尾巴', cost: 14, w: (P) => 0.5 + P.drama * 0.9,
+    label: 'tail-chase', cost: 14, w: (P) => 0.5 + P.drama * 0.9,
     steps: [
-      { mutter: 'is that… my tail? hold on.', wait: 1500 },
+      { mutter: [
+        'is that… my tail? hold on.',
+        'something moved back there. suspicious.',
+        'do i even have a tail? one way to find out.',
+        'the tail. today is the day.',
+      ], wait: 1500 },
       { clip: 'chase', sfx: 'whoosh', wait: 2350 },
       { clip: 'wobble', wait: 2400 },
-      { mutter: 'conclusion: the tail remains theoretical.' },
+      { mutter: [
+        'conclusion: the tail remains theoretical.',
+        'the tail wins again. respect.',
+        'update: round on all sides. investigation ongoing.',
+        "i'll catch it tomorrow. it knows i will.",
+      ] },
     ],
   },
   juggle: {
-    zh: '颠卡片', cost: 10, w: (P) => 0.4 + P.drama * 0.8,
+    label: 'card-juggle', cost: 10, w: (P) => 0.4 + P.drama * 0.8,
     steps: [
       { clip: 'bounceCard', wait: 1950 },
       { clip: 'bounceCard', wait: 1950 },
       { clip: 'hop', sfx: 'boing', wait: 900 },
-      { mutter: 'nailed it. nobody saw. still counts.' },
+      { mutter: [
+        'nailed it. nobody saw. still counts.',
+        'gravity tried. i tried harder.',
+        'flawless routine. the stapler seemed impressed.',
+        'and the crowd goes… quiet. impressed quiet.',
+      ] },
     ],
   },
   study: {
-    zh: '读卡片', cost: 5, w: (P) => 0.4 + P.curious * 0.9,
+    label: 'card-study', cost: 5, w: (P) => 0.4 + P.curious * 0.9,
     steps: [
-      { mutter: 'card inspection time.', wait: 1300 },
+      { mutter: [
+        'card inspection time.',
+        'daily card audit. very official.',
+        'quality control. someone has to do it.',
+      ], wait: 1300 },
       { clip: 'cardStudy', wait: 3450 },
-      { mutter: 'checked twice. still true.' },
+      { mutter: [
+        'checked twice. still true.',
+        'all words present and accounted for.',
+        'inspection complete. no notes.',
+        'hm. reads even better upside down.',
+      ] },
     ],
   },
   practice: {
-    zh: '练习挥手', cost: 8, w: (P) => 0.35 + P.drama * 0.6,
+    label: 'wave practice', cost: 8, w: (P) => 0.35 + P.drama * 0.6,
     steps: [
-      { mutter: 'rehearsal. gotta keep the wave sharp.', wait: 1400 },
+      { mutter: [
+        'rehearsal. gotta keep the wave sharp.',
+        'wave drills. form is everything.',
+        'practicing my wave. for waving emergencies.',
+      ], wait: 1400 },
       { clip: 'wave', wait: 1800 },
       { clip: 'wave', wait: 1900 },
-      { mutter: 'wave form: excellent. audience: none.' },
+      { mutter: [
+        'wave form: excellent. audience: none.',
+        'that one had real wrist in it. if i had wrists.',
+        'the follow-through needs work. the enthusiasm does not.',
+      ] },
     ],
   },
   hum: {
-    zh: '哼小曲', cost: 6, w: (P) => 0.55 - P.drama * 0.2,
+    label: 'humming', cost: 6, w: (P) => 0.55 - P.drama * 0.2,
     steps: [
       { mode: 'hum', emote: '♪', wait: 1400 },
       { emote: '♪', wait: 1400 },
       { emote: '♪', wait: 1300 },
       { emote: '♪', wait: 1300 },
-      { mode: 'idle', mutter: 'that song has no words. perfect song.' },
+      { mode: 'idle', mutter: [
+        'that song has no words. perfect song.',
+        "i made that one up. it's about soup.",
+        'same three notes as yesterday. a classic now.',
+      ] },
     ],
   },
   stretch: {
-    zh: '伸懒腰', cost: -4, w: () => 0.45,
+    label: 'stretch', cost: -4, w: () => 0.45,
     steps: [
       { clip: 'stretch', wait: 2450 },
-      { mutter: 'ooh. heard a click. good click, i think.' },
+      { mutter: [
+        'ooh. heard a click. good click, i think.',
+        'taller now. probably. by a little.',
+        'stretching complete. i am basically elastic.',
+      ] },
     ],
   },
   peek: {
-    zh: '张望', cost: 2, w: (P) => 0.3 + P.curious * 0.5,
+    label: 'look-around', cost: 2, w: (P) => 0.3 + P.curious * 0.5,
     steps: [{ clip: 'peek', wait: 1650 }],
   },
   sneeze: {
-    zh: '打喷嚏', cost: 3, w: () => 0,
+    label: 'sneeze', cost: 3, w: () => 0,
     steps: [
       { clip: 'sneeze', sfx: 'sneeze', wait: 1450 },
-      { mutter: '…dusty in here. excuse me.' },
+      { mutter: [
+        '…dusty in here. excuse me.',
+        '…startled myself. again.',
+        'that one came from deep in the starch.',
+      ] },
     ],
   },
 };
@@ -156,6 +213,7 @@ export function routineMs(key) {
 }
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const line = (v) => (Array.isArray(v) ? pick(v) : v);
 
 export class SpudBrain {
   constructor({ animator, on = {}, personality, timeScale = 1, canAct, serverMutters = null, mutterFreshChance = 0.5 }) {
@@ -174,7 +232,10 @@ export class SpudBrain {
     this.lastPointer = -1e9;            // real ms
     this.leftAt = 0; this.simAway = false;
     this.busy = false; this.seqT = 0;
-    this.lastMutterClock = -1e9; this.mutterGap = this.randMutterGap();
+    // start the mutter clock at 0 (not -∞) so the first idle thought waits a
+    // full gap after launch — otherwise he blurts one on the first tick, before
+    // the boot greeting has a chance to speak
+    this.lastMutterClock = 0; this.mutterGap = this.randMutterGap();
     this.lastKnockClock = -30; this.knockBackoff = 1;
     this.waitDeadline = 0;              // scaled clock deadline for knock reply
     this.lastZz = 0; this.lastPool = {};
@@ -188,7 +249,7 @@ export class SpudBrain {
   setTimeScale(x) { this.timeScale = x; }
   setAway(v) {
     this.simAway = v;
-    if (v) { this.leftAt = performance.now(); this.log('sys', '（假装离开工位…）'); }
+    if (v) { this.leftAt = performance.now(); this.log('sys', '(pretending to step away…)'); }
     else this.pointerMove(true);
   }
   pointerMove(force) {
@@ -212,7 +273,7 @@ export class SpudBrain {
       this.emitSfx('boing');
       this.needs.energy = Math.min(100, this.needs.energy + 22);
       this.setState('watch');
-      this.log('act', '被戳醒了');
+      this.log('act', 'poked awake');
       setTimeout(() => this.mutter(this.fresh('wake')), 650);
       return true;
     }
@@ -265,7 +326,7 @@ export class SpudBrain {
   setState(s) {
     if (this.state === s) return;
     this.state = s;
-    this.on.state && this.on.state(s, STATE_ZH[s]);
+    this.on.state && this.on.state(s, STATE_LABEL[s]);
   }
 
   tick() {
@@ -295,7 +356,7 @@ export class SpudBrain {
       if (N.energy > 66 + P.sleepy * 22) {
         this.A.setMode('idle');
         this.setState(present ? 'watch' : 'alone');
-        this.log('act', '睡饱了，自然醒');
+        this.log('act', 'well rested — woke up on his own');
         // deviation from the prototype (always stretch): user wants it rare
         if (!blocked && Math.random() < 0.35) this.runRoutine('stretch', ROUTINES.stretch, true);
       }
@@ -344,8 +405,8 @@ export class SpudBrain {
     this.lastRoutine = key;
     this.busy = true;
     this.setState('play');
-    if (!quiet) this.log('act', `自娱自乐 → ${r.zh}（无聊 ${Math.round(this.needs.boredom)}）`);
-    else this.log('act', r.zh);
+    if (!quiet) this.log('act', `self-play → ${r.label} (boredom ${Math.round(this.needs.boredom)})`);
+    else this.log('act', r.label);
     this.needs.boredom = Math.max(0, this.needs.boredom - 30);
     this.needs.energy = Math.max(0, this.needs.energy - r.cost);
     this.runSteps([...r.steps], () => {
@@ -362,8 +423,8 @@ export class SpudBrain {
     if (s.clip) this.A.play(s.clip);
     if (s.mode) this.A.setMode(s.mode);
     if (s.sfx) this.emitSfx(s.sfx);
-    if (s.mutter) this.mutter(s.mutter);
-    if (s.speak) this.speak(s.speak);
+    if (s.mutter) this.mutter(line(s.mutter));
+    if (s.speak) this.speak(line(s.speak));
     if (s.emote) this.emote(s.emote);
     this.seqT = setTimeout(() => this.runSteps(steps, done), s.wait || 400);
   }
@@ -374,7 +435,7 @@ export class SpudBrain {
     this.abortSeq();
     this.setState('doze');
     this.A.setMode('doze');
-    this.log('act', forced ? '被按头睡觉' : `困了（精力 ${Math.round(this.needs.energy)}）→ 打瞌睡`);
+    this.log('act', forced ? 'put to sleep by hand' : `sleepy (energy ${Math.round(this.needs.energy)}) → dozing off`);
     setTimeout(() => { if (this.state === 'doze') this.mutter(this.fresh('sleepy')); }, 1200);
   }
 
@@ -383,7 +444,7 @@ export class SpudBrain {
     this.busy = true;
     this.setState('knock');
     this.lastKnockClock = this.clock;
-    this.log('act', forced ? '搭讪（手动触发）' : `想你值 ${Math.round(this.needs.social)} 爆表 → 主动搭讪`);
+    this.log('act', forced ? 'knock (manually triggered)' : `missing-you meter ${Math.round(this.needs.social)} maxed → knocking`);
     this.runSteps([
       { clip: 'peek', wait: 1100 },
       { clip: 'knock', sfx: 'knock', wait: 700 },
@@ -401,7 +462,7 @@ export class SpudBrain {
     this.setState('greet');
     this.knockBackoff = 1;
     this.needs.social = 10;
-    this.log('act', '你回应了！开心值 +999');
+    this.log('act', 'you responded! happiness +999');
     this.emote('♥'); this.emote('♥');
     this.runSteps([
       { clip: 'cheer', sfx: 'chime', wait: 1600 },
@@ -414,7 +475,7 @@ export class SpudBrain {
     this.setState('sulk');
     this.knockBackoff = Math.min(8, this.knockBackoff * 2);
     this.needs.social = 46;
-    this.log('act', `没人理…退避 ×${this.knockBackoff}，自己玩去了`);
+    this.log('act', `no reply… backoff ×${this.knockBackoff}, off to self-play`);
     this.runSteps([
       { clip: 'sulk', wait: 2500 },
       { mutter: this.fresh('ignored'), wait: 1500 },
@@ -437,7 +498,7 @@ export class SpudBrain {
     this.busy = true;
     this.setState('greet');
     this.needs.social = Math.max(6, this.needs.social - 30);
-    this.log('act', '检测到你回来了 → 迎接');
+    this.log('act', 'you are back → greeting');
     this.runSteps([
       { clip: 'hop', sfx: 'boing', wait: 750 },
       { speak: pick(SPEAK.greet), wait: 1500 },

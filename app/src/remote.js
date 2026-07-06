@@ -17,6 +17,13 @@ export async function refresh() {
   return BATCH;
 }
 
+// Date stamp of the loaded batch, or null before the first successful fetch.
+// The app compares it across draws to reset its no-replacement bookkeeping
+// when a fresh daily pool arrives.
+export function batchDate() {
+  return (BATCH && BATCH.date) || null;
+}
+
 function poolOf(charId, tier) {
   const c = BATCH && BATCH.cards && BATCH.cards[charId];
   const arr = c && c[tier];
