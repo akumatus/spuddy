@@ -117,13 +117,15 @@ function rigParts(model, sceneRoot) {
    a back panel for rim sheen and a floor bounce. PMREM converts it into the
    scene environment; the per-part AO baked into the PBR models darkens exactly
    this indirect light inside the stitch crevices. */
-function makeStudioEnvScene() {
+function makeStudioEnvScene(neutral = false) {
   const scene = new THREE.Scene();
 
-  // gradient dome — warm cream overhead falling to amber near the floor
+  // gradient dome — warm cream overhead falling to amber near the floor;
+  // the neutral variant is a white-gray studio for yarn colors the warm
+  // dome would tint (sprinkles' pink reads salmon under amber light)
   const dome = new THREE.SphereGeometry(16, 32, 24);
-  const top = new THREE.Color(0.40, 0.34, 0.26);
-  const bottom = new THREE.Color(0.15, 0.11, 0.08);
+  const top = neutral ? new THREE.Color(0.37, 0.37, 0.39) : new THREE.Color(0.40, 0.34, 0.26);
+  const bottom = neutral ? new THREE.Color(0.15, 0.15, 0.16) : new THREE.Color(0.15, 0.11, 0.08);
   const pos = dome.getAttribute('position');
   const col = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
@@ -145,12 +147,78 @@ function makeStudioEnvScene() {
     m.lookAt(0, 0, 0);
     scene.add(m);
   };
-  panel(0xfff1dc, 5.0, 7, 5, 4, 6, 5);    // key softbox — high right-front
-  panel(0xdfe8f2, 1.1, 8, 6, -7, 2, 2);   // cool fill — left side
-  panel(0xffd9a8, 2.2, 6, 4, -2, 4, -7);  // warm back panel (rim sheen)
-  panel(0xffc98f, 0.9, 10, 10, 0, -5, 0); // floor bounce
+  if (neutral) {
+    panel(0xffffff, 5.0, 7, 5, 4, 6, 5);    // key softbox — high right-front
+    panel(0xf0f4fa, 1.2, 8, 6, -7, 2, 2);   // barely-cool fill — left side
+    panel(0xffffff, 2.0, 6, 4, -2, 4, -7);  // back panel (rim sheen)
+    panel(0xf3f3f5, 0.9, 10, 10, 0, -5, 0); // floor bounce
+  } else {
+    panel(0xfff1dc, 5.0, 7, 5, 4, 6, 5);    // key softbox — high right-front
+    panel(0xdfe8f2, 1.1, 8, 6, -7, 2, 2);   // cool fill — left side
+    panel(0xffd9a8, 2.2, 6, 4, -2, 4, -7);  // warm back panel (rim sheen)
+    panel(0xffc98f, 0.9, 10, 10, 0, -5, 0); // floor bounce
+  }
   return scene;
 }
+
+/* ──────────── per-character lighting ────────────
+   One studio doesn't flatter every yarn color. LIGHT_BASE is the shared warm
+   setup; LIGHT_TWEAKS overrides fields per character id — taco's face sits in
+   the shadow of its own shell overhang and needs a stronger, more head-on key;
+   sprinkles' pink frosting turns yellowish under the warm key, so its lights
+   go neutral-white. Characters not listed use LIGHT_BASE as-is. */
+const LIGHT_BASE = {
+  exposure: 1.12,
+  envMap: 'warm', // 'warm' | 'neutral' — which studio PMREM to use
+  env: 1.05,
+  ambient: { color: 0xffedd0, intensity: 0.16 },
+  key: { color: 0xffeccf, intensity: 1.05, pos: [2, 3, 5.5] },
+  rim: { color: 0xffe8c8, intensity: 0.45, pos: [-3, 2, -2] },
+};
+const LIGHT_TWEAKS = {
+  taco: {
+    env: 1.15,
+    ambient: { color: 0xffedd0, intensity: 0.24 },
+    key: { color: 0xfff3e0, intensity: 1.3, pos: [1.2, 2.2, 6] },
+  },
+  // the reference doll is baby pink shot on white — everything warm must go,
+  // including the environment, or the frosting drifts salmon
+  donut: {
+    exposure: 1.15,
+    envMap: 'neutral',
+    env: 1.0,
+    ambient: { color: 0xffffff, intensity: 0.2 },
+    key: { color: 0xffffff, intensity: 1.1, pos: [2, 3, 5.5] },
+    rim: { color: 0xeef2ff, intensity: 0.4, pos: [-3, 2, -2] },
+  },
+  // pale pink petals go dusty mauve under amber light — same neutral-studio
+  // treatment as the donut; the caramel pot keeps its warmth from the albedo
+  bloom: {
+    exposure: 1.15,
+    envMap: 'neutral',
+    env: 1.0,
+    ambient: { color: 0xffffff, intensity: 0.2 },
+    key: { color: 0xffffff, intensity: 1.15, pos: [2, 3, 5.5] },
+    rim: { color: 0xeef2ff, intensity: 0.4, pos: [-3, 2, -2] },
+  },
+  // the reference is bright mustard gold — keep the warm studio but push
+  // brightness, and bring the key head-on so the mane overhang can't dim the face
+  leo: {
+    exposure: 1.16,
+    env: 1.15,
+    ambient: { color: 0xffedd0, intensity: 0.24 },
+    key: { color: 0xfff6e2, intensity: 1.28, pos: [1.5, 2.5, 6] },
+  },
+  // oatmeal beige reads sallow under the warm dome — neutral studio, white light
+  grad: {
+    exposure: 1.14,
+    envMap: 'neutral',
+    env: 1.0,
+    ambient: { color: 0xffffff, intensity: 0.2 },
+    key: { color: 0xffffff, intensity: 1.1, pos: [2, 3, 5.5] },
+    rim: { color: 0xeef2ff, intensity: 0.4, pos: [-3, 2, -2] },
+  },
+};
 
 // contact shadow — scales & fades as the pet leaves the ground (Turn 5)
 function makeShadowTexture() {
@@ -173,7 +241,10 @@ export class PetScene {
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    // high-key: the reference dolls are shot bright product-photo style — keep
+    // exposure above neutral so saturated yarn stays sunny (per-char value
+    // applied in applyLighting)
+    this.renderer.toneMappingExposure = LIGHT_BASE.exposure;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
@@ -188,17 +259,24 @@ export class PetScene {
     // darkens indirect light, actually reads), a warm key light shapes it, rim
     // light traces the outline. The legacy baked model is unaffected by lighting.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(makeStudioEnvScene(), 0.04).texture;
-    this.scene.environmentIntensity = 0.85;
+    this.envMaps = {
+      warm: pmrem.fromScene(makeStudioEnvScene(), 0.04).texture,
+      neutral: pmrem.fromScene(makeStudioEnvScene(true), 0.04).texture,
+    };
+    this.scene.environment = this.envMaps[LIGHT_BASE.envMap];
+    this.scene.environmentIntensity = LIGHT_BASE.env;
     pmrem.dispose();
 
-    this.scene.add(new THREE.AmbientLight(0xffedd0, 0.1));
-    const key = new THREE.DirectionalLight(0xffeccf, 0.95);
-    key.position.set(2, 4, 4);
-    this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0xffe8c8, 0.45);
-    rim.position.set(-3, 2, -2);
-    this.scene.add(rim);
+    this.ambient = new THREE.AmbientLight(LIGHT_BASE.ambient.color, LIGHT_BASE.ambient.intensity);
+    this.scene.add(this.ambient);
+    // key sits low and frontal, softbox-style: the face must never fall into
+    // its own shadow side (the plush dolls read cute because they're lit flat)
+    this.key = new THREE.DirectionalLight(LIGHT_BASE.key.color, LIGHT_BASE.key.intensity);
+    this.key.position.set(...LIGHT_BASE.key.pos);
+    this.scene.add(this.key);
+    this.rim = new THREE.DirectionalLight(LIGHT_BASE.rim.color, LIGHT_BASE.rim.intensity);
+    this.rim.position.set(...LIGHT_BASE.rim.pos);
+    this.scene.add(this.rim);
 
     this.shadow = new THREE.Mesh(
       new THREE.PlaneGeometry(2.1, 2.1),
@@ -252,11 +330,27 @@ export class PetScene {
     model.position.y -= box2.min.y;
 
     this.holder.add(model);
+    this.applyLighting(id);
     this.cardScreen.attach(model, cardData);
     if (!this.animator) this.animator = new Animator(this.rootGroup, 2);
     const rig = rigParts(model, this.scene);
     this.animator.attachRig(rig);
     this.cardScreen.rigDriven = !!(rig && rig.card);
+  }
+
+  // merge LIGHT_BASE with the character's LIGHT_TWEAKS entry and apply
+  applyLighting(id) {
+    const L = { ...LIGHT_BASE, ...(LIGHT_TWEAKS[id] || {}) };
+    this.renderer.toneMappingExposure = L.exposure;
+    this.scene.environment = this.envMaps[L.envMap];
+    this.scene.environmentIntensity = L.env;
+    this.ambient.color.set(L.ambient.color);
+    this.ambient.intensity = L.ambient.intensity;
+    for (const [light, cfg] of [[this.key, L.key], [this.rim, L.rim]]) {
+      light.color.set(cfg.color);
+      light.intensity = cfg.intensity;
+      light.position.set(...cfg.pos);
+    }
   }
 
   hasRig() {
