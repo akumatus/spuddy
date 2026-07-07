@@ -2,6 +2,7 @@
 # same names with `wrangler secret put NAME` instead.
 DEEPSEEK_API_KEY=sk-your-deepseek-key
 GEMINI_API_KEY=your-gemini-key
-# OPENAI_API_KEY=sk-your-openai-key
+OPENAI_API_KEY=sk-your-openai-key
+ANTHROPIC_API_KEY=-your-anthropic-key
 APP_TOKEN=dev
 ADMIN_TOKEN=dev

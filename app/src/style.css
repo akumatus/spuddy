@@ -301,6 +301,10 @@ html, body {
    the panel hovers over the desktop without trapping you in a modal */
 #overlay.panel { background: transparent; }
 
+/* every popup is draggable — grab any non-control part of it to move it */
+#modal { cursor: grab; }
+#modal.dragging, #modal.dragging * { cursor: grabbing; }
+
 .cardbox {
   width: 330px;
   background: var(--paper);
@@ -596,8 +600,7 @@ html, body {
 .mem { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1.5px solid #eadfc8; border-radius: 12px; padding: 10px 12px; }
 .mem .day { font-size: 10px; font-weight: 900; color: var(--tan); letter-spacing: 0.08em; background: #f1e8d6; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 .mem .body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.mem .note { font-size: 12.5px; font-weight: 700; }
-.mem .reply { font-family: 'Caveat', cursive; font-weight: 600; font-size: 16px; color: #8a7455; }
+.mem .fact { font-family: 'Caveat', cursive; font-weight: 600; font-size: 17px; color: #8a7455; line-height: 1.25; padding: 1px 0; }
 .mem .del {
   cursor: pointer;
   width: 22px;
@@ -614,8 +617,37 @@ html, body {
   flex-shrink: 0;
 }
 .mem .del:hover { color: var(--red); }
-#book .memfoot { display: flex; align-items: center; justify-content: center; gap: 12px; }
-#book .memfoot .clear {
+
+/* memory groups — distilled facts filed by category into a little profile */
+#book .memgroup { display: flex; flex-direction: column; gap: 6px; }
+#book .memgroup + .memgroup { margin-top: 8px; }
+.memgroup-head { padding: 0 2px; }
+.memgroup-head .kind {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+  padding: 3px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;
+}
+.kind.work { background: #e7eef6; color: #3f5a7a; }
+.kind.goal { background: #e3f1ea; color: #3c7357; }
+.kind.people { background: #f8e6e6; color: #9c4f4f; }
+.kind.likes { background: #f6eddb; color: #8a6d2f; }
+.kind.milestone { background: var(--gold-bg); color: var(--gold); }
+.kind.feeling { background: #eee7f4; color: #6b5a86; }
+.kind.other { background: #f1e8d6; color: var(--tan); }
+
+/* chat transcript — the full conversation, user right / pet left */
+#book .chatlog { display: flex; flex-direction: column; gap: 7px; flex: 1; min-height: 0; overflow: auto; padding: 2px; }
+.chatlog .turn { display: flex; }
+.chatlog .turn.me { justify-content: flex-end; }
+.chatlog .turn.pet { justify-content: flex-start; }
+.chatlog .msg {
+  max-width: 78%; padding: 8px 12px; border-radius: 14px;
+  font-size: 13px; line-height: 1.35; white-space: pre-wrap; word-break: break-word;
+}
+.chatlog .turn.me .msg { background: #f3e7cf; color: var(--ink); border-bottom-right-radius: 5px; }
+.chatlog .turn.pet .msg { background: var(--paper); border: 1.5px solid #eadfc8; color: #6b5b43; border-bottom-left-radius: 5px; }
+
+#book .bookfoot { display: flex; align-items: center; justify-content: center; gap: 12px; }
+#book .bookfoot .clear {
   cursor: pointer;
   border: 1.5px solid #c4b18c;
   background: transparent;
@@ -626,7 +658,7 @@ html, body {
   font-weight: 800;
   font-family: 'Nunito', sans-serif;
 }
-#book .memfoot .clear:hover { background: #f5eddc; color: var(--red); }
+#book .bookfoot .clear:hover { background: #f5eddc; color: var(--red); }
 
 /* confetti */
 #confetti { position: absolute; inset: 0; pointer-events: none; z-index: 60; }

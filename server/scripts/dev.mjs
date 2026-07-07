@@ -8,8 +8,10 @@
 //   npm run dev -- --llm claude --gen deepseek   chat on Claude, cron on DeepSeek
 //   LLM=gemini npm run dev              same as --llm gemini
 //
-// It just forwards `--var CN/INTL/GEN_PROVIDER:<id>` to wrangler (those override
-// [vars] for this run only). Any extra args pass straight through to wrangler.
+// It just forwards `--var CHAT_PROVIDER/GEN_PROVIDER:<id>` to wrangler (those
+// override [vars] for this run only). Any extra args pass straight through to
+// wrangler. These only set the PRIMARY provider — the Worker still falls back
+// down the chain (openai -> gemini -> deepseek -> anthropic) if it fails.
 //
 // Reminder: the chosen provider needs its key in .dev.vars (OPENAI_API_KEY /
 // ANTHROPIC_API_KEY etc.), otherwise /chat returns null ("missing API key").
@@ -31,7 +33,7 @@ const llm = norm(take('--llm') || process.env.LLM);
 const gen = norm(take('--gen')) || llm; // cron generator defaults to the chat llm
 
 const vars = [];
-if (llm) vars.push('--var', `CN_PROVIDER:${llm}`, '--var', `INTL_PROVIDER:${llm}`);
+if (llm) vars.push('--var', `CHAT_PROVIDER:${llm}`);
 if (gen) vars.push('--var', `GEN_PROVIDER:${gen}`);
 
 if (llm || gen) console.log(`[dev] chat=${llm || '(default)'}  cron=${gen || '(default)'}`);

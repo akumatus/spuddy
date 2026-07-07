@@ -27,22 +27,26 @@ id = "276e01a434db4d07a1576578862a45fe"
 # These are only DEFAULTS. The live provider/model is read from KV (config:current)
 # on every request and can be flipped at runtime with no redeploy:
 #   curl -XPOST https://api.cherry.surf/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>' \
-#     -d '{"intl":"anthropic","gen":"deepseek","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
+#     -d '{"chat":"anthropic","gen":"openai","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
 #   curl https://api.cherry.surf/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>'   # read current
-# Provider values: "deepseek" | "openai" | "gemini" | "anthropic" (alias "claude").
+# Provider values: "openai" | "gemini" | "deepseek" | "anthropic" (alias "claude").
 #
-# Which provider serves CN traffic (default deepseek — cheap, no GFW hop).
-CN_PROVIDER = "deepseek"
-# Which provider serves non-CN traffic.
-# On deepseek for now — it works globally and has credit; the Gemini key was
-# out of quota. Flip via /admin/config once another provider's billing is set.
-INTL_PROVIDER = "deepseek"
-# Provider the daily cron uses to knit card pools (kept fixed + cheap).
-GEN_PROVIDER = "deepseek"
+# No geo routing — every request uses the same ordered fallback chain
+# (openai -> gemini -> deepseek -> anthropic, see PROVIDER_FALLBACK in providers.js).
+# These two just pick the PRIMARY each chain starts from; on failure the call
+# walks down the rest of the chain automatically.
+#
+# Primary provider for real-time chat / greeting / golden card.
+CHAT_PROVIDER = "openai"
+# Primary provider the daily cron uses to knit card pools.
+GEN_PROVIDER = "openai"
 # Model ids per provider — override here, or per-request via config:current.models.
-DEEPSEEK_MODEL = "deepseek-chat"
+# deepseek-v4-flash: the explicit id the "deepseek-chat" alias retires into on
+# 2026-07-24; gemini-2.5-flash-lite: replaces gemini-2.0-flash (shut down
+# 2026-06-01), same $0.10/$0.40 price.
+DEEPSEEK_MODEL = "deepseek-v4-flash"
 OPENAI_MODEL = "gpt-4o-mini"
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
 CHAT_DAILY_LIMIT = "100"
@@ -59,9 +63,11 @@ MUTTERS_PER_DAY = "16"
 GEN_RUNS = "4"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:
-#   DEEPSEEK_API_KEY   (CN traffic + cron generation)
-#   GEMINI_API_KEY     (non-CN traffic, if a provider is set to gemini)
-#   OPENAI_API_KEY     (only if a provider is set to openai)
-#   ANTHROPIC_API_KEY  (only if a provider is set to anthropic/claude)
+#   OPENAI_API_KEY     (primary — chat + cron generation default to openai)
+#   GEMINI_API_KEY     (fallback #2 in the chain)
+#   DEEPSEEK_API_KEY   (fallback #3 in the chain)
+#   ANTHROPIC_API_KEY  (fallback #4 in the chain, alias "claude")
 #   APP_TOKEN          (shared token the app sends as x-pp-app; optional soft gate)
 #   ADMIN_TOKEN        (protects POST /admin/generate; falls back to APP_TOKEN)
+# A backend with no key set is skipped automatically — the chain falls through to
+# the next provider that has one, so you only need keys for the ones you use.

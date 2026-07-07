@@ -5,9 +5,10 @@ A single Cloudflare Worker that acts as the potato's model gateway:
 - **Daily card factory** — a cron trigger knits a fresh pool of cards per persona
   and stores it in KV. The app pulls `GET /cards` and draws from it locally, so
   ordinary gacha draws never hit an LLM (instant + offline-safe).
-- **Real-time endpoints** — `POST /chat` and `POST /golden` are geo-routed
-  (CN → DeepSeek, elsewhere → Gemini/GPT via `INTL_PROVIDER`) and metered against
-  a per-device daily budget so nobody can run up your API bill.
+- **Real-time endpoints** — `POST /chat` and `POST /golden` run through an ordered
+  provider fallback chain (`openai → gemini → deepseek → anthropic`; a backend with
+  no key is skipped) and are metered against a per-device daily budget so nobody
+  can run up your API bill.
 
 Your API keys live only here as Worker secrets — they never ship inside the
 Electron app.
@@ -59,8 +60,8 @@ npm run dev -- --llm gpt --gen deepseek   # chat on GPT, cron on DeepSeek
 
 npm run gen:dev                  # generate a batch locally (uses the session's --gen)
 
-# test geo routing without leaving your desk:
-curl -s -X POST localhost:8787/chat -H 'x-pp-geo: CN' \
+# hit chat directly (force one backend with x-pp-provider for A/B; needs x-pp-admin):
+curl -s -X POST localhost:8787/chat -H 'x-pp-admin: dev' -H 'x-pp-provider: openai' \
   -d '{"deviceId":"t","charId":"spud","day":1,"messages":[{"who":"user","text":"rough day"}]}'
 ```
 
@@ -85,17 +86,17 @@ key) — so dev builds keep working without the server.
 
 - `CHAT_DAILY_LIMIT` — real-time calls per device per day (chat + golden).
 - `CARDS_PER_DAY` / `GOLDEN_PER_DAY` — pool sizes per persona per day.
-- `CN_PROVIDER` / `INTL_PROVIDER` / `GEN_PROVIDER` + `*_MODEL` — swap
-  providers/models without touching the app.
+- `CHAT_PROVIDER` / `GEN_PROVIDER` + `*_MODEL` — pick the PRIMARY provider each
+  chain starts from (chat vs. cron); the rest of the fallback chain backs it up.
 - Change providers/models **live** (no redeploy) via KV config:
 
   ```bash
   # read current
   curl https://<worker>/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>'
-  # switch international chat to Claude, keep cron on DeepSeek
+  # switch chat primary to Claude, keep cron on OpenAI
   curl -XPOST https://<worker>/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>' \
-    -d '{"intl":"anthropic","gen":"deepseek","models":{"anthropic":"claude-haiku-4-5"}}'
+    -d '{"chat":"anthropic","gen":"openai","models":{"anthropic":"claude-haiku-4-5"}}'
   ```
 
-  Keys: `cn`, `intl`, `gen` (provider per path) + optional `models` (per-provider
+  Keys: `chat`, `gen` (primary provider per path) + optional `models` (per-provider
   model id). Missing keys fall back to the `[vars]` defaults above.

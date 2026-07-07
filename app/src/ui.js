@@ -1,4 +1,4 @@
-import { CHARS, UNLOCK, PERS } from './content.js';
+import { CHARS, UNLOCK, PERS, MEMORY_KINDS } from './content.js';
 import { counts } from './store.js';
 
 const overlay = () => document.getElementById('overlay');
@@ -46,14 +46,60 @@ async function expandForModal(seq) {
   overlay().classList.remove('hidden');
 }
 
-// panel: true → a lightweight floating panel (Card Book / Buddies) with no dim
-// backdrop; the area around it stays click-through so the rest of the screen
-// remains usable. Default (false) is a dim, blocking modal (daily card, weave).
-export function openOverlay(html, { panel = false } = {}) {
+// ── draggable popups ──
+// Offset #modal (the popup wrapper) with a transform; #overlay's flex keeps it
+// centered, so the transform is a pure delta from center. Grab any non-control
+// part of a popup to drag it anywhere; buttons, inputs and cards keep their own
+// clicks. isDraggingModal() lets main.js hold the window mouse-active mid-drag.
+let dragOff = { x: 0, y: 0 };
+let draggingModal = false;
+export function isDraggingModal() {
+  return draggingModal;
+}
+function resetModalDrag() {
+  dragOff = { x: 0, y: 0 };
+  modal().style.transform = '';
+}
+function initModalDrag() {
+  const m = modal();
+  if (m.dataset.dragInit) return; // #modal persists across popups — wire once
+  m.dataset.dragInit = '1';
+  let from = null;
+  const NODRAG = 'button, input, textarea, select, a, [data-apply], [data-pick]';
+  m.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest(NODRAG)) return;
+    from = { x: e.clientX, y: e.clientY, ox: dragOff.x, oy: dragOff.y };
+    draggingModal = true;
+    m.classList.add('dragging');
+    m.setPointerCapture(e.pointerId);
+  });
+  m.addEventListener('pointermove', (e) => {
+    if (!from) return;
+    dragOff = { x: from.ox + (e.clientX - from.x), y: from.oy + (e.clientY - from.y) };
+    m.style.transform = `translate(${dragOff.x}px, ${dragOff.y}px)`;
+  });
+  const end = (e) => {
+    if (!from) return;
+    from = null;
+    draggingModal = false;
+    m.classList.remove('dragging');
+    try { m.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  m.addEventListener('pointerup', end);
+  m.addEventListener('pointercancel', end);
+}
+
+// Every popup floats over the live desktop — no dim backdrop, and the area
+// around it stays click-through (see the mousemove handler in main.js) so the
+// rest of the screen stays usable. `panel` stays a hook (pass false for a dim,
+// blocking modal) but every popup now defaults to the floating, draggable look.
+export function openOverlay(html, { panel = true } = {}) {
+  initModalDrag();
   modal().innerHTML = html;
   overlay().classList.toggle('panel', panel);
   if (modalUp) { overlay().classList.remove('hidden'); return; } // draw → weave → card chain: window already big
   modalUp = true;
+  resetModalDrag(); // a fresh popup opens centered, not where the last was left
   // Hide the hover panel instantly. It's anchored bottom:78px INSIDE the window
   // but isn't offset like the stage, so when the window expands to fullscreen it
   // reflows to the taller window's bottom and visibly drops for a beat before the
@@ -69,6 +115,7 @@ export function closeOverlay() {
   overlay().classList.add('hidden');
   overlay().classList.remove('panel');
   modal().innerHTML = '';
+  resetModalDrag();
   window.pp?.win?.setModal(false);
   // release the stage offset only after the window is small again — resetting
   // early would flash the potato at the fullscreen corner for a frame
@@ -195,36 +242,73 @@ export function showBook(state, tab, filter, handlers) {
           </div>`
           )
           .join('')}
+      </div>
+      <div class="bookfoot">
+        <span class="hint">your kept cards — clear them anytime</span>
+        ${state.cards.length ? '<button class="clear" id="cardsClear">clear all</button>' : ''}
       </div>`;
-  } else {
-    const mems = state.journal.map((m, i) => ({ ...m, i })).reverse();
+  } else if (tab === 'chat') {
+    // Full conversation transcript — the running context he replies from. His
+    // opening greeting is the only non-user line when the log is fresh.
+    const turns = state.chat || [];
+    const spoken = turns.filter((m) => m.who === 'user').length;
     body = `
-      ${mems.length === 0 ? `<div class="empty">Nothing here yet — after a card, tell him a little more. He remembers, and knits it into your golden cards.</div>` : ''}
-      <div class="mems">
-        ${mems
+      ${turns.length === 0 ? `<div class="empty">No messages yet — say hi and he'll answer.</div>` : ''}
+      <div class="chatlog">
+        ${turns
           .map(
             (m) => `
-          <div class="mem">
-            <span class="day">DAY ${m.day}</span>
-            <div class="body">
-              <div class="note">you: ${esc(m.note)}</div>
-              <div class="reply">${esc(m.reply)}</div>
-            </div>
-            <button class="del" data-delmem="${m.i}">×</button>
+          <div class="turn ${m.who === 'user' ? 'me' : 'pet'}">
+            <div class="msg">${esc(m.text)}</div>
           </div>`
           )
           .join('')}
       </div>
-      <div class="memfoot">
-        <span class="hint">his memory is yours — remove anything, anytime</span>
-        ${state.journal.length ? '<button class="clear" id="memClear">clear all</button>' : ''}
+      <div class="bookfoot">
+        <span class="hint">the whole conversation — clearing it just wipes context, not his memory</span>
+        ${spoken ? '<button class="clear" id="chatClear">clear all</button>' : ''}
+      </div>`;
+  } else {
+    // Memory — distilled facts grouped into a little profile by category.
+    const groups = MEMORY_KINDS
+      .map((k) => ({
+        ...k,
+        items: state.memory.map((m, i) => ({ ...m, i })).filter((m) => (m.kind || 'other') === k.id).reverse(),
+      }))
+      .filter((g) => g.items.length);
+    body = `
+      ${state.memory.length === 0 ? `<div class="empty">Nothing here yet — the more you tell him about your life, the more he'll remember, and knit into your golden cards.</div>` : ''}
+      <div class="mems">
+        ${groups
+          .map(
+            (g) => `
+          <div class="memgroup">
+            <div class="memgroup-head"><span class="kind ${g.id}">${g.emoji} ${esc(g.label)}</span></div>
+            ${g.items
+              .map(
+                (m) => `
+              <div class="mem">
+                <span class="day">DAY ${m.day}</span>
+                <div class="body"><div class="fact">${esc(m.fact)}</div></div>
+                <button class="del" data-delmem="${m.i}">×</button>
+              </div>`
+              )
+              .join('')}
+          </div>`
+          )
+          .join('')}
+      </div>
+      <div class="bookfoot">
+        <span class="hint">his picture of you — remove anything, anytime</span>
+        ${state.memory.length ? '<button class="clear" id="memClear">clear all</button>' : ''}
       </div>`;
   }
 
   const headInner = `
         <span class="title">Card Book</span>
         <button class="tab ${tab === 'cards' ? 'on' : ''}" data-tab="cards">Cards · ${state.cards.length}</button>
-        <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">Memory · ${state.journal.length}</button>
+        <button class="tab ${tab === 'chat' ? 'on' : ''}" data-tab="chat">Chat</button>
+        <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">Memory · ${state.memory.length}</button>
         <button class="close" id="bookClose">×</button>`;
 
   // Re-render in place while the book is already open. Recreating #book (via
@@ -241,7 +325,7 @@ export function showBook(state, tab, filter, handlers) {
       <div id="book">
         <div class="head">${headInner}</div>
         ${body}
-      </div>`, { panel: true });
+      </div>`);
   }
 
   document.getElementById('bookClose').onclick = handlers.onClose;
@@ -254,6 +338,10 @@ export function showBook(state, tab, filter, handlers) {
   modal().querySelectorAll('[data-delmem]').forEach((b) => (b.onclick = () => handlers.onDelMem(+b.dataset.delmem)));
   const mc = document.getElementById('memClear');
   if (mc) mc.onclick = handlers.onClearMem;
+  const cc = document.getElementById('cardsClear');
+  if (cc) cc.onclick = handlers.onClearCards;
+  const chc = document.getElementById('chatClear');
+  if (chc) chc.onclick = handlers.onClearChat;
 }
 
 // ── Buddies (standalone panel) ──
@@ -286,7 +374,7 @@ export function showBuddies(state, handlers) {
         }).join('')}
       </div>
       <div class="hint">each buddy joins for a different kind of care — keep · favorite · confide · show up · go gold. once a friend, always a friend</div>
-    </div>`, { panel: true });
+    </div>`);
 
   document.getElementById('buddiesClose').onclick = handlers.onClose;
   modal().querySelectorAll('[data-pick]').forEach((b) => (b.onclick = () => handlers.onPick(b.dataset.pick)));

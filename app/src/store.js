@@ -25,7 +25,7 @@ export function defaultState() {
     cards: [], // {m, rare, day, by, fav}
     usedCards: { date: null, used: [] }, // server-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
     usedBuiltins: [], // built-in DAILY lines ever drawn — each retires permanently once seen
-    journal: [], // {day, note, reply}
+    memory: [], // {day, fact, kind} — durable facts he's distilled about the human
     chat: [{ who: 'pet', text: `${greet('spud')} Or just talk to me, I remember things.` }],
     active: 'spud',
     unlockedIds: ['spud'],
@@ -47,6 +47,10 @@ export function load() {
       if (!Array.isArray(s.chat) || !s.chat.length) {
         s.chat = [{ who: 'pet', text: greet(s.active) }];
       }
+      // Long-term memory moved from raw {day, note, reply} chat excerpts to
+      // {day, fact} distilled facts. Old excerpts don't translate — start clean.
+      if (!Array.isArray(s.memory)) s.memory = [];
+      delete s.journal;
     }
   } catch (e) {}
   // roll the real calendar forward: new day → fresh draw, streak counts consecutive days
@@ -73,7 +77,7 @@ export function save(s) {
   try {
     localStorage.setItem(
       KEY,
-      JSON.stringify({ ...s, chat: s.chat.slice(-40), journal: s.journal.slice(-60) })
+      JSON.stringify({ ...s, chat: s.chat.slice(-40), memory: s.memory.slice(-60) })
     );
   } catch (e) {}
 }
@@ -88,7 +92,7 @@ export function counts(s) {
   return {
     cards: s.cards.length,
     favs: s.cards.filter((c) => c.fav).length,
-    chats: s.journal.length,
+    chats: s.memory.length,
     streak: s.streak,
     golden: s.cards.filter((c) => c.rare).length,
   };

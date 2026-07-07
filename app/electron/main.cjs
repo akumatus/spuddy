@@ -247,6 +247,20 @@ const TAG_RE = /^\s*\[(comfort|cheer|proud|calm)\]\s*/i;
 // Optional [gesture] tag after the emotion tag — the renderer maps it to an
 // animation clip. Kept in sync with GESTURE_CLIP in app/src/main.js.
 const GESTURE_RE = /^\s*\[(wave|hug|dance|spin|cheer|hop|sing|stretch|shy|peek|sulk|sneeze|present)\]\s*/i;
+// Optional trailing [[remember: <kind> | <fact>]] — a durable fact the pet keeps
+// about the human. Double brackets so it never collides with the single-bracket
+// tags. Kinds mirror MEMORY_KINDS in app/src/content.js — keep them in sync.
+const REMEMBER_RE = /\[\[\s*remember:\s*([^\]]+?)\s*\]\]/i;
+const MEMORY_KINDS = ['work', 'goal', 'people', 'likes', 'milestone', 'feeling', 'other'];
+function splitRemember(raw) {
+  const parts = raw.split('|');
+  if (parts.length >= 2) {
+    const kind = parts[0].trim().toLowerCase();
+    const fact = parts.slice(1).join('|').trim();
+    return { fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other' };
+  }
+  return { fact: raw.trim(), kind: 'other' };
+}
 
 function localApiKey() {
   return process.env.DEEPSEEK_API_KEY || CONFIG.apiKey || null;
@@ -285,24 +299,28 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       if (res.status === 429) return { limited: true }; // daily budget spent
       if (!res.ok) return null;
       const data = await res.json();
-      return data && data.text ? { tag: data.tag || 'calm', gesture: data.gesture || null, text: data.text } : null;
+      return data && data.text
+        ? { tag: data.tag || 'calm', gesture: data.gesture || null, remember: data.remember || null, text: data.text }
+        : null;
     } catch (e) {
       return null; // offline / server down → renderer uses its in-voice fallback
     }
   }
   try {
     const mem = (p.memory || [])
-      .map((m) => `day ${m.day}: they said "${m.note || ''}"`)
+      .map((m) => `- ${m.fact || ''} (day ${m.day})`)
       .join('\n');
     const system =
       `You are ${p.charName}, a tiny hand-crocheted spuddy desktop pet who lives on your human's desk holding a little card. ` +
       p.voice +
       ` Today is day ${p.day} together. Reply with ONE warm line (max 25 words), in character, plain text — no emojis, no quotation marks, no lists, no roleplay asterisks. ` +
+      `Always reply in the same language the human is using this turn — Chinese if they wrote Chinese, English if English. ` +
       `Remember and gently reference what they told you before when it helps. A soft follow-up question is welcome. ` +
       `You are not a therapist: if they seem in real distress, warmly suggest also talking to a human they trust. ` +
       `Begin your reply with exactly one emotion tag in square brackets — [comfort] if they seem down, [cheer] if celebrating with them, [proud] if they did something good, [calm] otherwise — then the line itself.` +
       ` When their message calls for a physical action — they ask you to sing, dance, hug, wave, spin, jump, stretch, hide, peek, sneeze, sulk, or show your card, or acting one out would clearly land the moment — add ONE gesture tag immediately AFTER the emotion tag, chosen from EXACTLY this list: [wave] [hug] [dance] [spin] [cheer] [hop] [sing] [stretch] [shy] [peek] [sulk] [sneeze] [present]. Use it only when it truly fits; most replies have no gesture tag. Never invent gesture words outside that list. Example: "[cheer][dance] you got it — watch this."` +
-      (mem ? `\nLong-term memory of them:\n${mem}` : '');
+      ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category: [[remember: <category> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends, pets), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Example: [[remember: work | is building a desktop-pet app called spuddy]]. Most replies reveal nothing new — then add nothing. Never restate something already in your long-term memory below, and at most one per reply.` +
+      (mem ? `\nLong-term memory of them (already known — don't re-remember these):\n${mem}` : '');
     const messages = (p.messages || []).map((m) => ({
       role: m.who === 'user' ? 'user' : 'assistant',
       content: m.text,
@@ -312,10 +330,13 @@ ipcMain.handle('ai-reply', async (_e, p) => {
     const m = raw.match(TAG_RE);
     const body = raw.replace(TAG_RE, '');
     const g = body.match(GESTURE_RE);
+    const afterGesture = body.replace(GESTURE_RE, '');
+    const r = afterGesture.match(REMEMBER_RE);
     return {
       tag: m ? m[1].toLowerCase() : 'calm',
       gesture: g ? g[1].toLowerCase() : null,
-      text: body.replace(GESTURE_RE, '').slice(0, 220),
+      remember: r ? splitRemember(r[1]) : null,
+      text: afterGesture.replace(REMEMBER_RE, '').trim().slice(0, 220),
     };
   } catch (e) {
     return null;
@@ -337,13 +358,13 @@ ipcMain.handle('ai-golden', async (_e, p) => {
   try {
     const j = p.memory || [];
     const ctx = j.length
-      ? j.map((m) => `day ${m.day}: they said "${m.note || ''}"`).join('\n')
-      : '(no chats yet — keep it universal)';
+      ? j.map((m) => `- ${m.fact || ''} (day ${m.day})`).join('\n')
+      : '(nothing remembered yet — keep it universal)';
     const prompt =
       `You are ${p.charName}, a tiny hand-crocheted spuddy desk companion. ` +
       p.voice +
-      ` Write ONE short encouragement card for your human. Their recent week:\n${ctx}\n` +
-      `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing they said if any, ` +
+      ` Write ONE short encouragement card for your human. What you know about them:\n${ctx}\n` +
+      `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing you know about them if any, ` +
       `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.`;
     const out = clean(await localChat({ messages: [{ role: 'user', content: prompt }], maxTokens: 200 }));
     return out && out.length > 4 && out.length < 220 ? out : null;
@@ -369,14 +390,14 @@ ipcMain.handle('ai-greet', async (_e, p) => {
   try {
     const when = ['morning', 'afternoon', 'evening', 'night'].includes(p.daypart) ? p.daypart : 'day';
     const j = p.memory || [];
-    const ctx = j.length ? j.map((m) => `day ${m.day}: they said "${m.note || ''}"`).join('\n') : '';
+    const ctx = j.length ? j.map((m) => `- ${m.fact || ''} (day ${m.day})`).join('\n') : '';
     const prompt =
       `You are ${p.charName}, a tiny hand-crocheted spuddy desktop pet who lives on your human's desk holding a little card. ` +
       p.voice +
       ` It is ${when} where they are, day ${p.day || 1} together. They just opened you on their desk. ` +
       `Greet them: ONE short spoken hello in your voice, fit to the ${when}, and gently nudge them to tap you for today's card. ` +
       (ctx
-        ? `Their recent notes:\n${ctx}\nLightly reference one concrete thing they mentioned if it fits naturally; otherwise keep it warm and general. `
+        ? `What you know about them:\n${ctx}\nLightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `
         : 'Keep it warm and general. ') +
       `Rules: HARD LIMIT 20 words; sound spontaneous and a little different every time; plain text, ` +
       `no emojis, no quotation marks, no emotion tag, no preamble. Output only the greeting.`;

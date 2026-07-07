@@ -240,6 +240,21 @@ export const UNLOCK = {
   grad: { key: 'golden', n: 3, verb: 'golden cards', how: 'keep 3 golden cards' },
 };
 
+// Memory categories — the pet tags each distilled fact with one of these, and
+// the Memory tab groups them into a little profile. `id` must match the kinds
+// listed in the chat prompts (server/src/personas.js + app/electron/main.cjs);
+// unknown or missing kinds fall back to `other`. Order here is display order.
+export const MEMORY_KINDS = [
+  { id: 'work', label: 'Work & projects', emoji: '💼' },
+  { id: 'goal', label: 'Goals & plans', emoji: '🎯' },
+  { id: 'people', label: 'People & pets', emoji: '❤️' },
+  { id: 'likes', label: 'Likes & tastes', emoji: '⭐' },
+  { id: 'milestone', label: 'Milestones', emoji: '🏆' },
+  { id: 'feeling', label: 'Feelings & worries', emoji: '🫧' },
+  { id: 'other', label: 'Other', emoji: '📌' },
+];
+export const MEMORY_KIND_IDS = MEMORY_KINDS.map((k) => k.id);
+
 export const PERS = {
   spud: {
     p: 'warm & steady',

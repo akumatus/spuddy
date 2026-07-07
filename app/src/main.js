@@ -8,6 +8,7 @@ import * as remote from './remote.js';
 import {
   DAILY, POKE, RETAP, CARDHINT, SEDENTARY, NIGHTMSG, WEAVELINES, DRAWLINES,
   CHARS, UNLOCK, PERS, greet, daypart, chatFallback, goldenFallback, limitReply,
+  MEMORY_KIND_IDS,
 } from './content.js';
 
 const $ = (id) => document.getElementById(id);
@@ -341,7 +342,7 @@ async function weaveGolden() {
   }, 2400);
 
   const ch = activeChar();
-  const memory = state.journal.slice(-6);
+  const memory = state.memory.slice(-6);
   const [aiMsg] = await Promise.all([
     // .catch → null so a dropped connection can't leave the weave stuck spinning
     pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory }).catch(() => null),
@@ -515,13 +516,17 @@ function chatSend() {
   runChat();
 }
 
-// Greetings and drive-by compliments make useless long-term memories — the pet
-// can never call back to "hello" later. Only notes with real content enter the
-// journal (which feeds chat memory, golden cards, and the Memory tab).
-const SMALL_TALK_RE = /^(hi+|hey+|hello+|yo+|sup|ok(ay)?|thanks?( you)?|good ?(morning|night|evening)|how are you|(you( a|')re |you are )?(so+ )?(cute|sweet|adorable|the best))\W*$/i;
-function isMemorable(note) {
-  const t = note.trim();
-  return t.length >= 6 && !SMALL_TALK_RE.test(t);
+// Long-term memory is now the pet's own distillation, not a filter over raw
+// chat: the reply carries an optional `remember` — a durable fact he chose to
+// keep about the human, tagged with a category. Store it once, skipping
+// near-duplicates (models re-surface the same fact across a conversation).
+const normFact = (f) => f.trim().toLowerCase().replace(/[.!?]+$/, '');
+function rememberFact(fact, kind) {
+  const f = (fact || '').trim();
+  if (f.length < 4) return;
+  if (state.memory.some((m) => normFact(m.fact) === normFact(f))) return;
+  const k = MEMORY_KIND_IDS.includes(kind) ? kind : 'other';
+  state.memory.push({ day: state.day, fact: f, kind: k });
 }
 
 async function runChat() {
@@ -540,7 +545,7 @@ async function runChat() {
       charName: ch.name,
       voice: PERS[ch.id].voice,
       day: state.day,
-      memory: state.journal.slice(-10),
+      memory: state.memory.slice(-10),
       messages: state.chat.slice(-12),
     }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy
     chatPending.splice(0, covered.length); // clear what he just answered; keep mid-flight arrivals
@@ -561,8 +566,7 @@ async function runChat() {
     if (!gesture) gesture = detectGesture(covered.join(' '));
     reactToReply(tag, gesture);
     state.chat.push({ who: 'pet', text: reply });
-    const memorable = covered.filter(isMemorable);
-    if (memorable.length) state.journal.push({ day: state.day, note: memorable.join('\n'), reply });
+    if (res && res.remember && res.remember.fact) rememberFact(res.remember.fact, res.remember.kind);
     persist();
     bubble(reply, { hold: 9000, type: true });
     setTimeout(() => $('said').classList.add('hidden'), 4200);
@@ -619,13 +623,29 @@ function renderBook() {
     },
     onDelMem: (i) => {
       sfx.pop();
-      state.journal.splice(i, 1);
+      state.memory.splice(i, 1);
       persist();
       renderBook();
     },
     onClearMem: () => {
       sfx.pop();
-      state.journal = [];
+      state.memory = [];
+      persist();
+      renderBook();
+    },
+    // Chat and memory clear independently now that each has its own tab: this
+    // wipes only the running conversation (context he replies from), resetting
+    // it to a fresh greeting; his distilled memory stays put.
+    onClearChat: () => {
+      sfx.pop();
+      state.chat = [{ who: 'pet', text: greet(state.active) }];
+      chatPending.length = 0;
+      persist();
+      renderBook();
+    },
+    onClearCards: () => {
+      sfx.pop();
+      state.cards = [];
       persist();
       renderBook();
     },
@@ -850,7 +870,9 @@ document.addEventListener('mousemove', (e) => {
   // so the desktop and other apps stay usable around the floating panel. The
   // panel content itself still carries data-interactive, so it stays clickable.
   const onPanelBackdrop = !!(el && el.id === 'overlay' && el.classList.contains('panel'));
-  const interactive = !onPanelBackdrop && !!(el && el.closest('[data-interactive]'));
+  // while a popup is being dragged, hold the window mouse-active even as the
+  // cursor sweeps over the click-through backdrop, so the drag keeps its events
+  const interactive = ui.isDraggingModal() || (!onPanelBackdrop && !!(el && el.closest('[data-interactive]')));
   pp.win.setIgnoreMouse(!interactive);
   setBubbleHover(!!(el && el.closest('#bubble')));
   setMutterHover(!!(el && el.closest('#mutter')));
@@ -937,7 +959,7 @@ async function personalGreeting() {
       voice: PERS[ch.id].voice,
       daypart: daypart(),
       day: state.day,
-      memory: state.journal.slice(-6),
+      memory: state.memory.slice(-6),
     });
   } catch (e) {
     return null;

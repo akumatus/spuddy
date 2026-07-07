@@ -11,13 +11,13 @@
 // from KV so ordinary draws never hit an LLM. Real-time endpoints route by the
 // caller's country and are metered against a per-device daily budget.
 
-import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, buildBatchPrompt, buildMutterPrompt, parseTag, parseGesture } from './personas.js';
-import { callLLM, pickChatProvider, pickGenProvider, loadConfig } from './providers.js';
+import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, buildBatchPrompt, buildMutterPrompt, parseTag, parseGesture, parseRemember } from './personas.js';
+import { callLLMChain, chatProviderChain, genProviderChain, loadConfig } from './providers.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
-  'access-control-allow-headers': 'content-type,x-pp-app,x-pp-geo,x-pp-admin',
+  'access-control-allow-headers': 'content-type,x-pp-app,x-pp-admin,x-pp-provider,x-pp-model',
 };
 
 const json = (obj, status = 200) =>
@@ -37,9 +37,22 @@ function authed(request, env) {
   return request.headers.get('x-pp-app') === env.APP_TOKEN;
 }
 
-// x-pp-geo overrides Cloudflare's geoip — handy for testing routing locally.
-function geoOf(request) {
-  return (request.headers.get('x-pp-geo') || request.cf?.country || 'US').toUpperCase();
+// Admin-gated per-request override for local A/B comparison testing. With a valid
+// admin token, x-pp-provider (+ optional x-pp-model) forces the call onto ONE
+// specific backend with no fallback — so the same message can be fired at
+// openai/gemini/deepseek/anthropic and compared without touching the live KV
+// config. Ungated only when no token is set at all (open dev). Returns the chain
+// to try + the models map with the override folded in.
+function withOverride(defaultChain, request, env, cfg) {
+  let chain = defaultChain;
+  let models = cfg.models;
+  const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+  if (want && request.headers.get('x-pp-admin') !== want) return { chain, models };
+  const p = request.headers.get('x-pp-provider');
+  const m = request.headers.get('x-pp-model');
+  if (p) chain = [p.trim().toLowerCase()]; // force exactly one backend for A/B
+  if (m) models = { ...models, [chain[0]]: m.trim() };
+  return { chain, models };
 }
 
 // Read-only budget check. Counting is deferred to bumpQuota, which only runs
@@ -105,14 +118,16 @@ export default {
           content: m.text,
         }));
         const cfg = await loadConfig(env);
-        const provider = pickChatProvider(geoOf(request), env, cfg);
-        // temperature 1.3 — DeepSeek's recommended conversation setting; the default 0.9 reads flat
-        const out = clean(await callLLM(env, provider, { system, messages, maxTokens: 300, temperature: 1.3, models: cfg.models }));
-        if (!out) return json(null); // model failed/empty — don't spend budget
+        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        // temperature 1.0 — warm but coherent; higher tipped non-English replies into word salad
+        const { text: raw, provider, model } = await callLLMChain(env, chain, { system, messages, maxTokens: 300, temperature: 1.0, models });
+        const out = clean(raw);
+        if (!out) return json(null); // whole chain failed/empty — don't spend budget
         await bumpQuota(env, q); // only a real reply counts
         const { tag, body } = parseTag(out);
-        const { gesture, body: text } = parseGesture(body); // optional action to act out
-        return json({ tag, gesture, text: text.slice(0, 260), provider });
+        const { gesture, body: afterGesture } = parseGesture(body); // optional action to act out
+        const { remember, body: text } = parseRemember(afterGesture); // optional durable fact to keep
+        return json({ tag, gesture, remember, text: text.slice(0, 260), provider, model });
       }
 
       if (url.pathname === '/golden' && request.method === 'POST') {
@@ -124,14 +139,15 @@ export default {
         const persona = PERSONAS[p.charId] || PERSONAS.spud;
         const prompt = buildGoldenPrompt(persona, p);
         const cfg = await loadConfig(env);
-        const provider = pickChatProvider(geoOf(request), env, cfg);
-        // temperature 1.3 — creative but coherent; DeepSeek's English degrades noticeably past this
-        const out = clean(
-          await callLLM(env, provider, { system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200, temperature: 1.3, models: cfg.models })
-        );
+        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        // temperature 1.0 — creative but coherent
+        const { text: raw, provider, model } = await callLLMChain(env, chain, {
+          system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200, temperature: 1.0, models,
+        });
+        const out = clean(raw);
         if (!out) return json({ text: null, provider }); // failed — don't spend budget
         await bumpQuota(env, q); // successful weave counts
-        return json({ text: out.length > 4 && out.length < 220 ? out : null, provider });
+        return json({ text: out.length > 4 && out.length < 220 ? out : null, provider, model });
       }
 
       // Personalized open-the-app greeting — same per-device budget as chat.
@@ -146,10 +162,11 @@ export default {
         const persona = PERSONAS[p.charId] || PERSONAS.spud;
         const prompt = buildGreetPrompt(persona, p);
         const cfg = await loadConfig(env);
-        const provider = pickChatProvider(geoOf(request), env, cfg);
-        const out = clean(
-          await callLLM(env, provider, { system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.3, models: cfg.models })
-        );
+        const chain = chatProviderChain(env, cfg);
+        const { text: raw, provider } = await callLLMChain(env, chain, {
+          system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.0, models: cfg.models,
+        });
+        const out = clean(raw);
         if (!out) return json({ text: null, provider }); // failed — don't spend budget
         await bumpQuota(env, q); // a real greeting counts
         return json({ text: out.length > 2 && out.length < 200 ? out : null, provider });
@@ -158,7 +175,7 @@ export default {
       // Live provider/model switch. GET reads the current KV config, POST replaces
       // it. No redeploy needed — the next chat/golden/cron call reads the new value.
       //   curl -XPOST .../admin/config -H 'x-pp-admin: TOKEN' \
-      //     -d '{"intl":"anthropic","gen":"deepseek","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
+      //     -d '{"chat":"anthropic","gen":"openai","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
       if (url.pathname === '/admin/config') {
         const want = env.ADMIN_TOKEN || env.APP_TOKEN;
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
@@ -169,7 +186,7 @@ export default {
         if (request.method === 'POST') {
           const body = await request.json();
           const next = {};
-          for (const k of ['cn', 'intl', 'gen']) {
+          for (const k of ['chat', 'gen']) {
             if (typeof body[k] === 'string' && body[k].trim()) next[k] = body[k].trim().toLowerCase();
           }
           if (body.models && typeof body.models === 'object') {
@@ -224,7 +241,7 @@ function dedupeLines(lines) {
 }
 
 async function generateForChar(env, id, opts) {
-  const { genProvider, nNormal, nGolden, runs } = opts;
+  const { genChain, nNormal, nGolden, runs } = opts;
   // Several small calls instead of one big one: long single batches template
   // out toward the tail, and each run draws its own inspiration seeds. Results
   // are merged and deduped.
@@ -235,11 +252,11 @@ async function generateForChar(env, id, opts) {
     // one retry — the batch call occasionally returns throttled/unparseable
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const text = await callLLM(env, genProvider, {
+        const { text } = await callLLMChain(env, genChain, {
           system: '',
           messages: [{ role: 'user', content: prompt }],
           maxTokens: 3000, // ~27 lines of JSON per run at ~90 tokens/line — truncation makes the run unparseable
-          temperature: 1.2, // tested sweet spot: DeepSeek's json mode emits corrupted JSON at 1.5, and 0.9 converges on templates
+          temperature: 1.0, // lowered from 1.2 — high heat corrupts JSON mode and non-English lines
           timeoutMs: 240000, // not latency-sensitive, and queued runs (Workers cap concurrent connections) eat into the timer
           json: true, // force clean JSON so parsing can't silently drop a persona
           models: opts.models,
@@ -270,11 +287,11 @@ async function generateMuttersForChar(env, id, opts) {
     const prompt = buildMutterPrompt(PERSONAS[id], per); // fresh seeds per run
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const text = await callLLM(env, opts.genProvider, {
+        const { text } = await callLLMChain(env, opts.genChain, {
           system: '',
           messages: [{ role: 'user', content: prompt }],
           maxTokens: 1500, // ~24 short lines of JSON per run — headroom against truncation
-          temperature: 1.1, // a notch below the cards: the mutter prompt already asks for absurdity, and 1.2 tips it into word salad
+          temperature: 0.95, // a notch below the cards: the mutter prompt already asks for absurdity, higher tips it into word salad
           timeoutMs: 240000, // same relaxed budget as the cards
           json: true,
           models: opts.models,
@@ -298,7 +315,7 @@ async function generateMuttersForChar(env, id, opts) {
 async function generateAll(env) {
   const cfg = await loadConfig(env);
   const opts = {
-    genProvider: pickGenProvider(env, cfg),
+    genChain: genProviderChain(env, cfg),
     models: cfg.models,
     nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
     nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),

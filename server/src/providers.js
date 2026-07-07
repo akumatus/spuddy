@@ -15,15 +15,27 @@ export async function loadConfig(env) {
   }
 }
 
-// CN traffic -> DeepSeek (cheap, fast, no GFW hop). Everyone else -> the intl
-// provider. Runtime KV config wins over the [vars] defaults for both.
-export function pickChatProvider(country, env, cfg = {}) {
-  if (country === 'CN') return (cfg.cn || env.CN_PROVIDER || 'deepseek').toLowerCase();
-  return (cfg.intl || env.INTL_PROVIDER || 'gemini').toLowerCase();
+// No geo routing — every request uses the same ordered fallback chain. GPT leads
+// (steadiest multilingual output); on any failure the call walks down this list.
+export const PROVIDER_FALLBACK = ['openai', 'gemini', 'deepseek', 'anthropic'];
+
+// primary first, then the default fallback with the primary removed (never tried
+// twice). Accepts the friendly "claude" alias for anthropic.
+function chainFrom(primary) {
+  primary = (primary || 'openai').toLowerCase();
+  if (primary === 'claude') primary = 'anthropic';
+  return [primary, ...PROVIDER_FALLBACK.filter((p) => p !== primary)];
 }
 
-export function pickGenProvider(env, cfg = {}) {
-  return (cfg.gen || env.GEN_PROVIDER || 'deepseek').toLowerCase();
+// Real-time chat/greet/golden chain. Runtime KV config (cfg.chat) or the [vars]
+// default (CHAT_PROVIDER) picks the primary; the rest of the chain backs it up.
+export function chatProviderChain(env, cfg = {}) {
+  return chainFrom(cfg.chat || env.CHAT_PROVIDER || 'openai');
+}
+
+// Cron card/mutter generator chain — same fallback idea, its own primary.
+export function genProviderChain(env, cfg = {}) {
+  return chainFrom(cfg.gen || env.GEN_PROVIDER || 'openai');
 }
 
 // models: optional { provider: modelId } runtime overrides from KV config; each
@@ -37,7 +49,7 @@ function providerConfig(env, name, models = {}) {
         kind: 'openai',
         base: 'https://api.deepseek.com',
         key: env.DEEPSEEK_API_KEY,
-        model: model(env.DEEPSEEK_MODEL || 'deepseek-chat'),
+        model: model(env.DEEPSEEK_MODEL || 'deepseek-v4-flash'),
       };
     case 'openai':
       return {
@@ -50,7 +62,7 @@ function providerConfig(env, name, models = {}) {
       return {
         kind: 'gemini',
         key: env.GEMINI_API_KEY,
-        model: model(env.GEMINI_MODEL || 'gemini-2.0-flash'),
+        model: model(env.GEMINI_MODEL || 'gemini-2.5-flash-lite'),
       };
     case 'anthropic':
       return {
@@ -72,6 +84,32 @@ export async function callLLM(env, provider, { system, messages, maxTokens = 300
   if (cfg.kind === 'gemini') return callGemini(cfg, args);
   if (cfg.kind === 'anthropic') return callAnthropic(cfg, args);
   return callOpenAICompat(cfg, args);
+}
+
+// Walk the provider chain until one backend actually answers. Backends with no
+// configured key are skipped silently; a thrown or empty call falls through to
+// the next. Returns { text, provider, model } naming whichever backend replied
+// (so responses stay self-describing), or { text: '' } if the chain is exhausted
+// with no error. Throws only when every keyed backend errored.
+export async function callLLMChain(env, chain, args) {
+  let lastErr;
+  for (const name of chain) {
+    let cfg;
+    try {
+      cfg = providerConfig(env, name, args.models);
+    } catch {
+      continue; // unknown provider id — skip it
+    }
+    if (!cfg.key) continue; // no key for this backend — try the next
+    try {
+      const text = await callLLM(env, name, args);
+      if (text && text.trim()) return { text, provider: name, model: cfg.model };
+    } catch (e) {
+      lastErr = e; // network / non-2xx — fall through to the next provider
+    }
+  }
+  if (lastErr) throw lastErr;
+  return { text: '', provider: null, model: null };
 }
 
 // DeepSeek + OpenAI share the /chat/completions shape.
