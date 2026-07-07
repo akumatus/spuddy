@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Spuddy icon studio</title>
+<style>
+  body { margin: 0; padding: 24px; background: #F0EAE0; font: 14px/1.4 sans-serif; color: #3E3226; }
+  #status { margin-bottom: 16px; font-weight: 700; }
+  .row { display: flex; gap: 20px; align-items: flex-start; }
+  .chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="status">loading 3D potato…</div>
+<div class="row">
+  <canvas id="content" width="1024" height="1024" style="width:360px;height:360px;background:#fff;"></canvas>
+  <canvas id="icon" width="1024" height="1024" style="width:360px;height:360px;"></canvas>
+  <div>
+    <div class="chip" style="background:#F5EFE3;">
+      <canvas id="s64l" width="128" height="128" style="width:64px;height:64px;"></canvas>
+      <canvas id="s32l" width="64" height="64" style="width:32px;height:32px;"></canvas>
+    </div>
+    <div class="chip" style="background:#26211B;">
+      <canvas id="s64d" width="128" height="128" style="width:64px;height:64px;"></canvas>
+      <canvas id="s32d" width="64" height="64" style="width:32px;height:32px;"></canvas>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// Renders the app icon master from design 1b「经典全身 — 举爱心小卡的官方形象」
+// (claude-design/project/Spuddy App Icon.dc.html). Dev-only page: it drives the
+// real PetScene for a single 1024×1024 frame, paints the heart card on the 3D
+// card mesh, lays the render over the 1b warm gradient, and POSTs the result to
+// the dev-server middleware which writes scripts/icon-src/icon-content.png.
+// scripts/make-icon.cjs then squircles that into assets/icon.png + icon.icns.
+import { PetScene } from './src/scene.js';
+
+const status = (m) => (document.getElementById('status').textContent = m);
+
+// 1b framing, verbatim from the design
+const CAM = [0, 1.56, 6.2];
+const LOOK = [0, 1.04, 0];
+const FOV = 25.5;
+const SHADOW = 0.55;
+
+const gl = document.createElement('canvas');
+gl.width = gl.height = 1024;
+
+// PetScene starts its own rAF loop in the constructor; swallow that one
+// registration so we can render single frames manually instead
+const raf = window.requestAnimationFrame;
+window.requestAnimationFrame = () => 0;
+const scene = new PetScene(gl);
+window.requestAnimationFrame = raf;
+
+scene.renderer.setPixelRatio(1);
+scene.renderer.setSize(1024, 1024, false);
+scene.camera.aspect = 1;
+scene.camera.fov = FOV;
+scene.camera.updateProjectionMatrix();
+
+try {
+  // the icon uses the baked-shaded parts model, not the shipped PBR hybrid —
+  // redirect the model fetch while setCharacter runs (rig/card names match)
+  const realFetch = window.fetch.bind(window);
+  window.fetch = (res, init) => {
+    const u = typeof res === 'string' ? res : res && res.url;
+    if (typeof u === 'string' && u.includes('models/spud.glb'))
+      return realFetch('/scripts/icon-src/spud-parts.glb', init);
+    return realFetch(res, init);
+  };
+  try {
+    await scene.setCharacter('spud');
+  } finally {
+    window.fetch = realFetch;
+  }
+
+  // the design lib normalizes model height to 2.0 (spud-scene2.js), the app
+  // scene to 1.5 (headroom for the speech bubble) — match the design's size
+  // so the potato fills the icon like the approved 1b render
+  scene.holder.scale.multiplyScalar(2 / 1.5);
+
+  paintHeartCard();
+  renderContent();
+  drawAllIcons();
+  await save();
+  status('saved scripts/icon-src/icon-content.png — run: node scripts/make-icon.cjs');
+} catch (e) {
+  console.error('icon studio failed', e);
+  status('failed: ' + (e && e.message ? e.message : e));
+}
+
+/* cream card with a fat heart, drawn on the 3D card mesh (design 1b) */
+function paintHeartCard() {
+  const cs = scene.cardScreen;
+  if (!cs || !cs.canvas.width) throw new Error('card screen not ready');
+  const draw = () => {
+    const { canvas, ctx } = cs;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#FFFDF6';
+    ctx.fillRect(0, 0, W, H);
+    const s = (Math.min(W, H) * 0.62) / 42;
+    ctx.save();
+    ctx.translate(W / 2 - 21 * s, H / 2 - 20 * s);
+    ctx.scale(s, s);
+    ctx.beginPath();
+    ctx.moveTo(21, 40);
+    ctx.bezierCurveTo(13, 31, 0, 24, 0, 13);
+    ctx.bezierCurveTo(0, 5, 7, 1, 13, 4);
+    ctx.bezierCurveTo(17, 6, 20, 9, 21, 12);
+    ctx.bezierCurveTo(22, 9, 25, 6, 29, 4);
+    ctx.bezierCurveTo(35, 1, 42, 5, 42, 13);
+    ctx.bezierCurveTo(42, 24, 29, 31, 21, 40);
+    ctx.closePath();
+    ctx.fillStyle = '#D9604B';
+    ctx.fill();
+    ctx.restore();
+    cs.texture.needsUpdate = true;
+  };
+  cs.redraw = draw; // keep font-ready callbacks from repainting text over it
+  draw();
+}
+
+/* 1b background + single GL frame → #content */
+function renderContent() {
+  scene.holder.rotation.y = 0;
+  scene.camera.position.set(...CAM);
+  scene.camera.lookAt(...LOOK);
+  scene.shadow.material.opacity = SHADOW;
+  scene.shadow.scale.set(1.12, 1, 1);
+  scene.renderer.render(scene.scene, scene.camera);
+
+  const ctx = document.getElementById('content').getContext('2d');
+  const S = 1024;
+  ctx.clearRect(0, 0, S, S);
+  let g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, '#FFFDF6');
+  g.addColorStop(1, '#F0E5CE');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  g = ctx.createRadialGradient(S * 0.5, S * 0.36, S * 0.04, S * 0.5, S * 0.36, S * 0.78);
+  g.addColorStop(0, 'rgba(255,240,212,0.95)');
+  g.addColorStop(1, 'rgba(255,240,212,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  ctx.drawImage(gl, 0, 0, S, S);
+}
+
+/* squircle previews (same geometry make-icon.cjs bakes) for eyeballing */
+function drawIcon(canvas, dark) {
+  const ctx = canvas.getContext('2d');
+  const S = canvas.width;
+  ctx.clearRect(0, 0, S, S);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const w = S * 0.805, x = (S - w) / 2, y = x, r = w * 0.225;
+  ctx.save();
+  ctx.shadowColor = dark ? 'rgba(0,0,0,0.55)' : 'rgba(62,50,38,0.32)';
+  ctx.shadowBlur = S * 0.028;
+  ctx.shadowOffsetY = S * 0.012;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, w, r);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, w, r);
+  ctx.clip();
+  ctx.drawImage(document.getElementById('content'), x, y, w, w);
+  ctx.restore();
+}
+
+function drawAllIcons() {
+  for (const id of ['icon', 's64l', 's32l']) drawIcon(document.getElementById(id), false);
+  for (const id of ['s64d', 's32d']) drawIcon(document.getElementById(id), true);
+}
+
+async function save() {
+  const blob = await new Promise((r) => document.getElementById('content').toBlob(r, 'image/png'));
+  const res = await fetch('/__icon-save', { method: 'POST', body: blob });
+  if (!res.ok) throw new Error('save failed: ' + res.status);
+}
+</script>
+</body>
+</html>

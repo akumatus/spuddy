@@ -8,6 +8,12 @@
       "port": 4321
     },
     {
+      "name": "icon-studio",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd /Users/wuyue/Documents/Startup/spuddy/app && node_modules/.bin/vite --port 5199 --strictPort"],
+      "port": 5199
+    },
+    {
       "name": "renderer-preview",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4173", "--directory", "app/dist"],

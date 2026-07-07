@@ -1,7 +1,16 @@
-// Build the macOS app icon from design 4b「从底边升起」— the whole potato rises
-// from the bottom edge, holding its own white card with a red heart, on a soft
-// blue squircle. Source art is public/chars/char-spud.png (the glasses potato,
-// whose card area is transparent — we fill it with the white card behind him).
+// Build the macOS app icon from design 1b「经典全身」— the crocheted potato
+// holding its white heart card, real 3D render on the warm cream gradient,
+// clipped to the Apple icon-grid squircle (80.5% content, baked dock shadow).
+// Source design: claude-design/project/Spuddy App Icon.dc.html.
+//
+// The 1024 master render comes from the icon studio page (needs WebGL, so it
+// runs in a browser against the dev server):
+//
+//   npx vite . --port 5199        # from app/, then open
+//   http://localhost:5199/icon-studio.html
+//
+// The page renders the scene and auto-saves scripts/icon-src/icon-content.png
+// through the dev-server middleware (see vite.config.js). Then:
 //
 //   node scripts/make-icon.cjs
 //
@@ -12,89 +21,58 @@ const { execFileSync } = require('child_process');
 const sharp = require('sharp');
 
 const root = path.join(__dirname, '..');
-const SRC = path.join(root, 'public', 'chars', 'char-spud.png');
+const CONTENT = path.join(__dirname, 'icon-src', 'icon-content.png');
 const OUT_DIR = path.join(root, 'assets');
 const MASTER = path.join(OUT_DIR, 'icon.png');
 const ICNS = path.join(OUT_DIR, 'icon.icns');
 const TRAY = path.join(OUT_DIR, 'trayTemplate.png');
 const TRAY2X = path.join(OUT_DIR, 'trayTemplate@2x.png');
 
-// ── palette (from the app: --red #b9543f) ──
-const BLUE = '#aac5cc';       // soft dusty-blue squircle background
-const CARD = '#fefdfb';       // warm white card
-const HEART = '#b9543f';      // brick red, matches the app's --red
-const HEART_LINE = '#8f3b2c'; // darker hand-drawn heart outline
+// ── icon geometry (design 1b drawIcon) ──
+const S = 1024;                        // master size
+const W = Math.round(S * 0.805);       // Apple icon grid: content squircle width
+const X = Math.round((S - W) / 2);
+const RADIUS = Math.round(W * 0.225);  // macOS 曲率圆角
 
-const S = 1024;                       // master size
-const RADIUS = Math.round(S * 0.2235); // Apple continuous-corner squircle radius
+// dock-style drop shadow baked into the master, per the design:
+// shadowBlur S*0.028 (canvas blur ≈ 2σ), offsetY S*0.012, warm brown at 32%
+const SHADOW_SIGMA = (S * 0.028) / 2;
+const SHADOW_DY = S * 0.012;
 
-// ── potato placement (tuned visually against the 4b mock) ──
-const SPUD_W = 381, SPUD_H = 484;      // source dimensions
-const CONTENT_TOP = 6;                 // first opaque row (head crown)
-const CARD_CX = 184, CARD_CY = 336;    // centre of the transparent card hole
-const scale = (S * 0.82) / SPUD_W;     // potato spans ~82% of the icon width
-const topMargin = S * 0.05;            // blue breathing room above the head
-const imgW = Math.round(SPUD_W * scale);
-const imgH = Math.round(SPUD_H * scale);
-const imgLeft = Math.round((S - imgW) / 2);
-const imgTop = Math.round(topMargin - CONTENT_TOP * scale);
-
-// where the card hole lands in the final canvas
-const cardCx = imgLeft + Math.round(CARD_CX * scale);
-const cardCy = imgTop + Math.round(CARD_CY * scale);
-
-const squircle = (size, fill) =>
+const squircle = (size, r, fill) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
-  `<rect x="0" y="0" width="${size}" height="${size}" rx="${size * 0.2235}" ry="${size * 0.2235}" fill="${fill}"/></svg>`;
+  `<rect x="0" y="0" width="${size}" height="${size}" rx="${r}" ry="${r}" fill="${fill}"/></svg>`;
 
-// white card + red heart, drawn where the potato's hands hold it
-function cardLayer() {
-  const cw = Math.round(240 * scale);   // card slightly wider than the visible gap
-  const ch = Math.round(150 * scale);
-  const cx = cardCx - cw / 2;
-  const cy = cardCy - ch * 0.5;
-  const hs = Math.round(cw * 0.46);     // heart size — leaves white margin all round
-  const hx = cardCx - hs / 2;
-  const hy = cardCy - hs * 0.46;        // nudge up: the heart's mass sits high
-  // classic rounded heart in a 100×100 box
-  const heartPath =
-    'M50 87 C22 63 6 47 6 30 C6 15 18 6 31 6 C40 6 47 11 50 18 ' +
-    'C53 11 60 6 69 6 C82 6 94 15 94 30 C94 47 78 63 50 87 Z';
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}">` +
-      `<rect x="${cx}" y="${cy}" width="${cw}" height="${ch}" rx="${18 * scale}" ry="${18 * scale}" ` +
-      `fill="${CARD}" stroke="#e7ddc8" stroke-width="${2 * scale}"/>` +
-      `<g transform="translate(${hx},${hy}) scale(${hs / 100})">` +
-      `<path d="${heartPath}" fill="${HEART}" stroke="${HEART_LINE}" stroke-width="6" ` +
-      `stroke-linejoin="round" stroke-linecap="round"/></g>` +
-    `</svg>`
-  );
-}
+const shadowSvg =
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}">` +
+  `<defs><filter id="ds" x="-30%" y="-30%" width="160%" height="160%">` +
+  `<feDropShadow dx="0" dy="${SHADOW_DY}" stdDeviation="${SHADOW_SIGMA}" ` +
+  `flood-color="#3E3226" flood-opacity="0.32"/></filter></defs>` +
+  `<rect x="${X}" y="${X}" width="${W}" height="${W}" rx="${RADIUS}" ry="${RADIUS}" ` +
+  `fill="#000" filter="url(#ds)"/></svg>`;
 
 async function buildMaster() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  // crop off whatever runs past the icon's bottom edge — that overflow is the
-  // "rising from the bottom" cut, and sharp can't composite an oversized layer
-  const visibleH = Math.min(imgH, S - imgTop);
-  const potato = await sharp(SRC)
-    .resize(imgW, imgH)
-    .extract({ left: 0, top: 0, width: imgW, height: visibleH })
-    .toBuffer();
-
-  // base blue squircle → card behind → potato on top
-  const composed = await sharp(Buffer.from(squircle(S, BLUE)))
-    .composite([
-      { input: cardLayer(), top: 0, left: 0 },
-      { input: potato, top: imgTop, left: imgLeft },
-    ])
+  if (!fs.existsSync(CONTENT)) {
+    throw new Error(
+      'missing ' + path.relative(root, CONTENT) +
+      ' — render it first via icon-studio.html (see header comment)'
+    );
+  }
+  // content resized to the grid width, clipped to the squircle
+  const mask = await sharp(Buffer.from(squircle(W, RADIUS, '#fff'))).png().toBuffer();
+  const content = await sharp(CONTENT)
+    .resize(W, W)
+    .composite([{ input: mask, blend: 'dest-in' }])
     .png()
     .toBuffer();
 
-  // clip everything to the squircle so the potato's cropped bottom keeps the
-  // straight bottom edge and rounded corners
-  const mask = await sharp(Buffer.from(squircle(S, '#fff'))).png().toBuffer();
-  await sharp(composed)
-    .composite([{ input: mask, blend: 'dest-in' }])
+  // transparent canvas → baked shadow → squircled content on top
+  await sharp({ create: { width: S, height: S, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([
+      { input: Buffer.from(shadowSvg), top: 0, left: 0 },
+      { input: content, top: X, left: X },
+    ])
     .png()
     .toFile(MASTER);
   console.log('wrote', path.relative(root, MASTER));

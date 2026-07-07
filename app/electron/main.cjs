@@ -9,7 +9,7 @@ app.setName('Spuddy');
 const WIN_W = 680;
 const WIN_H = 640;
 
-// app icon — design 4b "rising from the bottom edge", rebuilt by scripts/make-icon.cjs
+// app icon — design 1b "classic full-body with heart card", rebuilt by scripts/make-icon.cjs
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 
 let win = null;
