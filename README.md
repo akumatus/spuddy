@@ -141,8 +141,8 @@ This isn't a sprite. Under the hood:
 
 ```bash
 cd app
-npm install
-npm start
+yarn install
+yarn start
 ```
 
 A little potato appears in the bottom-right corner, and a matching one lands in your menu bar (**Show / Hide**, **Quit**).

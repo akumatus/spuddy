@@ -8,13 +8,13 @@ Design "Spuddy desktop-pet prototype".
 
 ```bash
 cd app
-npm install
-npm start
+yarn install
+yarn start
 ```
 
 There's a small potato tray icon in the menu bar: Show / Hide, Quit.
 
-> Dev note: `npm start` / `npm run dev` run `scripts/set-dev-name.cjs` first so the
+> Dev note: `yarn start` / `yarn dev` run `scripts/set-dev-name.cjs` first so the
 > dock tooltip and menu-bar name read "Spuddy" instead of "Electron" (the dev
 > bundle's default). Packaged builds get the name from the `build` config.
 
@@ -67,7 +67,8 @@ routes to a provider (CN → DeepSeek). Point the app at a gateway in
 
 …or via the `PP_SERVER_URL` env var. Run the gateway locally with
 `cd server && cp .dev.vars.example .dev.vars` (add `DEEPSEEK_API_KEY=...`) then
-`npm run dev`. See [`../server/README.md`](../server/README.md).
+`npm run dev` (the server package stays on npm). See
+[`../server/README.md`](../server/README.md).
 
 With no gateway reachable it falls back to built-in lines automatically —
 everything still works.
@@ -83,9 +84,10 @@ cd app
 npm version patch   # 0.1.0 -> 0.1.1   (use minor / major, or an exact version)
 ```
 
-`npm version` writes the new version to `package.json`, makes a `Release vX.Y.Z`
-commit and matching `vX.Y.Z` tag, then the `postversion` script runs
-`git push --follow-tags`. The app version always comes from `package.json`, not
+Releases deliberately stay on `npm version` even though the app uses yarn:
+Yarn 4's `yarn version` only edits `package.json`, while `npm version` writes
+the new version to `package.json`, makes a `Release vX.Y.Z` commit and matching
+`vX.Y.Z` tag, then the `postversion` script runs `git push --follow-tags`. The app version always comes from `package.json`, not
 the tag — this keeps the two in sync automatically.
 
 The build is ad-hoc signed (`mac.identity: "-"`) but not notarized, so it runs
@@ -95,16 +97,30 @@ notarization later for double-click-to-open.
 
 ## App icon
 
-The app icon is design 4b "rising from the bottom edge": the potato
-rises from the bottom of a soft-blue squircle, holding its own white card with a
-red heart. Rebuild all icon assets with:
+The app icon is design 1b "classic full-body": a real 3D render of the
+crocheted potato holding his white heart card, on a warm cream gradient inside
+the Apple icon-grid squircle (source: claude-design/project/Spuddy App
+Icon.dc.html).
+
+The 1024px master render needs WebGL, so it comes from a dev-only studio page:
 
 ```bash
-npm run icon
+yarn vite --port 5199        # from app/, then open
+# http://localhost:5199/icon-studio.html
 ```
 
-`scripts/make-icon.cjs` composes the art from `public/chars/char-spud.png` and
-writes:
+`icon-studio.html` drives the real `src/scene.js` PetScene for a single frame
+(using the baked-shaded `scripts/icon-src/spud-parts.glb` instead of the
+shipped PBR hybrid), paints the heart card on the 3D card mesh, and auto-saves
+`scripts/icon-src/icon-content.png` through a dev-server middleware (see
+`vite.config.js`). Then rebuild the shipped assets with:
+
+```bash
+yarn icon
+```
+
+`scripts/make-icon.cjs` squircles the saved render (80.5% content, baked dock
+shadow) and writes:
 
 - `assets/icon.png` — 1024px master, and `assets/icon.icns` (16→1024 iconset)
   for the dock / packaged app.
@@ -151,8 +167,10 @@ writes:
   depth the shaded export had, without its cross-part contact shadows: a
   per-part isolated AO atlas (`scripts/bake_ao.py`, Blender headless — each part
   baked with the others hidden from rays, packed into the ORM R channel as
-  `occlusionTexture`, darkening only indirect light) and `KHR_materials_sheen`
-  fabric backscatter on every yarn part (eyes stay glossy plastic). When an export bakes the bead eyes
+  `occlusionTexture`, and also multiplied into the albedo gamma-softened and
+  tinted toward warm brown, so direct light reads the crevices too and shadows
+  look like yarn bounce light) and `KHR_materials_sheen` fabric backscatter on
+  every yarn part (eyes stay glossy plastic). When an export bakes the bead eyes
   into the body instead of leaving them as separate meshes (bloom, leo), no eye
   mesh is rigged and the painted-on eyes stay fixed — no blink/dart, same as the
   legacy single-mesh look.
