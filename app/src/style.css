@@ -600,41 +600,120 @@ html, body {
 .buddy.locked button { background: #f1ead9; color: var(--tan); }
 #book .hint { font-size: 11.5px; font-weight: 700; color: #9a8768; text-align: center; }
 
-#book .mems { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow: auto; padding: 2px; }
-.mem { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1.5px solid #eadfc8; border-radius: 12px; padding: 10px 12px; }
-.mem .day { font-size: 10px; font-weight: 900; color: var(--tan); letter-spacing: 0.08em; background: #f1e8d6; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
-.mem .body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.mem .note { font-size: 12.5px; font-weight: 700; white-space: pre-wrap; }
-.mem .reply { font-family: var(--hand); font-weight: 600; font-size: 16px; color: #8a7455; white-space: pre-wrap; }
-.mem .fact { font-family: var(--hand); font-weight: 600; font-size: 17px; color: #8a7455; line-height: 1.25; padding: 1px 0; }
-.mem .del {
-  cursor: pointer;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--tan);
-  border: 1px solid #e3d6bc;
-  background: transparent;
-  flex-shrink: 0;
+/* ── slim, warm scrollbar for the Book's scroll areas ── */
+#book .chatlog::-webkit-scrollbar,
+#book .memgrid::-webkit-scrollbar,
+#book .grid::-webkit-scrollbar { width: 10px; }
+#book .chatlog::-webkit-scrollbar-track,
+#book .memgrid::-webkit-scrollbar-track,
+#book .grid::-webkit-scrollbar-track { background: transparent; }
+#book .chatlog::-webkit-scrollbar-thumb,
+#book .memgrid::-webkit-scrollbar-thumb,
+#book .grid::-webkit-scrollbar-thumb {
+  background: #dccdb0; border-radius: 999px;
+  border: 3px solid transparent; background-clip: padding-box;
 }
-.mem .del:hover { color: var(--red); }
+#book .chatlog::-webkit-scrollbar-thumb:hover,
+#book .memgrid::-webkit-scrollbar-thumb:hover,
+#book .grid::-webkit-scrollbar-thumb:hover { background: #c7b489; background-clip: padding-box; }
 
-/* memory groups — distilled facts filed by category into a little profile */
-#book .memgroup { display: flex; flex-direction: column; gap: 6px; }
-#book .memgroup + .memgroup { margin-top: 8px; }
-.memgroup-head { padding: 0 2px; }
-.memgroup-head .kind {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
-  padding: 3px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;
+/* ── Chat · full transcript ── */
+#book .chatlog {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 4px 8px 2px 2px;
 }
+.cday { display: flex; align-items: center; gap: 12px; margin: 4px 2px; color: #b39f78; }
+.cday::before, .cday::after { content: ''; flex: 1; border-top: 1.5px dashed #d8c9ac; }
+.cday span { font-size: 10.5px; font-weight: 900; letter-spacing: 0.16em; }
+.crow { display: flex; flex-direction: column; }
+.crow.user { align-items: flex-end; }
+.crow.pet { flex-direction: row; align-items: flex-start; gap: 10px; }
+.ubub {
+  max-width: 80%;
+  background: #ece0c6; color: var(--ink);
+  font-size: 14px; font-weight: 800; line-height: 1.42;
+  padding: 10px 15px; border-radius: 17px 17px 5px 17px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.knit {
+  margin-top: 7px;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #f7edcb; color: #a5842b;
+  font-size: 11px; font-weight: 800;
+  padding: 4px 12px 4px 9px; border-radius: 999px;
+}
+.knit .yarn { width: 18px; height: 12px; flex-shrink: 0; }
+.pav {
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: 999px;
+  /* the char art is a tall portrait; nudge the crop up the image so the potato
+     sits a touch lower in the circle, head rounding over the top */
+  background: var(--paper) center 15% / cover no-repeat;
+  border: 1.5px solid #e6d9bd; margin-top: 2px;
+}
+.pbub {
+  max-width: 80%;
+  background: var(--paper); border: 1.5px solid #ece0c6;
+  border-radius: 5px 17px 17px 17px;
+  font-family: var(--hand); font-weight: 600; font-size: 19px; line-height: 1.32;
+  color: #6b5636; padding: 9px 16px;
+  white-space: pre-wrap; word-break: break-word;
+  box-shadow: 0 8px 16px -14px rgba(70, 50, 25, 0.6);
+}
+
+/* ── Memory · the quilt ── */
+.memhead {
+  font-family: var(--hand); font-weight: 600; font-size: 21px;
+  color: #a58a58; text-align: center; padding: 0 12px 4px;
+}
+#book .memgrid {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  /* a whisker more breathing room so the tilted patches never clip */
+  grid-auto-rows: min-content; padding: 6px 10px 6px 4px;
+}
+.mcard {
+  position: relative;
+  border: 2px dashed #d9b64a; background: #fffdf4;
+  border-radius: 16px; padding: 15px 16px;
+  display: flex; flex-direction: column; gap: 11px;
+  min-height: 132px;
+}
+/* hand-placed patches — each sits a touch off square, like sewn on by hand */
+.memgrid .mcard:nth-child(4n + 1) { transform: rotate(-0.9deg); }
+.memgrid .mcard:nth-child(4n + 2) { transform: rotate(0.7deg); }
+.memgrid .mcard:nth-child(4n + 3) { transform: rotate(0.6deg); }
+.memgrid .mcard:nth-child(4n + 4) { transform: rotate(-0.7deg); }
+.mcard.rainy { border-color: #b3c0d0; background: #eef1f5; }
+.mcard.plain { border-color: #d5c5a2; background: var(--paper); }
+.mtop { display: flex; align-items: flex-start; justify-content: space-between; }
+.mface { width: 48px; height: 48px; margin: -4px 0 0 -4px; }
+.mface svg { display: block; width: 48px; height: 48px; }
+.mmark { position: relative; width: 24px; height: 24px; flex-shrink: 0; }
+.micon, .mcard .del { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transition: opacity 0.12s ease; }
+.micon svg { width: 20px; height: 20px; }
+.mcard .del {
+  opacity: 0; cursor: pointer;
+  border: none; background: transparent;
+  font-size: 18px; font-weight: 900; color: var(--tan); line-height: 1;
+}
+.mcard:hover .micon { opacity: 0; }
+.mcard:hover .del { opacity: 1; }
+.mcard .del:hover { color: var(--red); }
+.mfact {
+  flex: 1;
+  font-family: var(--hand); font-weight: 600; font-size: 20px; line-height: 1.28;
+  color: #6b5636;
+}
+.mcard.rainy .mfact { color: #5b6675; }
+.mmeta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mcard .kind { font-size: 11px; font-weight: 800; letter-spacing: 0.01em; padding: 3px 11px; border-radius: 999px; white-space: nowrap; }
+.mday { font-size: 10.5px; font-weight: 900; letter-spacing: 0.1em; color: var(--tan); white-space: nowrap; }
+.mcard.rainy .mday { color: #8695a8; }
 .kind.work { background: #e7eef6; color: #3f5a7a; }
 .kind.goal { background: #e3f1ea; color: #3c7357; }
 .kind.people { background: #f8e6e6; color: #9c4f4f; }
+.kind.pets { background: #f7e9da; color: #9a6234; }
 .kind.likes { background: #f6eddb; color: #8a6d2f; }
 .kind.milestone { background: var(--gold-bg); color: var(--gold); }
 .kind.feeling { background: #eee7f4; color: #6b5a86; }

@@ -245,12 +245,13 @@ export const UNLOCK = {
 // listed in the chat prompts (server/src/personas.js + app/electron/main.cjs);
 // unknown or missing kinds fall back to `other`. Order here is display order.
 export const MEMORY_KINDS = [
-  { id: 'work', label: 'Work & projects', emoji: '💼' },
-  { id: 'goal', label: 'Goals & plans', emoji: '🎯' },
-  { id: 'people', label: 'People & pets', emoji: '❤️' },
-  { id: 'likes', label: 'Likes & tastes', emoji: '⭐' },
+  { id: 'work', label: 'Work', emoji: '💼' },
+  { id: 'goal', label: 'Goals', emoji: '🎯' },
+  { id: 'people', label: 'People', emoji: '❤️' },
+  { id: 'pets', label: 'Pets', emoji: '🐾' },
+  { id: 'likes', label: 'Likes', emoji: '⭐' },
   { id: 'milestone', label: 'Milestones', emoji: '🏆' },
-  { id: 'feeling', label: 'Feelings & worries', emoji: '🫧' },
+  { id: 'feeling', label: 'Feelings', emoji: '🫧' },
   { id: 'other', label: 'Other', emoji: '📌' },
 ];
 export const MEMORY_KIND_IDS = MEMORY_KINDS.map((k) => k.id);

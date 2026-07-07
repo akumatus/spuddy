@@ -548,7 +548,7 @@ function chatSend() {
   saidEl.classList.remove('hidden');
   hideBubble();
 
-  state.chat.push({ who: 'user', text: note });
+  state.chat.push({ who: 'user', text: note, day: state.day, date: store.todayStr() });
   chatPending.push(note);
 
   if (chatBusy) return; // a reply is already brewing — he'll pick this up next
@@ -560,12 +560,20 @@ function chatSend() {
 // keep about the human, tagged with a category. Store it once, skipping
 // near-duplicates (models re-surface the same fact across a conversation).
 const normFact = (f) => f.trim().toLowerCase().replace(/[.!?]+$/, '');
-function rememberFact(fact, kind) {
+// Stores the fact and returns the category it was filed under (or null when
+// skipped as too-short / a near-duplicate), so the caller can tag the message
+// that revealed it. Mood (sunny/rainy/plain — the quilt's patch color) is the
+// model's own stamp on the [[remember]] note; if it skipped one, fall back to
+// the reply's emotion tag: [comfort] means they were down → rainy, a celebrating
+// [cheer]/[proud] reads sunny, and a [calm] reply keeps the patch plain.
+function rememberFact(fact, kind, mood, tag) {
   const f = (fact || '').trim();
-  if (f.length < 4) return;
-  if (state.memory.some((m) => normFact(m.fact) === normFact(f))) return;
+  if (f.length < 4) return null;
+  if (state.memory.some((m) => normFact(m.fact) === normFact(f))) return null;
   const k = MEMORY_KIND_IDS.includes(kind) ? kind : 'other';
-  state.memory.push({ day: state.day, fact: f, kind: k });
+  const md = mood || (tag === 'comfort' ? 'rainy' : tag === 'cheer' || tag === 'proud' ? 'sunny' : 'plain');
+  state.memory.push({ day: state.day, fact: f, kind: k, mood: md });
+  return k;
 }
 
 async function runChat() {
@@ -604,8 +612,16 @@ async function runChat() {
     // "sing me a song" still lands even offline / over budget
     if (!gesture) gesture = detectGesture(covered.join(' '));
     reactToReply(tag, gesture);
-    state.chat.push({ who: 'pet', text: reply });
-    if (res && res.remember && res.remember.fact) rememberFact(res.remember.fact, res.remember.kind);
+    state.chat.push({ who: 'pet', text: reply, day: state.day, date: store.todayStr() });
+    if (res && res.remember && res.remember.fact) {
+      const kind = rememberFact(res.remember.fact, res.remember.kind, res.remember.mood, tag);
+      // mark the human's line that revealed it, so the transcript shows the stitch
+      if (kind) {
+        for (let j = state.chat.length - 1; j >= 0; j--) {
+          if (state.chat[j].who === 'user') { state.chat[j].mem = kind; break; }
+        }
+      }
+    }
     persist();
     bubble(reply, { hold: 9000, type: true });
     setTimeout(() => $('said').classList.add('hidden'), 4200);
@@ -673,11 +689,11 @@ function renderBook() {
       renderBook();
     },
     // Chat and memory clear independently now that each has its own tab: this
-    // wipes only the running conversation (context he replies from), resetting
-    // it to a fresh greeting; his distilled memory stays put.
+    // wipes only the running conversation (the context he replies from) back to
+    // empty; his distilled memory stays put, and his next hello is a spoken one.
     onClearChat: () => {
       sfx.pop();
-      state.chat = [{ who: 'pet', text: greet(state.active) }];
+      state.chat = [];
       chatPending.length = 0;
       persist();
       renderBook();
@@ -716,13 +732,12 @@ function renderBuddies() {
       sfx.pop();
       brain.interrupt();
       state.active = id;
-      state.chat.push({ who: 'pet', text: greet(id) });
       persist();
       ui.closeOverlay();
       await scene.setCharacter(id);
       updateCardScreen();
       anim().play(scene.hasRig() ? 'wave' : 'hop'); // reporting for duty
-      bubble(greet(id), { hold: 3600 });
+      bubble(greet(id), { hold: 3600 }); // his hello is spoken, not written to the record
       $('chatInput').placeholder = `tell ${activeChar().name} what's on your mind…`;
     },
   });

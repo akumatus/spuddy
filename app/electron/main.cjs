@@ -247,19 +247,26 @@ const TAG_RE = /^\s*\[(comfort|cheer|proud|calm)\]\s*/i;
 // Optional [gesture] tag after the emotion tag — the renderer maps it to an
 // animation clip. Kept in sync with GESTURE_CLIP in app/src/main.js.
 const GESTURE_RE = /^\s*\[(wave|hug|dance|spin|cheer|hop|sing|stretch|shy|peek|sulk|sneeze|present)\]\s*/i;
-// Optional trailing [[remember: <kind> | <fact>]] — a durable fact the pet keeps
-// about the human. Double brackets so it never collides with the single-bracket
-// tags. Kinds mirror MEMORY_KINDS in app/src/content.js — keep them in sync.
+// Optional trailing [[remember: <kind> | <mood> | <fact>]] — a durable fact the
+// pet keeps about the human, mood-stamped by the model itself (sunny/rainy/plain)
+// so the Memory quilt colors patches right. Double brackets so it never collides
+// with the single-bracket tags. Kinds mirror MEMORY_KINDS in app/src/content.js
+// and the parsing mirrors server/src/personas.js — keep all three in sync.
 const REMEMBER_RE = /\[\[\s*remember:\s*([^\]]+?)\s*\]\]/i;
-const MEMORY_KINDS = ['work', 'goal', 'people', 'likes', 'milestone', 'feeling', 'other'];
+const MEMORY_KINDS = ['work', 'goal', 'people', 'pets', 'likes', 'milestone', 'feeling', 'other'];
+// canonical moods + the synonyms models drift toward
+const MOODS = { sunny: 'sunny', happy: 'sunny', warm: 'sunny', rainy: 'rainy', sad: 'rainy', heavy: 'rainy', hard: 'rainy', plain: 'plain', neutral: 'plain', normal: 'plain', calm: 'plain' };
 function splitRemember(raw) {
   const parts = raw.split('|');
   if (parts.length >= 2) {
     const kind = parts[0].trim().toLowerCase();
-    const fact = parts.slice(1).join('|').trim();
-    return { fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other' };
+    // second slot is the mood when it parses as one; tolerate the older
+    // two-part <kind> | <fact> shape (and models that skip the mood)
+    const mood = MOODS[parts[1].trim().toLowerCase()] || null;
+    const fact = parts.slice(mood ? 2 : 1).join('|').trim();
+    if (fact) return { fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other', mood };
   }
-  return { fact: raw.trim(), kind: 'other' };
+  return { fact: raw.trim(), kind: 'other', mood: null };
 }
 
 function localApiKey() {
@@ -319,7 +326,7 @@ ipcMain.handle('ai-reply', async (_e, p) => {
       `You are not a therapist: if they seem in real distress, warmly suggest also talking to a human they trust. ` +
       `Begin your reply with exactly one emotion tag in square brackets — [comfort] if they seem down, [cheer] if celebrating with them, [proud] if they did something good, [calm] otherwise — then the line itself.` +
       ` When their message calls for a physical action — they ask you to sing, dance, hug, wave, spin, jump, stretch, hide, peek, sneeze, sulk, or show your card, or acting one out would clearly land the moment — add ONE gesture tag immediately AFTER the emotion tag, chosen from EXACTLY this list: [wave] [hug] [dance] [spin] [cheer] [hop] [sing] [stretch] [shy] [peek] [sulk] [sneeze] [present]. Use it only when it truly fits; most replies have no gesture tag. Never invent gesture words outside that list. Example: "[cheer][dance] you got it — watch this."` +
-      ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category: [[remember: <category> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends, pets), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Example: [[remember: work | is building a desktop-pet app called spuddy]]. Most replies reveal nothing new — then add nothing. Never restate something already in your long-term memory below, and at most one per reply.` +
+      ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information). Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost her mother years ago]] · [[remember: milestone | sunny | just ran her first 10k]]. Most replies reveal nothing new — then add nothing. Never restate something already in your long-term memory below, and at most one per reply.` +
       (mem ? `\nLong-term memory of them (already known — don't re-remember these):\n${mem}` : '');
     const messages = (p.messages || []).map((m) => ({
       role: m.who === 'user' ? 'user' : 'assistant',

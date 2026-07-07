@@ -8,6 +8,90 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// ── Card Book · chat + memory doodles ──
+const KIND_LABEL = Object.fromEntries(MEMORY_KINDS.map((k) => [k.id, k.label]));
+const kindLabel = (id) => KIND_LABEL[id] || 'Memory';
+
+// Weekday for a chat day-divider, from the ISO date stamped on the first message
+// of that day (local, not UTC — parse the parts so "2026-07-07" reads as TUE here
+// rather than shifting a day at the edges). Missing dates just drop the weekday.
+function weekday(dateStr) {
+  const [y, mo, d] = String(dateStr || '').split('-').map(Number);
+  if (!y || !mo || !d) return '';
+  return new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+}
+
+// A memory is a sunny patch, a rainy one, or a plain everyday one — the mood is
+// the model's own stamp on its [[remember]] note (see rememberFact in main.js).
+// Legacy facts predate the stamp; guess conservatively from category — worries
+// rainy, milestones sunny, and everything else plain rather than wrongly cheerful.
+function memMood(m) {
+  if (m.mood === 'sunny' || m.mood === 'rainy' || m.mood === 'plain') return m.mood;
+  return m.kind === 'feeling' ? 'rainy' : m.kind === 'milestone' ? 'sunny' : 'plain';
+}
+
+// yarn-and-needle squiggle for the "knit into Memory" chat tag
+const YARN =
+  '<svg class="yarn" viewBox="0 0 24 16" fill="none" aria-hidden="true"><path d="M2 12C5 4 9 4 12 10s7 2 10-6" stroke="#b8912f" stroke-width="2" stroke-linecap="round"/></svg>';
+
+// Little line-drawn faces for the memory quilt, doodled like the design's
+// margin sketches — the accessory grows out of the head itself: a heart perched
+// on the rim for someone they love, a pennant planted for milestones, drizzle
+// or a trail of sigh-bubbles when the patch is a rainy one.
+const INK = '#5a4a34';
+const DOODLE_RED = '#c0503c';
+const RAIN = '#6e86a8';
+const face = (inner) =>
+  `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="22" cy="26" r="13.5" stroke="${INK}" stroke-width="2"/>${inner}</svg>`;
+const eyeDot = (x, y = 23.5) => `<circle cx="${x}" cy="${y}" r="1.7" fill="${INK}"/>`;
+// a wink: one eye closed in a happy downward arc
+const eyeWink = `<path d="M14.5 24q2.3-2.7 4.6 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`;
+const smile = `<path d="M17 29.5c2.4 2.8 7.6 2.8 10 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`;
+const frown = `<path d="M17.5 31c2.4-2.6 7.3-2.6 9.7 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`;
+
+const FACE_SUNNY = face(eyeWink + eyeDot(27.5) + smile);
+const FACE_SUNNY_HEART = face(
+  eyeWink + eyeDot(27.5) + smile +
+  `<path transform="rotate(14 34 12)" d="M34 17.5c-4.6-3.6-4.6-7.6-2.3-7.6 1.2 0 2.3 1.5 2.3 1.5s1.1-1.5 2.3-1.5c2.3 0 2.3 4-2.3 7.6z" fill="${DOODLE_RED}"/>`
+);
+const FACE_MILESTONE = face(
+  eyeDot(17) + eyeDot(27.5) +
+  `<path d="M17.5 28.5c2.5 3.4 7.5 3.4 10 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>` +
+  `<path d="M29 13V4.5" stroke="${INK}" stroke-width="2" stroke-linecap="round"/><path d="M29 4.5l7.5 2-7.5 2z" fill="${DOODLE_RED}"/>`
+);
+const FACE_RAINY = face(
+  eyeDot(17, 24.5) + eyeDot(27.5, 24.5) + frown +
+  `<path d="M31.5 7.5l-2 4.5M37 10l-2 4.5" stroke="${RAIN}" stroke-width="2" stroke-linecap="round"/>`
+);
+const FACE_RAINY_SIGH = face(
+  eyeDot(17, 24.5) + eyeDot(27.5, 24.5) + frown +
+  `<circle cx="30.5" cy="12.5" r="1.4" stroke="${INK}" stroke-width="1.8"/><circle cx="35" cy="8.5" r="2" stroke="${INK}" stroke-width="1.8"/><circle cx="41" cy="4.6" r="2.6" stroke="${INK}" stroke-width="1.8"/>`
+);
+const FACE_PLAIN = face(eyeDot(17) + eyeDot(27.5) + `<path d="M17.5 29.5h9.5" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`);
+
+function memFace(mood, kind) {
+  if (mood === 'rainy') return kind === 'feeling' ? FACE_RAINY_SIGH : FACE_RAINY;
+  if (mood === 'plain') return FACE_PLAIN;
+  if (kind === 'milestone') return FACE_MILESTONE;
+  return kind === 'people' || kind === 'pets' || kind === 'likes' ? FACE_SUNNY_HEART : FACE_SUNNY;
+}
+
+// corner marks, matching the design's margin doodles: a little hand-drawn sun
+// (dot + four rays) for sunny, a blue drop for rainy, a sewn button for plain
+// everyday patches (a cross-stitch read too much like the delete × it swaps
+// with on hover)
+const ICON_SUN =
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="2.4" fill="#c9a227"/><path d="M12 3.5v3.4M12 17.1v3.4M3.5 12h3.4M17.1 12h3.4" stroke="#c9a227" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICON_DROP =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s-7 8.4-7 12.4a7 7 0 0014 0C19 11.4 12 3 12 3z" fill="#6e86a8"/></svg>';
+const ICON_BUTTON =
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="#c0ab7f" stroke-width="2"/><circle cx="9.4" cy="9.4" r="1.2" fill="#c0ab7f"/><circle cx="14.6" cy="9.4" r="1.2" fill="#c0ab7f"/><circle cx="9.4" cy="14.6" r="1.2" fill="#c0ab7f"/><circle cx="14.6" cy="14.6" r="1.2" fill="#c0ab7f"/></svg>';
+function memIcon(mood) {
+  if (mood === 'rainy') return ICON_DROP;
+  if (mood === 'plain') return ICON_BUTTON;
+  return ICON_SUN;
+}
+
 const stageEl = () => document.getElementById('stage');
 const panelEl = () => document.getElementById('hoverpanel');
 
@@ -250,75 +334,75 @@ export function showBook(state, tab, filter, handlers) {
         ${state.cards.length ? '<button class="clear" id="cardsClear">clear all</button>' : ''}
       </div>`;
   } else if (tab === 'chat') {
-    // Full conversation, shown in the old Memory card style: each exchange is a
-    // card — what you said, then how he answered (his reply in his handwriting).
-    // Fold the flat who/text log into note+reply pairs; runs of your messages
-    // collapse into one note, his opening greeting stands as a reply-only card.
+    // Full transcript, day by day: your lines as bubbles on the right, his in his
+    // own handwriting on the left beside his face. A gold "knit into Memory" tag
+    // trails the message that revealed a durable fact, so you can see the moment
+    // a stitch was made. Dividers break the flow wherever the day rolls over.
     const turns = state.chat || [];
     const spoken = turns.filter((m) => m.who === 'user').length;
-    const pairs = [];
-    let cur = null;
+    const avatar = `./chars/char-${state.active || 'spud'}.png`;
+    let rows = '';
+    let lastDay = null;
     for (const m of turns) {
+      const day = typeof m.day === 'number' ? m.day : null;
+      if (day !== null && day !== lastDay) {
+        const wd = weekday(m.date);
+        rows += `<div class="cday"><span>DAY ${day}${wd ? ` · ${wd}` : ''}</span></div>`;
+        lastDay = day;
+      }
       if (m.who === 'user') {
-        if (cur && !cur.reply) cur.note = cur.note ? `${cur.note}\n${m.text}` : m.text;
-        else { if (cur) pairs.push(cur); cur = { note: m.text, reply: '' }; }
+        const knit = m.mem
+          ? `<div class="knit">${YARN} knit into Memory · ${esc(kindLabel(m.mem))}</div>`
+          : '';
+        rows += `<div class="crow user"><div class="ubub">${esc(m.text)}</div>${knit}</div>`;
       } else {
-        if (!cur) cur = { note: '', reply: m.text };
-        else { cur.reply = cur.reply ? `${cur.reply}\n${m.text}` : m.text; pairs.push(cur); cur = null; }
+        rows += `<div class="crow pet"><div class="pav" style="background-image:url('${avatar}')"></div><div class="pbub">${esc(m.text)}</div></div>`;
       }
     }
-    if (cur) pairs.push(cur);
     body = `
       ${turns.length === 0 ? `<div class="empty">No messages yet — say hi and he'll answer.</div>` : ''}
-      <div class="mems">
-        ${pairs
-          .map(
-            (p) => `
-          <div class="mem">
-            <div class="body">
-              ${p.note ? `<div class="note">you: ${esc(p.note)}</div>` : ''}
-              ${p.reply ? `<div class="reply">${esc(p.reply)}</div>` : ''}
-            </div>
-          </div>`
-          )
-          .join('')}
-      </div>
+      <div class="chatlog">${rows}</div>
       <div class="bookfoot">
-        <span class="hint">the whole conversation — clearing it just wipes context, not his memory</span>
+        <span class="hint">every word, kept — clearing wipes his context, not his memory of you</span>
         ${spoken ? '<button class="clear" id="chatClear">clear all</button>' : ''}
       </div>`;
   } else {
-    // Memory — distilled facts grouped into a little profile by category.
-    const groups = MEMORY_KINDS
-      .map((k) => ({
-        ...k,
-        items: state.memory.map((m, i) => ({ ...m, i })).filter((m) => (m.kind || 'other') === k.id).reverse(),
-      }))
-      .filter((g) => g.items.length);
+    // Memory — the quilt he's making of you. Each distilled fact is its own
+    // patch: sunny ones dashed gold, rainy ones dashed blue, a little doodle face
+    // wearing the mood, the category stitched on and the day it was kept. Newest
+    // first. Hover a patch to unpick it.
+    const patches = state.memory
+      .map((m, i) => ({ ...m, i }))
+      .reverse()
+      .map((m) => {
+        const mood = memMood(m);
+        const kind = m.kind || 'other';
+        return `
+          <div class="mcard ${mood}">
+            <div class="mtop">
+              <div class="mface">${memFace(mood, kind)}</div>
+              <div class="mmark">
+                <span class="micon">${memIcon(mood)}</span>
+                <button class="del" data-delmem="${m.i}" title="unpick this stitch">×</button>
+              </div>
+            </div>
+            <div class="mfact">${esc(m.fact)}</div>
+            <div class="mmeta">
+              <span class="kind ${kind}">${esc(kindLabel(kind))}</span>
+              <span class="mday">DAY ${m.day}</span>
+            </div>
+          </div>`;
+      })
+      .join('');
     body = `
-      ${state.memory.length === 0 ? `<div class="empty">Nothing here yet — the more you tell him about your life, the more he'll remember, and knit into your golden cards.</div>` : ''}
-      <div class="mems">
-        ${groups
-          .map(
-            (g) => `
-          <div class="memgroup">
-            <div class="memgroup-head"><span class="kind ${g.id}">${g.emoji} ${esc(g.label)}</span></div>
-            ${g.items
-              .map(
-                (m) => `
-              <div class="mem">
-                <span class="day">DAY ${m.day}</span>
-                <div class="body"><div class="fact">${esc(m.fact)}</div></div>
-                <button class="del" data-delmem="${m.i}">×</button>
-              </div>`
-              )
-              .join('')}
-          </div>`
-          )
-          .join('')}
-      </div>
+      ${
+        state.memory.length === 0
+          ? `<div class="empty">Nothing here yet — the more you tell him about your life, the more he'll remember, and knit into your golden cards.</div>`
+          : `<div class="memhead">the quilt he's making of you — sunny patches and rainy ones, all kept</div>
+             <div class="memgrid">${patches}</div>`
+      }
       <div class="bookfoot">
-        <span class="hint">his picture of you — remove anything, anytime</span>
+        <span class="hint">his picture of you — unpick any stitch, anytime</span>
         ${state.memory.length ? '<button class="clear" id="memClear">clear all</button>' : ''}
       </div>`;
   }

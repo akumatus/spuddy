@@ -1,8 +1,6 @@
-import { greet } from './content.js';
-
 const KEY = 'pp_ritual_v1';
 
-function todayStr() {
+export function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -26,8 +24,10 @@ export function defaultState() {
     usedCards: { date: null, used: [] }, // server-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
     usedGolden: { date: null, used: [] }, // golden-pool lines drawn this batch — same no-replacement bookkeeping
     usedBuiltins: [], // built-in DAILY lines ever drawn — each retires permanently once seen
-    memory: [], // {day, fact, kind} — durable facts he's distilled about the human
-    chat: [{ who: 'pet', text: `${greet('spud')} Or just talk to me, I remember things.` }],
+    memory: [], // {day, fact, kind, mood} — durable facts he's distilled about the human
+    // The transcript starts empty — his daily hello lives in a spoken bubble, not
+    // the record (see main.js). It fills as you actually talk.
+    chat: [],
     active: 'spud',
     unlockedIds: ['spud'],
     buddyNew: false,
@@ -45,9 +45,7 @@ export function load() {
     if (raw && Array.isArray(raw.cards)) {
       s = { ...s, ...raw };
       if (!s.unlockedIds.includes('spud')) s.unlockedIds = ['spud', ...s.unlockedIds];
-      if (!Array.isArray(s.chat) || !s.chat.length) {
-        s.chat = [{ who: 'pet', text: greet(s.active) }];
-      }
+      if (!Array.isArray(s.chat)) s.chat = [];
       // Long-term memory moved from raw {day, note, reply} chat excerpts to
       // {day, fact} distilled facts. Old excerpts don't translate — start clean.
       if (!Array.isArray(s.memory)) s.memory = [];
