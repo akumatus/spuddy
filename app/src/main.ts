@@ -1,0 +1,132 @@
+// Bootstrap: construct the scene + brain, seed the shared context, and wire
+// the feature modules together. All feature logic lives under src/app/;
+// rendering under src/scene/; popup markup under src/ui/.
+import { SpudBrain } from './brain';
+import { CHARS, NIGHTMSG, PERS, SEDENTARY, daypart, greet } from './content';
+import * as remote from './remote';
+import { PetScene } from './scene/scene';
+import { setSoundEnabled, sfx } from './sfx';
+import * as store from './store';
+import { isOverlayOpen } from './ui/overlay';
+import { $, ctx, pp } from './app/context';
+import { installDebugHooks } from './app/debug';
+import { wireInteractions } from './app/interactions';
+import { presentCare } from './app/panels';
+import { bubble, showMutter, spawnEmote } from './app/speech';
+import { checkUnlocks } from './app/unlocks';
+
+const state = store.load();
+// dev: PP_DEBUG=1 unlocks the whole crew so you can switch characters and test
+// them without grinding each unlock condition
+if (pp?.debug) state.unlockedIds = CHARS.map((c) => c.id);
+
+setSoundEnabled(state.sound);
+
+const scene = new PetScene($('pet') as HTMLCanvasElement);
+ctx.init(state, scene);
+await scene.setCharacter(state.active);
+
+// pull today's server-generated card pool (non-blocking — draws fall back to the
+// built-in DAILY pool until it arrives), then re-poll hourly: the pet runs for
+// days on end, and without this the "daily" pool would only ever change on app
+// restart (the cron flips it at midnight Asia/Shanghai)
+remote.refresh();
+setInterval(() => remote.refresh(), 60 * 60 * 1000);
+
+// ── personality engine (7a) — needs-driven autonomy, ported from lib/spud-brain.js ──
+const per = state.personality || {};
+ctx.brain = new SpudBrain({
+  animator: ctx.anim(),
+  personality: {
+    curious: (per.curiosity ?? 65) / 100,
+    clingy: (per.clinginess ?? 60) / 100,
+    drama: (per.drama ?? 55) / 100,
+    sleepy: (per.sleepiness ?? 35) / 100,
+  },
+  // no decisions while you're actually using him (chat, book, weave) or he's
+  // napping against a screen edge
+  canAct: () =>
+    !ctx.anim().tucked && !ctx.anim().asleep && !isOverlayOpen() && !ctx.chatBusy && !ctx.weaving &&
+    document.visibilityState !== 'hidden' && document.activeElement !== $('chatInput'),
+  // fresh daily mutters (pre-generated server-side, no real-time LLM); ~half of
+  // idle mutters come from today's batch, the rest from the built-in lines
+  serverMutters: (mood) => remote.mutterPool(ctx.activeChar().id, mood),
+  mutterFreshChance: 0.5,
+  on: {
+    mutter: (text) => showMutter(text),
+    speak: (text, ms) => bubble(text, { hold: ms }),
+    emote: (g) => spawnEmote(g),
+    sfx: (n) => { const f = (sfx as Record<string, (() => void) | undefined>)[n]; if (f) f(); },
+    state: (key, label) => { if (pp.debug) console.log('[brain]', key, label); },
+    log: (e) => { if (pp.debug) console.log('[brain]', e.kind, e.text); },
+  },
+});
+
+// every save also re-checks unlock conditions and the Buddies badge dot
+ctx.onPersist(() => {
+  checkUnlocks();
+  $('buddiesDot').classList.toggle('hidden', !state.buddyNew);
+});
+
+wireInteractions();
+
+// (the old random idle-hop scheduler is gone — the soul engine (7a) owns
+// autonomous behavior now: boredom routines, dozing, knocking, mutters)
+
+// night care at 23:00 (once per day)
+setInterval(() => {
+  const now = new Date();
+  const today = state.lastDate;
+  if (now.getHours() >= 23 && state.nightShownDate !== today) {
+    state.nightShownDate = today;
+    store.save(state);
+    presentCare('NIGHT CARE', NIGHTMSG);
+  }
+}, 60000);
+
+// sedentary reminder from the main process (90 min continuous activity)
+pp.on('sedentary', () => presentCare('STRETCH BREAK', SEDENTARY));
+
+// ── boot ──
+$('buddiesDot').classList.toggle('hidden', !state.buddyNew);
+ctx.updateCardScreen();
+pp.win.setIgnoreMouse(true);
+
+installDebugHooks();
+
+// Open-the-app greeting: a fresh, personalized hello from the LLM, coloured by
+// what he remembers and the time of day. Falls back to a built-in daypart line
+// when the LLM is unreachable / over budget. Returns null on any failure.
+async function personalGreeting(): Promise<string | null> {
+  if (!pp?.ai?.greet) return null; // no bridge (older preload)
+  const ch = ctx.activeChar();
+  try {
+    return await pp.ai.greet({
+      charId: ch.id,
+      charName: ch.name,
+      voice: PERS[ch.id].voice,
+      daypart: daypart(),
+      day: state.day,
+      memory: state.memory.slice(-6),
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
+// Fire the greeting request at launch so it's usually ready by the time he
+// speaks — no built-in-then-swap flicker.
+const greetingReq = personalGreeting();
+
+setTimeout(async () => {
+  ctx.anim().play(scene.hasRig() ? 'wave' : 'hop'); // time-of-day greeting
+  if (state.drawn) return;
+  // prefer the personalized line, but never leave him silent: fall back to the
+  // built-in daypart greeting if the LLM is slow / offline / over budget
+  const line = await Promise.race([
+    greetingReq,
+    new Promise<string | null>((r) => setTimeout(() => r(null), 2200)),
+  ]);
+  if (state.drawn) return;
+  bubble(line || greet(state.active), { hold: 5200 });
+}, 900);

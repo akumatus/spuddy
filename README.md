@@ -173,17 +173,22 @@ The gateway geo-routes to a provider (CN → **DeepSeek**), meters a per-device 
 ## 🧶 Under the hood
 
 ```
-app/
-├─ electron/main.cjs   transparent always-on-top window · tray · global cursor
+app/                   TypeScript throughout (yarn typecheck / yarn build)
+├─ electron/src/       main process (bundled to electron/*.cjs by esbuild) —
+│                      transparent always-on-top window · tray · global cursor
 │                      polling · AI gateway calls (keys stay server-side)
 └─ src/
-   ├─ scene.js         three.js scene — part hinges, PBR + IBL lighting, shadow
-   ├─ motions.js       eased-keyframe motion system (part tracks, idle life, fling)
-   ├─ brain.js         the personality engine — needs, moods, autonomous behavior
-   ├─ cardscreen.js    the live text painted onto the card in his hands
-   ├─ content.js       every line, persona, and unlock rule
-   └─ ui.js · store.js · sfx.js · remote.js
-server/                optional Cloudflare Worker gateway (key vault · budget · cron)
+   ├─ main.ts          bootstrap — builds scene + brain, wires the modules
+   ├─ app/             features — gacha draws · chat + memory · speech bubbles ·
+   │                   Book/Buddies panels · taps & drags · unlocks
+   ├─ scene/           three.js — scene · part rig hinges · PBR + IBL lighting ·
+   │                   eased-keyframe motions · the live card texture
+   ├─ ui/              popup markup — overlay · cards · book · buddies · effects
+   ├─ brain.ts         the personality engine — needs, moods, autonomous behavior
+   ├─ content.ts       every line, persona, and unlock rule
+   └─ types.ts · store.ts · sfx.ts · remote.ts
+server/                optional Cloudflare Worker gateway (key vault · budget · cron),
+                       also TypeScript (src/worker.ts · generate.ts · providers.ts)
 ```
 
 The 3D pipeline (real doll → scan → Blender + `gltf-transform` → Draco/WEBP `.glb`) and per-character card-plane calibration are documented in [`app/README.md`](app/README.md).

@@ -2,11 +2,13 @@
 // Draws pick from this pool locally — no real-time LLM call. When the server
 // isn't configured or is unreachable, the pools stay null and callers fall back
 // to the built-in offline content in content.js.
+import type { CardsBatch, CharId, MutterMood } from './types';
+
 const pp = window.pp;
 
-let BATCH = null; // { date, normal: string[], cards: { [charId]: { golden: string[], mutters } } }
+let BATCH: CardsBatch | null = null;
 
-export async function refresh() {
+export async function refresh(): Promise<CardsBatch | null> {
   if (!pp || !pp.cards) return null;
   try {
     const data = await pp.cards.today();
@@ -20,11 +22,11 @@ export async function refresh() {
 // Date stamp of the loaded batch, or null before the first successful fetch.
 // The app compares it across draws to reset its no-replacement bookkeeping
 // when a fresh daily pool arrives.
-export function batchDate() {
+export function batchDate(): string | null {
   return (BATCH && BATCH.date) || null;
 }
 
-function poolOf(charId, tier) {
+function poolOf(charId: CharId, tier: 'normal' | 'golden'): string[] | null {
   const c = BATCH && BATCH.cards && BATCH.cards[charId];
   const arr = c && c[tier];
   return Array.isArray(arr) && arr.length ? arr : null;
@@ -33,7 +35,7 @@ function poolOf(charId, tier) {
 // Today's normal-card lines — one shared voice-neutral pool for every
 // character, or null → use the built-in DAILY. Falls back to the per-character
 // field an older cached batch may still carry.
-export function normalPool(charId) {
+export function normalPool(charId: CharId): string[] | null {
   const shared = BATCH && BATCH.normal;
   if (Array.isArray(shared) && shared.length) return shared;
   return poolOf(charId, 'normal');
@@ -41,13 +43,13 @@ export function normalPool(charId) {
 
 // Today's golden-tier lines, used as the fallback when the personalized weave
 // can't reach the LLM (offline or over the daily budget).
-export function goldenPool(charId) {
+export function goldenPool(charId: CharId): string[] | null {
   return poolOf(charId, 'golden');
 }
 
 // Today's fresh mutter pool for a mood (watch/alone/lonely), or null → the brain
 // falls back to its built-in MUTTER lines. Zero real-time cost — pre-generated.
-export function mutterPool(charId, mood) {
+export function mutterPool(charId: CharId, mood: MutterMood): string[] | null {
   const c = BATCH && BATCH.cards && BATCH.cards[charId];
   const m = c && c.mutters && c.mutters[mood];
   return Array.isArray(m) && m.length ? m : null;

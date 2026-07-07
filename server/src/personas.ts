@@ -11,7 +11,16 @@
 // app/src/content.js (keep in sync) — register anchors for the golden batch
 // prompt, so cron goldens stay direct and heartfelt instead of drifting into
 // poetic abstraction.
-export const PERSONAS = {
+import type { ChatPayload, RememberNote } from './types';
+
+export interface Persona {
+  name: string;
+  voice: string;
+  goldenExamples: string[];
+  examples: [string, string][]; // [human, reply] few-shot pairs
+}
+
+export const PERSONAS: Record<string, Persona> = {
   spud: {
     name: 'Spud',
     voice:
@@ -146,9 +155,9 @@ const SEEDS = [
   'a loose stitch', 'pockets', 'a jar of buttons', 'a wobbly desk leg',
 ];
 
-function pickSeeds(n) {
+function pickSeeds(n: number): string {
   const pool = [...SEEDS];
-  const out = [];
+  const out: string[] = [];
   while (out.length < n && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   return out.join(', ');
 }
@@ -164,7 +173,7 @@ const TAG_RE = /^\s*\[(comfort|cheer|proud|calm)\]\s*/i;
 
 // Gestures the pet can act out — the app maps each to an animation clip. Kept in
 // sync with GESTURE_CLIP in app/src/main.js. Optional second tag after [emotion].
-export const GESTURES = ['wave', 'hug', 'dance', 'spin', 'cheer', 'hop', 'sing', 'stretch', 'shy', 'peek', 'sulk', 'sneeze', 'present'];
+export const GESTURES: string[] = ['wave', 'hug', 'dance', 'spin', 'cheer', 'hop', 'sing', 'stretch', 'shy', 'peek', 'sulk', 'sneeze', 'present'];
 const GESTURE_RE = new RegExp(`^\\s*\\[(${GESTURES.join('|')})\\]\\s*`, 'i');
 
 // Optional [[remember: <kind> | <mood> | <fact>]] note the model appends when a
@@ -176,8 +185,8 @@ const GESTURE_RE = new RegExp(`^\\s*\\[(${GESTURES.join('|')})\\]\\s*`, 'i');
 const REMEMBER_RE = /\[\[\s*remember:\s*([^\]]+?)\s*\]\]/i;
 const MEMORY_KINDS = ['work', 'goal', 'people', 'pets', 'likes', 'milestone', 'feeling', 'other'];
 // canonical moods + the synonyms models drift toward
-const MOODS = { sunny: 'sunny', happy: 'sunny', warm: 'sunny', rainy: 'rainy', sad: 'rainy', heavy: 'rainy', hard: 'rainy', plain: 'plain', neutral: 'plain', normal: 'plain', calm: 'plain' };
-function splitRemember(raw) {
+const MOODS: Record<string, string> = { sunny: 'sunny', happy: 'sunny', warm: 'sunny', rainy: 'rainy', sad: 'rainy', heavy: 'rainy', hard: 'rainy', plain: 'plain', neutral: 'plain', normal: 'plain', calm: 'plain' };
+function splitRemember(raw: string): RememberNote {
   const parts = raw.split('|');
   if (parts.length >= 2) {
     const kind = parts[0].trim().toLowerCase();
@@ -191,21 +200,21 @@ function splitRemember(raw) {
 }
 
 // Split the leading [emotion] tag off a chat reply — mirrors electron/main.cjs.
-export function parseTag(raw) {
+export function parseTag(raw: string): { tag: string; body: string } {
   const m = raw.match(TAG_RE);
   return { tag: m ? m[1].toLowerCase() : 'calm', body: raw.replace(TAG_RE, '') };
 }
 
 // Split an optional [gesture] tag (sits right after the emotion tag) off the
 // body — mirrors electron/main.cjs. Returns null gesture when there isn't one.
-export function parseGesture(body) {
+export function parseGesture(body: string): { gesture: string | null; body: string } {
   const m = body.match(GESTURE_RE);
   return { gesture: m ? m[1].toLowerCase() : null, body: body.replace(GESTURE_RE, '') };
 }
 
 // Pull the trailing [[remember: fact]] note off the body, if present — the fact
 // the pet chose to keep about the human. Mirrors electron/main.cjs.
-export function parseRemember(body) {
+export function parseRemember(body: string): { remember: RememberNote | null; body: string } {
   const m = body.match(REMEMBER_RE);
   if (!m) return { remember: null, body };
   return { remember: splitRemember(m[1]), body: body.replace(REMEMBER_RE, '').trim() };
@@ -214,7 +223,7 @@ export function parseRemember(body) {
 // Chat system prompt — mirrors the ai-reply prompt from the design prototype.
 // musings: a few of today's cron-baked mutters, so the pet has an inner life
 // of its own to bring up instead of only reflecting the human's words back.
-export function buildChatSystem(persona, p, musings = []) {
+export function buildChatSystem(persona: Persona, p: ChatPayload, musings: string[] = []): string {
   const mem = (p.memory || [])
     .map((m) => `- ${m.fact || ''} (day ${m.day})`)
     .join('\n');
@@ -245,7 +254,7 @@ export function buildChatSystem(persona, p, musings = []) {
 }
 
 // Personalized golden card — knit from what he remembers about this human.
-export function buildGoldenPrompt(persona, p) {
+export function buildGoldenPrompt(persona: Persona, p: ChatPayload): string {
   const j = p.memory || [];
   const ctx = j.length
     ? j.map((m) => `- ${m.fact || ''} (day ${m.day})`).join('\n')
@@ -263,8 +272,8 @@ export function buildGoldenPrompt(persona, p) {
 // the time of day and lightly colored by what he remembers. Kept to a bubble
 // line (no emotion tag); the renderer falls back to a built-in daypart line
 // when the LLM is unreachable or over budget.
-export function buildGreetPrompt(persona, p) {
-  const when = ['morning', 'afternoon', 'evening', 'night'].includes(p.daypart) ? p.daypart : 'day';
+export function buildGreetPrompt(persona: Persona, p: ChatPayload): string {
+  const when = ['morning', 'afternoon', 'evening', 'night'].includes(p.daypart || '') ? p.daypart : 'day';
   const j = p.memory || [];
   const ctx = j.length ? j.map((m) => `- ${m.fact || ''} (day ${m.day})`).join('\n') : '';
   return (
@@ -285,7 +294,7 @@ export function buildGreetPrompt(persona, p) {
 // day to day at zero real-time cost. Three moods mirror brain.js's idle picker:
 // watch (quietly observing the human at work), alone (musing to itself),
 // lonely (they stepped away). Keep it distinct from the encouragement cards.
-export function buildMutterPrompt(persona, n) {
+export function buildMutterPrompt(persona: Persona, n: number): string {
   return (
     `You are ${persona.name}, a tiny hand-crocheted potato desktop pet. ` +
     persona.voice +
@@ -305,7 +314,7 @@ export function buildMutterPrompt(persona, n) {
 // Daily shared normal pool — ONE voice-neutral batch every persona serves.
 // Direct, delighted-in-you praise is the whole point (the positive-potato
 // heart); whimsy and object imagery are a garnish, never the default register.
-export function buildNormalBatchPrompt(n) {
+export function buildNormalBatchPrompt(n: number): string {
   return (
     `You are a tiny hand-crocheted potato desktop pet who hands your human little encouragement cards. ` +
     `Write ${n} distinct card lines, each MAX 16 words. ` +
@@ -324,7 +333,7 @@ export function buildNormalBatchPrompt(n) {
 // Daily golden pool — per persona, the rare keeper card. Golden ≠ longer:
 // same little card, better material. The character's best lines — funnier,
 // braver, more specific — the ones a human screenshots or keeps in the Book.
-export function buildGoldenBatchPrompt(persona, n) {
+export function buildGoldenBatchPrompt(persona: Persona, n: number): string {
   const shots = (persona.goldenExamples || []).map((s) => `- ${s}`).join('\n');
   return (
     `You are ${persona.name}, a tiny hand-crocheted spuddy desk companion. ` +

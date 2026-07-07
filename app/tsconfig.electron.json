@@ -1,0 +1,19 @@
+{
+  // Electron main-process code + node-side config files. Bundled to CJS by
+  // esbuild (see the build:electron script), so tsc only type-checks here too.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "useDefineForClassFields": true
+  },
+  "include": ["electron/src", "vite.config.ts"]
+}

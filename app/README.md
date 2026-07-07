@@ -109,11 +109,11 @@ yarn vite --port 5199        # from app/, then open
 # http://localhost:5199/icon-studio.html
 ```
 
-`icon-studio.html` drives the real `src/scene.js` PetScene for a single frame
+`icon-studio.html` drives the real `src/scene/scene.ts` PetScene for a single frame
 (using the baked-shaded `scripts/icon-src/spud-parts.glb` instead of the
 shipped PBR hybrid), paints the heart card on the 3D card mesh, and auto-saves
 `scripts/icon-src/icon-content.png` through a dev-server middleware (see
-`vite.config.js`). Then rebuild the shipped assets with:
+`vite.config.ts`). Then rebuild the shipped assets with:
 
 ```bash
 yarn icon
@@ -129,29 +129,39 @@ shadow) and writes:
 
 ## Project layout
 
-- `electron/main.cjs` — transparent always-on-top window, tray, dock icon,
-  AI gateway calls (keys stay server-side), sedentary detection,
-  global cursor polling.
-- `src/motions.js` — the eased-keyframe motion system from prototype Turn 6/7
+- `electron/src/*.ts` — the main process (bundled to `electron/main.cjs` +
+  `electron/preload.cjs` by `yarn build:electron`): transparent always-on-top
+  window, tray, dock icon, AI gateway calls (keys stay server-side), sedentary
+  detection, global cursor polling.
+- `src/main.ts` — bootstrap: builds the scene + brain, seeds the shared
+  context, wires the feature modules.
+- `src/app/` — the feature modules: `context.ts` (shared state/flags),
+  `speech.ts` (bubble/mutter/emotes), `gacha.ts` (draws + golden weave),
+  `chat.ts` (heart-to-heart + distilled memory), `panels.ts` (Book / Buddies /
+  care cards), `interactions.ts` (taps, drag, hover panel, edge naps, cursor),
+  `unlocks.ts`, `debug.ts`.
+- `src/scene/motions.ts` — the eased-keyframe motion system from prototype Turn 6/7
   (ported from `claude-design/project/lib/spud-scene2.js`): segmented easing,
   part tracks (claws / eyes / card), idle life, cursor follow, fling spring,
   doze/hum idle modes.
-- `src/brain.js` — the 7a personality engine (ported from
+- `src/brain.ts` — the 7a personality engine (ported from
   `claude-design/project/lib/spud-brain.js`): need-driven autonomous behavior
   (0.2s decision tick), four personality axes (curious / clingy / dramatic /
   sleepy, default 65/60/55/35, stored in `state.personality`); presence comes
   from whether the global cursor is moving.
-- `src/content.js` — all copy, personas, and unlock rules from the design.
-- `src/cardscreen.js` — the live text on the card in the model's hands
+- `src/content.ts` — all copy, personas, and unlock rules from the design.
+- `src/scene/cardscreen.ts` — the live text on the card in the model's hands
   (CanvasTexture) plus the Golden Stitch glow pulse; part-rigged models get their
   card displacement from the motion system.
-- `src/scene.js` — the three.js scene: part hinges (claw = shoulder point · eye =
-  own center · card = bottom edge), contact shadow, camera breathing, PBR
-  lighting (warm studio IBL — gradient dome + softbox/fill/back/bounce panels
-  through PMREM — + Neutral tone mapping + warm key/rim; legacy baked materials
-  keep tone mapping off to stay as-is).
-- `src/store.js` · `src/ui.js` · `src/sfx.js` · `src/remote.js` — persistence,
-  DOM UI (bubbles / panel / book), sound, and the server gateway client.
+- `src/scene/scene.ts` — the three.js scene: contact shadow, camera breathing,
+  per-character lighting; part hinges live in `src/scene/rig.ts` (claw =
+  shoulder point · eye = own center · card = bottom edge) and the PBR studio in
+  `src/scene/lighting.ts` (warm IBL — gradient dome + softbox/fill/back/bounce
+  panels through PMREM — + Neutral tone mapping + warm key/rim; legacy baked
+  materials keep tone mapping off to stay as-is).
+- `src/store.ts` · `src/ui/` · `src/sfx.ts` · `src/remote.ts` — persistence,
+  popup markup (overlay / cards / book / buddies), sound, and the server
+  gateway client. Shared types (state, IPC contract) live in `src/types.ts`.
 - `public/models/*.glb` — the whole crew (spud, donut, taco, grad, bloom, leo) is
   part-rigged, exported by Rodin **PBR export** (`base_basic_pbr.glb`) and
   processed by `scripts/process_rodin_pbr.mjs`: part detection (body / card / two

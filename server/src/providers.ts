@@ -2,13 +2,41 @@
 // provider from the caller's country, then normalizes every backend to the same
 // { system, messages } -> string interface.
 
+import type { ChatTurn, Env } from './types';
+
+// Runtime provider/model config read from KV (config:current).
+export interface RuntimeConfig {
+  chat?: string;
+  gen?: string;
+  models?: Record<string, string>;
+}
+
+interface ProviderCfg {
+  kind: 'openai' | 'gemini' | 'anthropic';
+  base?: string;
+  key?: string;
+  model: string;
+}
+
+export interface LLMArgs {
+  system?: string;
+  messages: ChatTurn[];
+  maxTokens?: number;
+  temperature?: number;
+  json?: boolean;
+  timeoutMs?: number;
+  models?: Record<string, string>;
+}
+
+type CallArgs = Required<Pick<LLMArgs, 'messages' | 'maxTokens' | 'temperature' | 'json' | 'timeoutMs'>> & { system?: string };
+
 // Live config lives in KV (config:current) so providers/models can be switched
 // at runtime with one admin call — no redeploy. Missing/malformed just falls
 // back to the [vars] defaults, so the Worker keeps serving if KV is empty.
-export async function loadConfig(env) {
+export async function loadConfig(env: Env): Promise<RuntimeConfig> {
   try {
     const raw = await env.KV.get('config:current');
-    const cfg = raw ? JSON.parse(raw) : {};
+    const cfg = raw ? (JSON.parse(raw) as RuntimeConfig) : {};
     return cfg && typeof cfg === 'object' ? cfg : {};
   } catch {
     return {};
@@ -17,11 +45,11 @@ export async function loadConfig(env) {
 
 // No geo routing — every request uses the same ordered fallback chain. GPT leads
 // (steadiest multilingual output); on any failure the call walks down this list.
-export const PROVIDER_FALLBACK = ['openai', 'gemini', 'deepseek', 'anthropic'];
+export const PROVIDER_FALLBACK: string[] = ['openai', 'gemini', 'deepseek', 'anthropic'];
 
 // primary first, then the default fallback with the primary removed (never tried
 // twice). Accepts the friendly "claude" alias for anthropic.
-function chainFrom(primary) {
+function chainFrom(primary: string | undefined): string[] {
   primary = (primary || 'openai').toLowerCase();
   if (primary === 'claude') primary = 'anthropic';
   return [primary, ...PROVIDER_FALLBACK.filter((p) => p !== primary)];
@@ -29,20 +57,20 @@ function chainFrom(primary) {
 
 // Real-time chat/greet/golden chain. Runtime KV config (cfg.chat) or the [vars]
 // default (CHAT_PROVIDER) picks the primary; the rest of the chain backs it up.
-export function chatProviderChain(env, cfg = {}) {
+export function chatProviderChain(env: Env, cfg: RuntimeConfig = {}): string[] {
   return chainFrom(cfg.chat || env.CHAT_PROVIDER || 'openai');
 }
 
 // Cron card/mutter generator chain — same fallback idea, its own primary.
-export function genProviderChain(env, cfg = {}) {
+export function genProviderChain(env: Env, cfg: RuntimeConfig = {}): string[] {
   return chainFrom(cfg.gen || env.GEN_PROVIDER || 'openai');
 }
 
 // models: optional { provider: modelId } runtime overrides from KV config; each
 // falls back to its [vars] default, then a hardcoded default.
-function providerConfig(env, name, models = {}) {
+function providerConfig(env: Env, name: string, models: Record<string, string> = {}): ProviderCfg {
   if (name === 'claude') name = 'anthropic'; // accept the friendly alias
-  const model = (fallback) => models[name] || fallback;
+  const model = (fallback: string) => models[name] || fallback;
   switch (name) {
     case 'deepseek':
       return {
@@ -77,10 +105,10 @@ function providerConfig(env, name, models = {}) {
 
 // timeoutMs default suits real-time chat; batch generation passes a much larger
 // value — 50+ lines of non-streamed JSON can take minutes on a slow provider.
-export async function callLLM(env, provider, { system, messages, maxTokens = 300, temperature = 0.9, json = false, timeoutMs = 25000, models = {} }) {
+export async function callLLM(env: Env, provider: string, { system, messages, maxTokens = 300, temperature = 0.9, json = false, timeoutMs = 25000, models = {} }: LLMArgs): Promise<string> {
   const cfg = providerConfig(env, provider, models);
   if (!cfg.key) throw new Error(`missing API key for provider "${provider}"`);
-  const args = { system, messages, maxTokens, temperature, json, timeoutMs };
+  const args: CallArgs = { system, messages, maxTokens, temperature, json, timeoutMs };
   if (cfg.kind === 'gemini') return callGemini(cfg, args);
   if (cfg.kind === 'anthropic') return callAnthropic(cfg, args);
   return callOpenAICompat(cfg, args);
@@ -91,10 +119,14 @@ export async function callLLM(env, provider, { system, messages, maxTokens = 300
 // the next. Returns { text, provider, model } naming whichever backend replied
 // (so responses stay self-describing), or { text: '' } if the chain is exhausted
 // with no error. Throws only when every keyed backend errored.
-export async function callLLMChain(env, chain, args) {
-  let lastErr;
+export async function callLLMChain(
+  env: Env,
+  chain: string[],
+  args: LLMArgs
+): Promise<{ text: string; provider: string | null; model: string | null }> {
+  let lastErr: unknown;
   for (const name of chain) {
-    let cfg;
+    let cfg: ProviderCfg;
     try {
       cfg = providerConfig(env, name, args.models);
     } catch {
@@ -113,9 +145,9 @@ export async function callLLMChain(env, chain, args) {
 }
 
 // DeepSeek + OpenAI share the /chat/completions shape.
-async function callOpenAICompat(cfg, { system, messages, maxTokens, temperature, json, timeoutMs }) {
+async function callOpenAICompat(cfg: ProviderCfg, { system, messages, maxTokens, temperature, json, timeoutMs }: CallArgs): Promise<string> {
   const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
-  const body = { model: cfg.model, max_tokens: maxTokens, temperature, messages: msgs };
+  const body: Record<string, unknown> = { model: cfg.model, max_tokens: maxTokens, temperature, messages: msgs };
   if (json) body.response_format = { type: 'json_object' }; // force valid JSON
   const res = await fetch(`${cfg.base}/chat/completions`, {
     method: 'POST',
@@ -124,11 +156,11 @@ async function callOpenAICompat(cfg, { system, messages, maxTokens, temperature,
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`${cfg.model} ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = await res.json();
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content || '';
 }
 
-async function callGemini(cfg, { system, messages, maxTokens, temperature, json, timeoutMs }) {
+async function callGemini(cfg: ProviderCfg, { system, messages, maxTokens, temperature, json, timeoutMs }: CallArgs): Promise<string> {
   // Gemini requires the first turn to be role "user" and takes the system prompt
   // as a separate systemInstruction. Drop any leading model turn (the pet's
   // canned greeting) so the transcript starts on the human.
@@ -138,7 +170,11 @@ async function callGemini(cfg, { system, messages, maxTokens, temperature, json,
   }));
   while (contents.length && contents[0].role === 'model') contents.shift();
 
-  const body = { contents, generationConfig: { maxOutputTokens: maxTokens, temperature } };
+  const body: {
+    contents: typeof contents;
+    generationConfig: Record<string, unknown>;
+    systemInstruction?: { parts: { text: string }[] };
+  } = { contents, generationConfig: { maxOutputTokens: maxTokens, temperature } };
   if (json) body.generationConfig.responseMimeType = 'application/json';
   if (system) body.systemInstruction = { parts: [{ text: system }] };
 
@@ -150,11 +186,11 @@ async function callGemini(cfg, { system, messages, maxTokens, temperature, json,
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = await res.json();
+  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   return data.candidates?.[0]?.content?.parts?.map((pt) => pt.text).join('') || '';
 }
 
-async function callAnthropic(cfg, { system, messages, maxTokens, temperature, json, timeoutMs }) {
+async function callAnthropic(cfg: ProviderCfg, { system, messages, maxTokens, temperature, json, timeoutMs }: CallArgs): Promise<string> {
   // Anthropic's Messages API: system is a top-level field, the first turn must be
   // "user", and temperature is capped at 1 (the OpenAI-compat providers accept the
   // 1.3 we use for chat, so clamp here rather than at the call sites).
@@ -164,7 +200,7 @@ async function callAnthropic(cfg, { system, messages, maxTokens, temperature, js
   }));
   while (contents.length && contents[0].role === 'assistant') contents.shift();
 
-  const body = { model: cfg.model, max_tokens: maxTokens, temperature: Math.min(temperature, 1), messages: contents };
+  const body: Record<string, unknown> = { model: cfg.model, max_tokens: maxTokens, temperature: Math.min(temperature, 1), messages: contents };
   // No response_format on Anthropic — nudge JSON via the system prompt; extractJson
   // already tolerates fences/prose around the object.
   const sys = json ? `${system ? system + '\n\n' : ''}Respond with a single valid JSON object and nothing else.` : system;
@@ -172,11 +208,11 @@ async function callAnthropic(cfg, { system, messages, maxTokens, temperature, js
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01' },
+    headers: { 'content-type': 'application/json', 'x-api-key': cfg.key!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = await res.json();
+  const data = (await res.json()) as { content?: { text?: string }[] };
   return data.content?.map((b) => b.text || '').join('') || '';
 }

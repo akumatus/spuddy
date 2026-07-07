@@ -1,22 +1,22 @@
 // Soft synth sounds per the design spec: every motion pairs a soft synth sound.
-let audio = null;
+let audio: AudioContext | null = null;
 let enabled = true;
 
-export function setSoundEnabled(v) {
+export function setSoundEnabled(v: boolean): void {
   enabled = v;
 }
 
-function ac() {
+function ac(): AudioContext | null {
   if (!audio) {
     try {
-      audio = new (window.AudioContext || window.webkitAudioContext)();
+      audio = new AudioContext();
     } catch (e) {}
   }
   if (audio && audio.state === 'suspended') audio.resume();
   return audio;
 }
 
-function tone(f0, f1, dur, type = 'sine', vol = 0.12, when = 0) {
+function tone(f0: number, f1: number, dur: number, type: OscillatorType = 'sine', vol = 0.12, when = 0): void {
   const ctx = ac();
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + when;
@@ -34,7 +34,10 @@ function tone(f0, f1, dur, type = 'sine', vol = 0.12, when = 0) {
   o.stop(t + dur + 0.05);
 }
 
-export const sfx = {
+export type SfxName =
+  | 'pop' | 'boing' | 'draw' | 'chime' | 'low' | 'knock' | 'whoosh' | 'sneeze' | 'catch';
+
+export const sfx: Record<SfxName, () => void> = {
   pop: () => tone(420, 190, 0.1, 'sine', 0.14),
   boing: () => tone(240, 90, 0.2, 'triangle', 0.13),
   draw: () => {

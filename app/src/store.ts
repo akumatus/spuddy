@@ -1,15 +1,17 @@
+import type { AppState } from './types';
+
 const KEY = 'pp_ritual_v1';
 
-export function todayStr() {
+export function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function daysBetween(a, b) {
-  return Math.round((new Date(b) - new Date(a)) / 86400000);
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
 
-export function defaultState() {
+export function defaultState(): AppState {
   return {
     day: 1,
     streak: 1,
@@ -38,10 +40,12 @@ export function defaultState() {
   };
 }
 
-export function load() {
+export function load(): AppState {
   let s = defaultState();
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+    const raw = JSON.parse(localStorage.getItem(KEY) || 'null') as
+      | (Partial<AppState> & { journal?: unknown })
+      | null;
     if (raw && Array.isArray(raw.cards)) {
       s = { ...s, ...raw };
       if (!s.unlockedIds.includes('spud')) s.unlockedIds = ['spud', ...s.unlockedIds];
@@ -49,7 +53,8 @@ export function load() {
       // Long-term memory moved from raw {day, note, reply} chat excerpts to
       // {day, fact} distilled facts. Old excerpts don't translate — start clean.
       if (!Array.isArray(s.memory)) s.memory = [];
-      delete s.journal;
+      // pre-TS saves carried a journal field — drop it on load
+      delete (s as { journal?: unknown }).journal;
     }
   } catch (e) {}
   // roll the real calendar forward: new day → fresh draw, streak counts consecutive days
@@ -72,7 +77,7 @@ export function load() {
   return s;
 }
 
-export function save(s) {
+export function save(s: AppState): void {
   try {
     localStorage.setItem(
       KEY,
@@ -81,13 +86,13 @@ export function save(s) {
   } catch (e) {}
 }
 
-export function reset() {
+export function reset(): void {
   try {
     localStorage.removeItem(KEY);
   } catch (e) {}
 }
 
-export function counts(s) {
+export function counts(s: AppState) {
   return {
     cards: s.cards.length,
     favs: s.cards.filter((c) => c.fav).length,

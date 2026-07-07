@@ -12,14 +12,32 @@ const COVER = 1.05; // fully hide the scanned card (its color/edges vary per sca
 const CONTENT_ASPECT = 1.5; // fixed layout box — identical typography on every buddy
 const D2R = Math.PI / 180;
 
-function hasCJK(s) {
+// per-character card placement from scripts/detect_cards.py → cards.json
+export interface CardPlacement {
+  center: [number, number, number];
+  normal: [number, number, number];
+  up: [number, number, number];
+  width: number;
+  height: number;
+  offset?: number;
+}
+
+export interface CardContent {
+  top?: string;
+  gold?: boolean;
+  main?: string;
+  footL?: string;
+  footR?: string;
+}
+
+function hasCJK(s: string): boolean {
   return /[぀-ヿ㐀-鿿]/.test(s);
 }
 
-function wrapText(ctx, text, maxW) {
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
   const tokens = hasCJK(text) ? Array.from(text) : text.split(' ');
   const glue = hasCJK(text) ? '' : ' ';
-  const lines = [];
+  const lines: string[] = [];
   let line = '';
   for (const t of tokens) {
     const probe = line ? line + glue + t : t;
@@ -34,15 +52,31 @@ function wrapText(ctx, text, maxW) {
   return lines;
 }
 
-function easeOutBack(t) {
+function easeOutBack(t: number): number {
   const c1 = 1.70158;
   return 1 + (c1 + 1) * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
 
 export class CardScreen {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  texture: THREE.CanvasTexture | null;
+  material: THREE.MeshStandardMaterial;
+  mesh: THREE.Mesh | null;
+  cardMesh: THREE.Mesh | null; // part-separated models: the model's own card mesh
+  rigDriven: boolean; // rig owns the card transform ('present' clip etc.)
+  upLocal: THREE.Vector3;
+  baseQuat: THREE.Quaternion;
+  basePos: THREE.Vector3;
+  height: number;
+  pulse: boolean;
+  thinking: boolean; // chat: animate three dots while the AI writes
+  raiseStart: number;
+  content: CardContent;
+
   constructor() {
     this.canvas = document.createElement('canvas');
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d')!;
     this.texture = null;
     this.material = new THREE.MeshStandardMaterial({
       transparent: true,
@@ -55,14 +89,14 @@ export class CardScreen {
     });
     this._rebuildTexture();
     this.mesh = null;
-    this.cardMesh = null; // part-separated models: the model's own card mesh
-    this.rigDriven = false; // rig owns the card transform ('present' clip etc.)
+    this.cardMesh = null;
+    this.rigDriven = false;
     this.upLocal = new THREE.Vector3(0, 1, 0);
     this.baseQuat = new THREE.Quaternion();
     this.basePos = new THREE.Vector3();
     this.height = 1;
     this.pulse = false;
-    this.thinking = false; // chat: animate three dots while the AI writes
+    this.thinking = false;
     this.raiseStart = 0;
     this.content = { top: '· ♥ ·', main: 'tap me :)', footL: '', footR: '' };
 
@@ -72,7 +106,7 @@ export class CardScreen {
   // A resized canvas must get a fresh GPU texture: re-uploading through the
   // same CanvasTexture takes the partial-update path against the old storage
   // and leaves a stale strip of the previous character's card.
-  _rebuildTexture() {
+  _rebuildTexture(): void {
     if (this.texture) this.texture.dispose();
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
@@ -82,7 +116,7 @@ export class CardScreen {
     this.material.needsUpdate = true;
   }
 
-  attach(model, data) {
+  attach(model: THREE.Object3D, data?: CardPlacement): void {
     if (this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh);
     this.mesh = null;
     this.cardMesh = null;
@@ -94,7 +128,7 @@ export class CardScreen {
     let w = data.width * COVER;
     let h = data.height * COVER;
 
-    const cardMesh = model.getObjectByName('card');
+    const cardMesh = model.getObjectByName('card') as THREE.Mesh | undefined;
     if (cardMesh) {
       w = data.width;
       h = data.height;
@@ -128,10 +162,10 @@ export class CardScreen {
   // canvas maps straight onto its front face (clamped edges catch the rim).
   // Geometry is shared across model clones; the projection is idempotent,
   // so flag it and skip on repeat visits.
-  _projectUVs(geometry, data, right, up) {
+  _projectUVs(geometry: THREE.BufferGeometry, data: CardPlacement, right: THREE.Vector3, up: THREE.Vector3): void {
     if (geometry.userData.cardUV) return;
     const pos = geometry.getAttribute('position');
-    const uv = geometry.getAttribute('uv');
+    const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
     const c = data.center;
     const d = new THREE.Vector3();
     for (let i = 0; i < pos.count; i++) {
@@ -142,12 +176,12 @@ export class CardScreen {
     geometry.userData.cardUV = true;
   }
 
-  setContent(content) {
+  setContent(content: CardContent): void {
     this.content = content;
     this.redraw();
   }
 
-  redraw() {
+  redraw(): void {
     const { canvas, ctx } = this;
     const W = canvas.width;
     const H = canvas.height;
@@ -196,7 +230,7 @@ export class CardScreen {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      this.texture.needsUpdate = true;
+      this.texture!.needsUpdate = true;
       return;
     }
 
@@ -228,7 +262,7 @@ export class CardScreen {
     const maxW = cw * 0.98;
     const maxH = ch * (c.footL || c.footR ? 0.7 : 0.76);
     let size = Math.round(ch * 0.34);
-    let lines = [];
+    let lines: string[] = [];
     while (size > 10) {
       ctx.font = `700 ${size}px ${HAND}`;
       lines = wrapText(ctx, c.main || '', maxW);
@@ -253,23 +287,23 @@ export class CardScreen {
       ctx.fillText(c.footR, W / 2 + cw / 2 - cw * 0.04, top + ch * 0.9);
     }
 
-    this.texture.needsUpdate = true;
+    this.texture!.needsUpdate = true;
   }
 
-  setPulse(v) {
+  setPulse(v: boolean): void {
     this.pulse = v;
   }
 
-  setThinking(v) {
+  setThinking(v: boolean): void {
     this.thinking = v;
     this.redraw(); // start/stop the dots on this frame instead of waiting a tick
   }
 
-  raise() {
+  raise(): void {
     this.raiseStart = performance.now();
   }
 
-  update() {
+  update(): void {
     if (!this.mesh && !this.cardMesh) return;
     const now = performance.now();
 
@@ -304,11 +338,11 @@ export class CardScreen {
       this.cardMesh.position.copy(this.basePos).addScaledVector(this.upLocal, 0.1 * this.height * k);
       return;
     }
-    this.mesh.position.copy(this.basePos).addScaledVector(this.upLocal, 0.1 * this.height * k);
-    this.mesh.quaternion.copy(this.baseQuat);
+    this.mesh!.position.copy(this.basePos).addScaledVector(this.upLocal, 0.1 * this.height * k);
+    this.mesh!.quaternion.copy(this.baseQuat);
     if (k > 0) {
       const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -8 * D2R * k);
-      this.mesh.quaternion.multiply(tilt);
+      this.mesh!.quaternion.multiply(tilt);
     }
   }
 }

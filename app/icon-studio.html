@@ -35,7 +35,7 @@
 // card mesh, lays the render over the 1b warm gradient, and POSTs the result to
 // the dev-server middleware which writes scripts/icon-src/icon-content.png.
 // scripts/make-icon.cjs then squircles that into assets/icon.png + icon.icns.
-import { PetScene } from './src/scene.js';
+import { PetScene } from './src/scene/scene';
 
 const status = (m) => (document.getElementById('status').textContent = m);
 

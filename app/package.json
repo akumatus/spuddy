@@ -13,10 +13,12 @@
   "scripts": {
     "postinstall": "node scripts/copy-assets.cjs",
     "icon": "node scripts/make-icon.cjs",
-    "dev": "node scripts/set-dev-name.cjs && vite build && electron .",
-    "start": "node scripts/set-dev-name.cjs && vite build && electron .",
-    "build": "vite build",
-    "dist:mac": "vite build && electron-builder --mac --publish never",
+    "dev": "node scripts/set-dev-name.cjs && yarn build && electron .",
+    "start": "node scripts/set-dev-name.cjs && yarn build && electron .",
+    "build": "vite build && yarn build:electron",
+    "build:electron": "esbuild electron/src/main.ts electron/src/preload.ts --bundle --platform=node --format=cjs --external:electron --outdir=electron --out-extension:.js=.cjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json",
+    "dist:mac": "yarn build && electron-builder --mac --publish never",
     "postversion": "git push --follow-tags"
   },
   "build": {
@@ -57,11 +59,15 @@
     "@gltf-transform/core": "^4.4.1",
     "@gltf-transform/extensions": "^4.4.1",
     "@gltf-transform/functions": "^4.4.1",
+    "@types/node": "^26.1.0",
+    "@types/three": "~0.170.0",
     "draco3dgltf": "^1.5.7",
     "electron": "^33.0.0",
     "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
     "meshoptimizer": "^1.2.0",
     "sharp": "^0.35.3",
+    "typescript": "^6.0.3",
     "vite": "^5.4.0"
   },
   "dependencies": {

@@ -1,0 +1,20 @@
+{
+  // Renderer (browser) code — src/ is bundled by Vite, so tsc only type-checks.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // keep @types/node (a devDep for electron/vite code) out of the renderer,
+    // so setTimeout & friends get their DOM signatures
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "useDefineForClassFields": true
+  },
+  "include": ["src"]
+}

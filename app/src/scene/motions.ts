@@ -11,39 +11,59 @@
 // App-specific additions kept from the Turn 3 spec: the 'lean' listen mode,
 // the root-only 'raise'/'comfort' clips for legacy single-mesh models, and
 // 'bigSquish' for the [proud] emotion trigger.
+import type { Group } from 'three';
+import type { Rig } from './rig';
 
 const D2R = Math.PI / 180;
 const TAU = Math.PI * 2;
 
 /* ───────────────────────── easing library ───────────────────────── */
 export const EASE = {
-  linear: (t) => t,
-  inQuad: (t) => t * t,
-  outQuad: (t) => t * (2 - t),
-  inCubic: (t) => t * t * t,
-  outCubic: (t) => 1 - Math.pow(1 - t, 3),
-  inOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
-  inOutQuart: (t) => (t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2),
-  inOutSine: (t) => 0.5 - 0.5 * Math.cos(Math.PI * t),
-  outBack: (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
-  outBackSoft: (t) => { const c1 = 0.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
-  outElastic: (t) => {
+  linear: (t: number) => t,
+  inQuad: (t: number) => t * t,
+  outQuad: (t: number) => t * (2 - t),
+  inCubic: (t: number) => t * t * t,
+  outCubic: (t: number) => 1 - Math.pow(1 - t, 3),
+  inOutCubic: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  inOutQuart: (t: number) => (t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2),
+  inOutSine: (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t),
+  outBack: (t: number) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  outBackSoft: (t: number) => { const c1 = 0.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  outElastic: (t: number) => {
     if (t === 0 || t === 1) return t;
     return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (TAU / 3)) + 1;
   },
 };
 
-function lerp(a, b, t) { return a + (b - a) * t; }
+// A few clips name eases that aren't in the library (e.g. 'inOutQuad') — the
+// sampler has always quietly fallen back to inOutSine for those, and the tuned
+// feel depends on it, so the type stays open to any string.
+export type EaseName = keyof typeof EASE | (string & {});
 
-const ROOT_DEFS = { sx: 1, sy: 1, x: 0, y: 0, rotX: 0, rotY: 0, rotZ: 0 };
+function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }
+
+/* keyframe: `t` is normalized clip time, `e` names the ease INTO this key,
+   every other property is a numeric animation channel */
+export interface Key {
+  t: number;
+  e?: EaseName;
+  [chan: string]: number | EaseName | undefined;
+}
+
+// a sampled set of channel values at one instant
+type Sample = Record<string, number>;
+
+export type AnimMode = 'idle' | 'lean' | 'rock' | 'doze' | 'hum';
+
+const ROOT_DEFS: Sample = { sx: 1, sy: 1, x: 0, y: 0, rotX: 0, rotY: 0, rotZ: 0 };
 
 /* Normalize keys once per track: union of channels, forward-fill middles,
    first key ← defaults, last key ← defaults unless explicitly set (clips
    always end clean). Segment easing comes from the SEGMENT-END key's `e`. */
-function normalizeKeys(keys, defs) {
-  const chans = new Set();
+function normalizeKeys(keys: Key[], defs: Sample | null): Key[] {
+  const chans = new Set<string>();
   for (const k of keys) for (const p of Object.keys(k)) if (p !== 't' && p !== 'e') chans.add(p);
-  const def = (p) => (defs && p in defs ? defs[p] : 0);
+  const def = (p: string) => (defs && p in defs ? defs[p] : 0);
   const out = keys.map((k) => ({ ...k }));
   for (const p of chans) {
     if (!(p in out[0])) out[0][p] = def(p);
@@ -54,23 +74,23 @@ function normalizeKeys(keys, defs) {
   return out;
 }
 
-function sampleKeys(keys, t) {
-  if (t <= keys[0].t) return keys[0];
+function sampleKeys(keys: Key[], t: number): Sample {
+  if (t <= keys[0].t) return keys[0] as unknown as Sample;
   for (let i = 1; i < keys.length; i++) {
     if (t <= keys[i].t) {
       const a = keys[i - 1], b = keys[i];
       const k = (t - a.t) / (b.t - a.t);
-      const e = EASE[b.e || 'inOutSine'] || EASE.inOutSine;
+      const e = EASE[(b.e || 'inOutSine') as keyof typeof EASE] || EASE.inOutSine;
       const w = e(k);
-      const v = {};
+      const v: Sample = {};
       for (const p of Object.keys(a)) {
         if (p === 't' || p === 'e') continue;
-        v[p] = lerp(a[p], b[p] ?? a[p], w);
+        v[p] = lerp(a[p] as number, (b[p] ?? a[p]) as number, w);
       }
       return v;
     }
   }
-  return keys[keys.length - 1];
+  return keys[keys.length - 1] as unknown as Sample;
 }
 
 /* ─────────────────── clips: root + part tracks, all eased ───────────────────
@@ -79,7 +99,34 @@ function sampleKeys(keys, t) {
    curl (deg, rotX), toEye (0..1 travel to same-side eye — for "shy").
    eyes: dx/dy (eye-widths), blink (0..1). card: lift/push (frac h),
    tilt (deg, + = top toward camera), wiggle (deg rotZ). */
-export const CLIPS = {
+
+// what a procedural clip's fn returns for one frame
+export interface ClipSample {
+  root?: Sample;
+  hands?: Sample;
+  handL?: Sample;
+  handR?: Sample;
+  eyes?: Sample;
+  card?: Sample;
+}
+
+export interface Clip {
+  label: string;
+  spec: string;
+  dur: number;
+  pt?: boolean; // needs the part rig to fully read
+  fn?: (p: number) => ClipSample; // procedural clips (eyeroll, sing, wobble)
+  root?: Key[];
+  hands?: Key[];
+  handL?: Key[];
+  handR?: Key[];
+  eyes?: Key[];
+  card?: Key[];
+}
+
+const TRACKS = ['root', 'hands', 'handL', 'handR', 'eyes', 'card'] as const;
+
+export const CLIPS: Record<string, Clip> = {
   wave: {
     label: 'Wave', pt: true,
     spec: '1.7s · shoulder hinge: outBack raise → 3× inOutSine swings → outBackSoft lower · turns aside + one blink while waving',
@@ -386,7 +433,7 @@ export const CLIPS = {
 };
 
 /* roly-poly — decaying precession; eyes counter-sway to stay "level" */
-export const WOBBLE = {
+export const WOBBLE: Clip = {
   label: 'Roly-poly',
   spec: '2.6s exponentially decaying precession · rotZ/rotX 90° out of phase · eyes counter-compensate to stay level (vestibular reflex)',
   dur: 2600,
@@ -402,35 +449,79 @@ export const WOBBLE = {
   },
 };
 
-function getClip(name) { return name === 'wobble' ? WOBBLE : CLIPS[name]; }
+function getClip(name: string): Clip | undefined {
+  return name === 'wobble' ? WOBBLE : CLIPS[name];
+}
 
 /* pre-normalize keyframe tracks */
 for (const clip of [...Object.values(CLIPS), WOBBLE]) {
   if (clip.fn) continue;
-  for (const tr of Object.keys(clip)) {
-    if (['label', 'spec', 'dur', 'pt', 'fn'].includes(tr)) continue;
-    clip[tr] = normalizeKeys(clip[tr], tr === 'root' ? ROOT_DEFS : null);
+  for (const tr of TRACKS) {
+    const keys = clip[tr];
+    if (keys) clip[tr] = normalizeKeys(keys, tr === 'root' ? ROOT_DEFS : null);
   }
 }
 
+// type aliases (not interfaces) so the poses stay assignable to Record<string, number>
+type HandPose = { raise: number; out: number; lift: number; curl: number; toEye: number };
+type EyePose = { dx: number; dy: number; blink: number };
+type CardPose = { lift: number; push: number; tilt: number; wiggle: number };
+
 const PART_DEFS = {
-  hand: () => ({ raise: 0, out: 0, lift: 0, curl: 0, toEye: 0 }),
-  eyes: () => ({ dx: 0, dy: 0, blink: 0 }),
-  card: () => ({ lift: 0, push: 0, tilt: 0, wiggle: 0 }),
+  hand: (): HandPose => ({ raise: 0, out: 0, lift: 0, curl: 0, toEye: 0 }),
+  eyes: (): EyePose => ({ dx: 0, dy: 0, blink: 0 }),
+  card: (): CardPose => ({ lift: 0, push: 0, tilt: 0, wiggle: 0 }),
 };
 
-function addInto(acc, v) { for (const p of Object.keys(v)) if (p in acc) acc[p] += v[p]; }
+function addInto(acc: Record<string, number>, v: Sample): void {
+  for (const p of Object.keys(v)) if (p in acc) acc[p] += v[p];
+}
+
+interface ActiveClip {
+  clip: Clip;
+  start: number;
+}
+
+export interface AnimatorOut {
+  y: number;
+  sx: number;
+  ground: number;
+  nodCatch?: boolean; // one-frame flag on the doze nod "catch" (snore sfx cue)
+}
 
 /* ───────────────────────────── animator ───────────────────────────── */
 export class Animator {
-  constructor(root, modelHeight) {
+  root: Group;
+  h: number; // model height — y/x channels are fractions of it
+  actives: ActiveClip[];
+  mode: AnimMode;
+  leanK: number;
+  tucked: boolean;
+  asleep: boolean; // napping against a screen edge (edge-dock sleep)
+  tuckT: number; tuckFrom: number; tuckTo: number; tuckOffset: number;
+  faceY: number; faceX: number;
+  faceTargetY: number; faceTargetX: number;
+  eyeX: number; eyeY: number; eyeTX: number; eyeTY: number;
+  userRotY: number; spinVel: number; dragging: boolean;
+  idleLife: boolean;
+  dozeStart: number; nodAt: number; nodStart: number;
+  lastCursorAt: number;
+  nextBlinkAt: number;
+  blinkStart: number;
+  nextSaccadeAt: number;
+  t0: number;
+  lastNow: number;
+  rig: Rig | null;
+  out: AnimatorOut;
+
+  constructor(root: Group, modelHeight: number) {
     this.root = root;
     this.h = modelHeight;
     this.actives = [];
     this.mode = 'idle'; // idle | lean | rock | doze | hum
     this.leanK = 0;
     this.tucked = false;
-    this.asleep = false; // napping against a screen edge (edge-dock sleep)
+    this.asleep = false;
     this.tuckT = 1; this.tuckFrom = 0; this.tuckTo = 0; this.tuckOffset = 0;
     this.faceY = 0; this.faceX = 0;
     this.faceTargetY = 0; this.faceTargetX = 0;
@@ -447,32 +538,39 @@ export class Animator {
     this.rig = null;
     this.out = { y: 0, sx: 1, ground: 1 };
   }
-  attachRig(rig) { this.rig = rig; }
-  play(name) {
+
+  attachRig(rig: Rig | null): void { this.rig = rig; }
+
+  play(name: string): void {
     const clip = getClip(name);
     if (!clip) return;
     this.actives.push({ clip, start: performance.now() });
   }
-  playCheer() { this.play('cheer'); }
-  setMode(m) { if (this.mode !== m) { this.mode = m; this.dozeStart = 0; } }
-  setTucked(v) {
+
+  playCheer(): void { this.play('cheer'); }
+
+  setMode(m: AnimMode): void { if (this.mode !== m) { this.mode = m; this.dozeStart = 0; } }
+
+  setTucked(v: boolean): void {
     if (this.tucked === v) return;
     this.tucked = v;
     this.tuckFrom = this.tuckOffset;
     this.tuckTo = v ? -0.76 * this.h : 0;
     this.tuckT = 0;
   }
-  facePoint(nx, ny) {
+
+  facePoint(nx: number, ny?: number): void {
     this.faceTargetY = Math.max(-1, Math.min(1, nx)) * 0.62;
     this.faceTargetX = Math.max(-1, Math.min(1, ny ?? 0)) * 4 * D2R;
     this.eyeTX = Math.max(-1, Math.min(1, nx)) * 0.5;
     this.eyeTY = -Math.max(-1, Math.min(1, ny ?? 0)) * 0.3;
     this.lastCursorAt = performance.now();
   }
-  setDragging(v) { this.dragging = v; if (v) this.spinVel = 0; }
-  dragBy(dxPx) { const d = dxPx * 0.011; this.userRotY += d; this.spinVel = d * 60; } // vel in rad/s
 
-  update() {
+  setDragging(v: boolean): void { this.dragging = v; if (v) this.spinVel = 0; }
+  dragBy(dxPx: number): void { const d = dxPx * 0.011; this.userRotY += d; this.spinVel = d * 60; } // vel in rad/s
+
+  update(): void {
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.lastNow) / 1000);
     this.lastNow = now;
@@ -561,10 +659,10 @@ export class Animator {
     for (const a of this.actives) {
       const p = (now - a.start) / a.clip.dur;
       const c = a.clip;
-      let rv = null;
+      let rv: Sample | null = null;
       if (c.fn) {
         const o = c.fn(p);
-        rv = o.root;
+        rv = o.root ?? null;
         if (o.eyes) addInto(P.eyes, o.eyes);
         if (o.card) addInto(P.card, o.card);
         if (o.hands) { addInto(P.handL, o.hands); addInto(P.handR, o.hands); }
@@ -618,9 +716,9 @@ export class Animator {
     /* apply parts */
     const R = this.rig;
     if (R) {
-      for (const side of ['L', 'R']) {
-        const h = R['hand' + side]; if (!h) continue;
-        const v = P['hand' + side];
+      for (const side of ['L', 'R'] as const) {
+        const h = R[`hand${side}`]; if (!h) continue;
+        const v = P[`hand${side}`];
         // forward-pointing paws lift around X at the arm root (raise up = −X,
         // curl shares the axis: knocks/waves pitch from the same shoulder);
         // side paws swing around Z as in the design prototype
@@ -632,8 +730,8 @@ export class Animator {
           h.home.z + (h.shyVec.z * v.toEye) * h.unit
         );
       }
-      for (const side of ['L', 'R']) {
-        const ey = R['eye' + side]; if (!ey) continue;
+      for (const side of ['L', 'R'] as const) {
+        const ey = R[`eye${side}`]; if (!ey) continue;
         const blink = Math.max(0, Math.min(1, P.eyes.blink));
         ey.g.position.set(
           ey.home.x + P.eyes.dx * ey.w * ey.unit,

@@ -5,7 +5,7 @@
 //
 // The PBR export carries no baked lighting, so occlusion black, contact
 // shadows and seam creases don't exist in the first place — the scene lights
-// the model at runtime (IBL + tone mapping in src/scene.js). Only the deep
+// the model at runtime (IBL + tone mapping in src/scene/). Only the deep
 // cavities (card slot, sockets) that no bake camera ever saw are black
 // in the albedo; those get neighbor-diffused, with the eye UV islands
 // protected (eye albedo is legitimately near-black).
@@ -72,7 +72,7 @@ parts.sort((a, c) => c.vol - a.vol);
 // most lateral meshes (arms reaching out to the sides) and eyes the two
 // smallest (little symmetric buttons). Anything still unclaimed — a taco's
 // shell, a grad cap, a flower bouquet, the pot half the face is baked onto —
-// is decorative: it gets a neutral 'trim' name so the 6-part rig (scene.js
+// is decorative: it gets a neutral 'trim' name so the 6-part rig (src/scene/rig.ts
 // rigParts) ignores it and it simply rides the body (root squash/move/spin)
 // statically, with no hinge of its own.
 // NB: don't pick eyes/hands by height — extra toppings can sit above the real

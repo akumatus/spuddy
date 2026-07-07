@@ -1,11 +1,17 @@
 // All written content and rules come from the Claude Design prototype
 // (the .dc.html file under claude-design/project/) — keep in sync with it.
+import type { CharId, Daypart, MemoryKind } from './types';
+
+export interface DailyLine {
+  m: string;
+  t: 'f' | 'w'; // funny | warm
+}
 
 // Daily draw pool — always offline-safe (drawn by day index, never the LLM).
 // The first 10 come from the design prototype; the rest are app-side additions
 // so there's real variety before the cycle repeats. Keep the count coprime with
 // 7 (see the `state.day * 7` index in main.js) so every line gets visited.
-export const DAILY = [
+export const DAILY: DailyLine[] = [
   { m: "You've survived 100% of your bad days. Undefeated, actually.", t: 'f' },
   { m: 'Small steps still count. Even tiny potato steps.', t: 'w' },
   { m: "Drink some water. You're a fancy plant with feelings.", t: 'f' },
@@ -94,7 +100,7 @@ export const RARE = [
 // voice instead of the generic pool. App-side safety net, not from the
 // prototype; keep each line short (~22 words), no emoji, no quotes, no tag —
 // mirroring the ai-golden prompt in electron/main.cjs.
-export const GOLDEN = {
+export const GOLDEN: Partial<Record<CharId, string[]>> = {
   spud: [
     "You carried a lot today and you're still standing. That's the whole miracle, right there.",
     "No big speech. Just this: I'm glad you're mine to sit beside.",
@@ -169,11 +175,11 @@ export const GOLDEN = {
   ],
 };
 
-const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const pickOne = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
 
 // Golden card text for when the LLM is unavailable: the active buddy's voiced
 // pool if there is one, otherwise the generic RARE lines.
-export function goldenFallback(charId) {
+export function goldenFallback(charId: CharId): string {
   const pool = GOLDEN[charId];
   return pickOne(pool && pool.length ? pool : RARE);
 }
@@ -221,7 +227,14 @@ export const WEAVELINES = [
   'tying the golden knot…',
 ];
 
-export const CHARS = [
+export interface Character {
+  id: CharId;
+  name: string;
+  need: number;
+  sub2: string;
+}
+
+export const CHARS: Character[] = [
   { id: 'spud', name: 'Spud', need: 0, sub2: 'the original' },
   { id: 'taco', name: 'Taco', need: 1, sub2: 'chaos snack' },
   { id: 'donut', name: 'Sprinkles', need: 2, sub2: 'sweet talker' },
@@ -231,7 +244,15 @@ export const CHARS = [
 ];
 
 // Buddies unlock through different kinds of care (2a spec)
-export const UNLOCK = {
+// keys index into store.ts counts(); n is the threshold
+export interface UnlockRule {
+  key: 'cards' | 'favs' | 'chats' | 'streak' | 'golden';
+  n: number;
+  verb: string;
+  how: string;
+}
+
+export const UNLOCK: Record<CharId, UnlockRule | null> = {
   spud: null,
   taco: { key: 'cards', n: 2, verb: 'cards kept', how: 'keep 2 cards' },
   donut: { key: 'favs', n: 3, verb: 'favorites', how: 'mark 3 favorites in the Book' },
@@ -244,7 +265,13 @@ export const UNLOCK = {
 // the Memory tab groups them into a little profile. `id` must match the kinds
 // listed in the chat prompts (server/src/personas.js + app/electron/main.cjs);
 // unknown or missing kinds fall back to `other`. Order here is display order.
-export const MEMORY_KINDS = [
+export interface MemoryKindDef {
+  id: MemoryKind;
+  label: string;
+  emoji: string;
+}
+
+export const MEMORY_KINDS: MemoryKindDef[] = [
   { id: 'work', label: 'Work', emoji: '💼' },
   { id: 'goal', label: 'Goals', emoji: '🎯' },
   { id: 'people', label: 'People', emoji: '❤️' },
@@ -254,9 +281,15 @@ export const MEMORY_KINDS = [
   { id: 'feeling', label: 'Feelings', emoji: '🫧' },
   { id: 'other', label: 'Other', emoji: '📌' },
 ];
-export const MEMORY_KIND_IDS = MEMORY_KINDS.map((k) => k.id);
+export const MEMORY_KIND_IDS: MemoryKind[] = MEMORY_KINDS.map((k) => k.id);
 
-export const PERS = {
+export interface Persona {
+  p: string; // one-line personality blurb shown in Buddies
+  hi: Record<Daypart, string>;
+  voice: string;
+}
+
+export const PERS: Record<CharId, Persona> = {
   spud: {
     p: 'warm & steady',
     hi: {
@@ -327,7 +360,7 @@ export const PERS = {
 
 // Which part of the day it is, so greetings match the clock instead of always
 // saying "morning". Buckets: 5–11 morning, 12–16 afternoon, 17–21 evening, else night.
-export function daypart(d = new Date()) {
+export function daypart(d = new Date()): Daypart {
   const h = d.getHours();
   if (h >= 5 && h < 12) return 'morning';
   if (h < 17) return 'afternoon';
@@ -336,7 +369,7 @@ export function daypart(d = new Date()) {
 }
 
 // The active buddy's greeting for the current time of day.
-export function greet(id, d = new Date()) {
+export function greet(id: CharId, d = new Date()): string {
   const hi = (PERS[id] || PERS.spud).hi;
   return hi[daypart(d)] || hi.morning;
 }
@@ -348,7 +381,7 @@ export const FALLBACK_REPLY = "mm — I'm listening. tell me a bit more?";
 // actually respond to what was said, so these are warm in-voice "I'm here,
 // keep going" lines that fit any message without pretending to understand it.
 // App-side safety net; picked at random, mirrors goldenFallback above.
-export const CHAT_FALLBACK = {
+export const CHAT_FALLBACK: Partial<Record<CharId, string[]>> = {
   spud: [
     "mm. i'm listening. i cleared my whole schedule for this — it was already empty, but still.",
     "i hear you. take your time; i've got nowhere else to be.",
@@ -395,7 +428,7 @@ export const CHAT_FALLBACK = {
 
 // Chat reply for when the LLM is unavailable: the active buddy's voiced pool if
 // there is one, otherwise the generic FALLBACK_REPLY.
-export function chatFallback(charId) {
+export function chatFallback(charId: CharId): string {
   const pool = CHAT_FALLBACK[charId];
   return pickOne(pool && pool.length ? pool : [FALLBACK_REPLY]);
 }
@@ -404,7 +437,7 @@ export function chatFallback(charId) {
 // server meters live replies to keep the shared API bill in check — these are
 // warm, in-voice "let's pick this up tomorrow" lines so the cap never feels
 // like an error. He'll still draw cards; only the live back-and-forth rests.
-export const CHAT_LIMIT = {
+export const CHAT_LIMIT: Partial<Record<CharId, string>> = {
   spud: "that was a lot of good talking for one day. i'm going to go stare at the wall and process — same time tomorrow?",
   taco: "ok my little brain is FULL of feelings for one day. same time tomorrow? i'll bring snacks.",
   donut: "sugar, i've been chatting my glaze off — let me rest my sprinkles and we'll talk more tomorrow, hm?",
@@ -414,6 +447,6 @@ export const CHAT_LIMIT = {
 };
 
 // Limit line for the active buddy, falling back to Spud's.
-export function limitReply(charId) {
-  return CHAT_LIMIT[charId] || CHAT_LIMIT.spud;
+export function limitReply(charId: CharId): string {
+  return CHAT_LIMIT[charId] || CHAT_LIMIT.spud!;
 }

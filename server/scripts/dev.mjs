@@ -17,7 +17,7 @@
 // ANTHROPIC_API_KEY etc.), otherwise /chat returns null ("missing API key").
 import { spawn } from 'node:child_process';
 
-// Friendly aliases -> the ids providers.js understands. Unknown names pass through.
+// Friendly aliases -> the ids providers.ts understands. Unknown names pass through.
 const ALIAS = { gpt: 'openai', claude: 'anthropic', ds: 'deepseek', google: 'gemini' };
 const norm = (v) => (v ? ALIAS[v.toLowerCase()] || v.toLowerCase() : undefined);
 

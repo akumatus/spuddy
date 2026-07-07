@@ -8,9 +8,12 @@
     "dev": "node scripts/dev.mjs",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "gen:dev": "curl -s -X POST http://localhost:8787/admin/generate -H \"x-pp-admin: dev\""
+    "gen:dev": "curl -s -X POST http://localhost:8787/admin/generate -H \"x-pp-admin: dev\"",
+    "typecheck": "tsc"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "typescript": "^6.0.3",
     "wrangler": "^3.90.0"
   }
 }

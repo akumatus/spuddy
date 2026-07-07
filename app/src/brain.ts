@@ -17,12 +17,21 @@
 //     browsing the Book, or he's tucked away
 //   - routine step mutter/speak lines are variant pools (arrays picked at
 //     random), not the prototype's single fixed strings
-export const STATE_LABEL = {
+import type { AnimMode, Animator } from './scene/motions';
+import type { MutterMood } from './types';
+
+export type BrainState =
+  | 'watch' | 'alone' | 'play' | 'doze' | 'knock' | 'wait' | 'sulk' | 'greet';
+
+// built-in mutter pools — the three MutterMood ones also have server pools
+type MutterPool = MutterMood | 'sleepy' | 'ignored' | 'wake';
+
+export const STATE_LABEL: Record<BrainState, string> = {
   watch: 'watching you work', alone: 'hanging out', play: 'self-play', doze: 'dozing',
   knock: 'saying hi', wait: 'waiting for you', sulk: 'feeling ignored', greet: 'welcome back',
 };
 
-const MUTTER = {
+const MUTTER: Record<MutterPool, string[]> = {
   watch: [
     'clack clack clack. look at them go.',
     'so focused today. proud. quietly.',
@@ -69,7 +78,7 @@ const MUTTER = {
   ],
 };
 
-const SPEAK = {
+const SPEAK: Record<'greet' | 'knock' | 'delight', string[]> = {
   greet: [
     "oh! you're back. the desk is safe. i was very brave.",
     "you're back! nothing happened. except one dust bunny. it was huge.",
@@ -91,10 +100,43 @@ const SPEAK = {
   ],
 };
 
+export interface Personality {
+  curious: number;
+  clingy: number;
+  drama: number;
+  sleepy: number;
+}
+
+interface Needs {
+  energy: number;
+  boredom: number;
+  social: number;
+}
+
 /* self-play routines: weight fn of personality, energy cost, step script.
    step: { clip | mode | mutter | speak | sfx | emote | wait(ms real) }
    mutter/speak take a string or an array of variants (picked at random) */
-const ROUTINES = {
+export interface RoutineStep {
+  clip?: string;
+  mode?: AnimMode;
+  mutter?: string | string[];
+  speak?: string | string[];
+  sfx?: string;
+  emote?: string;
+  wait?: number;
+}
+
+export interface Routine {
+  label: string;
+  cost: number;
+  w: (P: Personality) => number;
+  steps: RoutineStep[];
+}
+
+export type RoutineKey =
+  | 'chase' | 'juggle' | 'study' | 'practice' | 'hum' | 'stretch' | 'peek' | 'sneeze';
+
+const ROUTINES: Record<RoutineKey, Routine> = {
   chase: {
     label: 'tail-chase', cost: 14, w: (P) => 0.5 + P.drama * 0.9,
     steps: [
@@ -203,20 +245,68 @@ const ROUTINES = {
     ],
   },
 };
-export const ROUTINE_KEYS = ['chase', 'juggle', 'study', 'practice', 'hum', 'stretch', 'peek', 'sneeze'];
+export const ROUTINE_KEYS: RoutineKey[] = ['chase', 'juggle', 'study', 'practice', 'hum', 'stretch', 'peek', 'sneeze'];
 
 /* total playtime of a routine's step script (ms) — the app debounces taps
    against this so a click-launched show can't be piled onto */
-export function routineMs(key) {
-  const r = ROUTINES[key];
+export function routineMs(key: string): number {
+  const r = ROUTINES[key as RoutineKey];
   return r ? r.steps.reduce((s, st) => s + (st.wait || 400), 0) : 0;
 }
 
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const line = (v) => (Array.isArray(v) ? pick(v) : v);
+const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+const line = (v: string | string[]): string => (Array.isArray(v) ? pick(v) : v);
+
+export interface BrainCallbacks {
+  mutter?: (text: string) => void;
+  speak?: (text: string, ms?: number) => void;
+  emote?: (g: string) => void;
+  sfx?: (n: string) => void;
+  state?: (key: BrainState, label: string) => void;
+  log?: (e: { kind: string; text: string }) => void;
+  needs?: (n: Needs) => void;
+}
+
+export interface BrainOptions {
+  animator: Animator;
+  on?: BrainCallbacks;
+  personality?: Partial<Personality>;
+  timeScale?: number;
+  canAct?: () => boolean;
+  // optional (mood) => string[] source of fresh, pre-generated daily mutters
+  serverMutters?: ((mood: MutterMood) => string[] | null) | null;
+  mutterFreshChance?: number;
+}
 
 export class SpudBrain {
-  constructor({ animator, on = {}, personality, timeScale = 1, canAct, serverMutters = null, mutterFreshChance = 0.5 }) {
+  A: Animator;
+  on: BrainCallbacks;
+  P: Personality;
+  timeScale: number;
+  canAct: () => boolean;
+  serverMutters: ((mood: MutterMood) => string[] | null) | null;
+  mutterFreshChance: number;
+  needs: Needs;
+  state: BrainState;
+  clock: number;
+  lastPointer: number;
+  leftAt: number;
+  simAway: boolean;
+  busy: boolean;
+  seqT: number;
+  lastMutterClock: number;
+  mutterGap: number;
+  lastKnockClock: number;
+  knockBackoff: number;
+  waitDeadline: number;
+  lastZz: number;
+  lastPool: Record<string, string>;
+  lastTick: number;
+  disposed: boolean;
+  timer: number;
+  lastRoutine?: RoutineKey;
+
+  constructor({ animator, on = {}, personality, timeScale = 1, canAct, serverMutters = null, mutterFreshChance = 0.5 }: BrainOptions) {
     this.A = animator;
     this.on = on;                       // callbacks: mutter/speak/emote/state/log/needs/sfx
     this.P = { curious: 0.65, clingy: 0.6, drama: 0.55, sleepy: 0.35, ...(personality || {}) };
@@ -241,18 +331,18 @@ export class SpudBrain {
     this.lastZz = 0; this.lastPool = {};
     this.lastTick = performance.now();
     this.disposed = false;
-    this.timer = setInterval(() => this.tick(), 200);
+    this.timer = window.setInterval(() => this.tick(), 200);
   }
 
   /* ── public api ── */
-  setPersonality(p) { Object.assign(this.P, p); }
-  setTimeScale(x) { this.timeScale = x; }
-  setAway(v) {
+  setPersonality(p: Partial<Personality>): void { Object.assign(this.P, p); }
+  setTimeScale(x: number): void { this.timeScale = x; }
+  setAway(v: boolean): void {
     this.simAway = v;
     if (v) { this.leftAt = performance.now(); this.log('sys', '(pretending to step away…)'); }
     else this.pointerMove(true);
   }
-  pointerMove(force) {
+  pointerMove(force?: boolean): void {
     const now = performance.now();
     const wasAwayFor = now - Math.max(this.lastPointer, this.leftAt || 0);
     const wasAway = this.present() === false;
@@ -260,9 +350,9 @@ export class SpudBrain {
     if (this.simAway && !force) return;
     if ((wasAway && wasAwayFor > 30000) || force) this.greetBack();
   }
-  pointerLeft() { this.leftAt = performance.now(); }
+  pointerLeft(): void { this.leftAt = performance.now(); }
   /* returns true when the brain consumed the tap (wake / knock reply) */
-  poke() {
+  poke(): boolean {
     this.lastPointer = performance.now();
     this.needs.social = Math.max(4, this.needs.social - 42);
     this.needs.boredom = Math.max(0, this.needs.boredom - 16);
@@ -280,29 +370,32 @@ export class SpudBrain {
     if (this.state === 'wait' || this.state === 'knock') { this.replyArrived(); return true; }
     return false;
   }
-  force(key) {
+  force(key: string): void {
     if (key === 'doze') { this.startDoze(true); return; }
     if (key === 'knock') { this.startKnock(true); return; }
-    const r = ROUTINES[key];
-    if (r) this.runRoutine(key, r);
+    const r = ROUTINES[key as RoutineKey];
+    if (r) this.runRoutine(key as RoutineKey, r);
   }
   /* app hook: the human started doing something (chat, book, weave, tuck) —
      drop whatever we were up to and get out of the way */
-  interrupt() {
+  interrupt(): void {
     this.abortSeq();
     this.A.setMode('idle');
     this.setState(this.present() ? 'watch' : 'alone');
   }
-  dispose() { this.disposed = true; clearInterval(this.timer); clearTimeout(this.seqT); }
+  dispose(): void { this.disposed = true; clearInterval(this.timer); clearTimeout(this.seqT); }
 
   /* ── internals ── */
-  present() { return !this.simAway && performance.now() - this.lastPointer < 25000; }
-  nearBy() { return !this.simAway && performance.now() - this.lastPointer < 60000; }
-  randMutterGap() { return (9 + Math.random() * 8) / (0.55 + this.P.curious * 0.75); }
-  fresh(poolKey) {
+  present(): boolean { return !this.simAway && performance.now() - this.lastPointer < 25000; }
+  nearBy(): boolean { return !this.simAway && performance.now() - this.lastPointer < 60000; }
+  randMutterGap(): number { return (9 + Math.random() * 8) / (0.55 + this.P.curious * 0.75); }
+  fresh(poolKey: MutterPool): string {
     // sometimes pull today's fresh server-generated line for this mood (only
     // watch/alone/lonely have server pools; other moods fall through to built-in)
-    if (this.serverMutters && Math.random() < this.mutterFreshChance) {
+    if (
+      this.serverMutters && Math.random() < this.mutterFreshChance &&
+      (poolKey === 'watch' || poolKey === 'alone' || poolKey === 'lonely')
+    ) {
       const sp = this.serverMutters(poolKey);
       if (sp && sp.length) {
         const k = 'srv:' + poolKey;
@@ -318,18 +411,18 @@ export class SpudBrain {
     this.lastPool[poolKey] = m;
     return m;
   }
-  emitSfx(n) { this.on.sfx && this.on.sfx(n); }
-  log(kind, text) { this.on.log && this.on.log({ kind, text }); }
-  mutter(text) { if (!text) return; this.on.mutter && this.on.mutter(text); this.log('mutter', text); this.lastMutterClock = this.clock; }
-  speak(text, ms) { this.on.speak && this.on.speak(text, ms || 3400); this.emitSfx('pop'); this.log('speak', text); }
-  emote(g) { this.on.emote && this.on.emote(g); }
-  setState(s) {
+  emitSfx(n: string): void { this.on.sfx && this.on.sfx(n); }
+  log(kind: string, text: string): void { this.on.log && this.on.log({ kind, text }); }
+  mutter(text: string): void { if (!text) return; this.on.mutter && this.on.mutter(text); this.log('mutter', text); this.lastMutterClock = this.clock; }
+  speak(text: string, ms?: number): void { this.on.speak && this.on.speak(text, ms || 3400); this.emitSfx('pop'); this.log('speak', text); }
+  emote(g: string): void { this.on.emote && this.on.emote(g); }
+  setState(s: BrainState): void {
     if (this.state === s) return;
     this.state = s;
     this.on.state && this.on.state(s, STATE_LABEL[s]);
   }
 
-  tick() {
+  tick(): void {
     if (this.disposed) return;
     const now = performance.now();
     const dtReal = Math.min(0.35, (now - this.lastTick) / 1000);
@@ -381,8 +474,8 @@ export class SpudBrain {
       this.startKnock(); return;
     }
     if (N.boredom > 64 - P.drama * 18) {
-      const keys = ['chase', 'juggle', 'study', 'practice', 'hum', 'peek'];
-      const weighted = keys.flatMap((k) => Array(Math.max(1, Math.round(ROUTINES[k].w(P) * 10))).fill(k));
+      const keys: RoutineKey[] = ['chase', 'juggle', 'study', 'practice', 'hum', 'peek'];
+      const weighted = keys.flatMap((k) => Array<RoutineKey>(Math.max(1, Math.round(ROUTINES[k].w(P) * 10))).fill(k));
       let k = pick(weighted);
       if (k === this.lastRoutine) k = pick(weighted);
       this.runRoutine(k, ROUTINES[k]);
@@ -400,7 +493,7 @@ export class SpudBrain {
     }
   }
 
-  runRoutine(key, r, quiet) {
+  runRoutine(key: RoutineKey, r: Routine, quiet?: boolean): void {
     if (this.busy) return;
     this.lastRoutine = key;
     this.busy = true;
@@ -416,7 +509,7 @@ export class SpudBrain {
     });
   }
 
-  runSteps(steps, done) {
+  runSteps(steps: RoutineStep[], done?: () => void): void {
     if (this.disposed) return;
     const s = steps.shift();
     if (!s) { done && done(); return; }
@@ -426,12 +519,12 @@ export class SpudBrain {
     if (s.mutter) this.mutter(line(s.mutter));
     if (s.speak) this.speak(line(s.speak));
     if (s.emote) this.emote(s.emote);
-    this.seqT = setTimeout(() => this.runSteps(steps, done), s.wait || 400);
+    this.seqT = window.setTimeout(() => this.runSteps(steps, done), s.wait || 400);
   }
 
-  abortSeq() { clearTimeout(this.seqT); this.busy = false; }
+  abortSeq(): void { clearTimeout(this.seqT); this.busy = false; }
 
-  startDoze(forced) {
+  startDoze(forced?: boolean): void {
     this.abortSeq();
     this.setState('doze');
     this.A.setMode('doze');
@@ -439,7 +532,7 @@ export class SpudBrain {
     setTimeout(() => { if (this.state === 'doze') this.mutter(this.fresh('sleepy')); }, 1200);
   }
 
-  startKnock(forced) {
+  startKnock(forced?: boolean): void {
     this.abortSeq();
     this.busy = true;
     this.setState('knock');
@@ -456,7 +549,7 @@ export class SpudBrain {
     });
   }
 
-  replyArrived() {
+  replyArrived(): void {
     this.abortSeq();
     this.busy = true;
     this.setState('greet');
@@ -470,7 +563,7 @@ export class SpudBrain {
     ], () => { this.busy = false; this.setState('watch'); });
   }
 
-  knockIgnored() {
+  knockIgnored(): void {
     this.busy = true;
     this.setState('sulk');
     this.knockBackoff = Math.min(8, this.knockBackoff * 2);
@@ -486,7 +579,7 @@ export class SpudBrain {
     });
   }
 
-  greetBack() {
+  greetBack(): void {
     if (this.busy && this.state !== 'doze') return;
     if (!this.canAct()) return;
     if (this.state === 'doze') {
