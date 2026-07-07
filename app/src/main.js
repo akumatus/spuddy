@@ -259,6 +259,14 @@ const DAILY_DRAW_LIMIT = Infinity;
 const GOLDEN_BASE = 0.20; // starting chance right after a golden
 const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 
+// Where a golden card's text comes from. The live personalized weave (LLM +
+// his memories of you) is a treat, not the default: it rolls in at this
+// chance, otherwise the draw takes a line from today's cron-baked
+// per-character golden pool. A live roll that misses (offline, over budget)
+// also falls to the pool; the hand-written voiced built-ins are the last net
+// when the pool is out of reach too (no server, no cached batch).
+const GOLDEN_LIVE_CHANCE = 0.5;
+
 // How often a draw dips into the hand-written built-in DAILY pool when the
 // server pool is available. Kept rare: built-ins never refresh, so they'd wear
 // out fast — and each one retires permanently once drawn (state.usedBuiltins).
@@ -344,8 +352,12 @@ async function weaveGolden() {
   const ch = activeChar();
   const memory = state.memory.slice(-6);
   const [aiMsg] = await Promise.all([
-    // .catch → null so a dropped connection can't leave the weave stuck spinning
-    pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory }).catch(() => null),
+    // live weave only on a GOLDEN_LIVE_CHANCE roll — skipping the call entirely
+    // saves the shared daily budget for chat. .catch → null so a dropped
+    // connection can't leave the weave stuck spinning.
+    Math.random() < GOLDEN_LIVE_CHANCE
+      ? pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory }).catch(() => null)
+      : Promise.resolve(null),
     new Promise((r) => setTimeout(r, 1800)),
   ]);
   clearInterval(weaveInt);
@@ -355,14 +367,10 @@ async function weaveGolden() {
   sfx.chime();
   state.drawn = true;
   state.rare = true;
-  // personalized weave first; if it couldn't reach the LLM (offline or over the
-  // daily budget), fall back 50/50 between today's server golden pool and the
-  // hand-written voiced pool — the built-ins are strong, keep them in rotation
+  // live weave when it rolled and landed; else today's cron golden pool; the
+  // hand-written voiced built-ins only when the pool is unreachable
   const gPool = remote.goldenPool(ch.id);
-  const gFallback = gPool && Math.random() < 0.5
-    ? gPool[Math.floor(Math.random() * gPool.length)]
-    : goldenFallback(ch.id);
-  state.msg = aiMsg || gFallback;
+  state.msg = aiMsg || (gPool ? pickOf(gPool) : goldenFallback(ch.id));
   state.keptToday = false;
   persist();
   updateCardScreen();

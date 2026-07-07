@@ -2,9 +2,10 @@
 
 A single Cloudflare Worker that acts as the potato's model gateway:
 
-- **Daily card factory** — a cron trigger knits a fresh pool of cards per persona
-  and stores it in KV. The app pulls `GET /cards` and draws from it locally, so
-  ordinary gacha draws never hit an LLM (instant + offline-safe).
+- **Daily card factory** — a cron trigger knits one shared pool of normal cards
+  (voice-neutral, every persona draws from it) plus per-persona golden and
+  mutter pools, and stores them in KV. The app pulls `GET /cards` and draws from
+  it locally, so ordinary gacha draws never hit an LLM (instant + offline-safe).
 - **Real-time endpoints** — `POST /chat` and `POST /golden` run through an ordered
   provider fallback chain (`openai → gemini → deepseek → anthropic`; a backend with
   no key is skipped) and are metered against a per-device daily budget so nobody
@@ -85,7 +86,8 @@ key) — so dev builds keep working without the server.
 ## Cost / knobs
 
 - `CHAT_DAILY_LIMIT` — real-time calls per device per day (chat + golden).
-- `CARDS_PER_DAY` / `GOLDEN_PER_DAY` — pool sizes per persona per day.
+- `CARDS_PER_DAY` — size of the shared normal pool per day; `GOLDEN_PER_DAY` —
+  golden lines per persona per day.
 - `CHAT_PROVIDER` / `GEN_PROVIDER` + `*_MODEL` — pick the PRIMARY provider each
   chain starts from (chat vs. cron); the rest of the fallback chain backs it up.
 - Change providers/models **live** (no redeploy) via KV config:

@@ -7,11 +7,12 @@
 //   POST /admin/generate manual batch regen (protected) — run once after deploy
 //   GET  /health         liveness
 //
-// Daily card pools are knit by the cron trigger (scheduled handler) and served
-// from KV so ordinary draws never hit an LLM. Real-time endpoints route by the
-// caller's country and are metered against a per-device daily budget.
+// Daily pools are knit by the cron trigger (scheduled handler) and served from
+// KV so ordinary draws never hit an LLM: one SHARED normal pool (voice-neutral,
+// every persona draws from it) plus per-persona golden and mutter pools.
+// Real-time endpoints are metered against a per-device daily budget.
 
-import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, buildBatchPrompt, buildMutterPrompt, parseTag, parseGesture, parseRemember } from './personas.js';
+import { PERSONAS, CHAT_IDS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, buildNormalBatchPrompt, buildGoldenBatchPrompt, buildMutterPrompt, parseTag, parseGesture, parseRemember } from './personas.js';
 import { callLLMChain, chatProviderChain, genProviderChain, loadConfig } from './providers.js';
 
 const CORS = {
@@ -98,10 +99,10 @@ export default {
 
       if (url.pathname === '/cards' && request.method === 'GET') {
         const raw = await env.KV.get('cards:current');
-        if (!raw) return json({ stale: true, date: null, cards: {} });
+        if (!raw) return json({ stale: true, date: null, normal: [], cards: {} });
         const data = JSON.parse(raw);
         const char = url.searchParams.get('char');
-        if (char) return json({ date: data.date, cards: { [char]: data.cards[char] || null } });
+        if (char) return json({ date: data.date, normal: data.normal || [], cards: { [char]: data.cards[char] || null } });
         return json(data);
       }
 
@@ -205,16 +206,18 @@ export default {
         const want = env.ADMIN_TOKEN || env.APP_TOKEN;
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         const data = await generateAll(env);
-        const counts = Object.fromEntries(
-          Object.entries(data.cards).map(([k, v]) => [
-            k,
-            {
-              normal: v.normal.length,
-              golden: v.golden.length,
-              mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
-            },
-          ])
-        );
+        const counts = {
+          normal: data.normal.length,
+          ...Object.fromEntries(
+            Object.entries(data.cards).map(([k, v]) => [
+              k,
+              {
+                golden: v.golden.length,
+                mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
+              },
+            ])
+          ),
+        };
         return json({ ok: true, date: data.date, counts });
       }
 
@@ -240,42 +243,67 @@ function dedupeLines(lines) {
   });
 }
 
-async function generateForChar(env, id, opts) {
-  const { genChain, nNormal, nGolden, runs } = opts;
-  // Several small calls instead of one big one: long single batches template
-  // out toward the tail, and each run draws its own inspiration seeds. Results
-  // are merged and deduped.
-  const perNormal = Math.ceil(nNormal / runs);
-  const perGolden = Math.ceil(nGolden / runs);
+// Shared normal pool — one voice-neutral batch that every persona draws from.
+// Several small calls instead of one big one: long single batches template out
+// toward the tail, and each run draws its own inspiration seeds. Results are
+// merged and deduped.
+async function generateNormalPool(env, opts) {
+  const per = Math.ceil(opts.nNormal / opts.runs);
   const runOnce = async () => {
-    const prompt = buildBatchPrompt(PERSONAS[id], perNormal, perGolden); // fresh seeds per run
+    const prompt = buildNormalBatchPrompt(per); // fresh seeds per run
     // one retry — the batch call occasionally returns throttled/unparseable
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const { text } = await callLLMChain(env, genChain, {
+        const { text } = await callLLMChain(env, opts.genChain, {
           system: '',
           messages: [{ role: 'user', content: prompt }],
           maxTokens: 3000, // ~27 lines of JSON per run at ~90 tokens/line — truncation makes the run unparseable
           temperature: 1.0, // lowered from 1.2 — high heat corrupts JSON mode and non-English lines
           timeoutMs: 240000, // not latency-sensitive, and queued runs (Workers cap concurrent connections) eat into the timer
-          json: true, // force clean JSON so parsing can't silently drop a persona
+          json: true, // force clean JSON so parsing can't silently drop the batch
           models: opts.models,
         });
-        const parsed = extractJson(text);
-        const normal = sanitizeList(parsed?.normal, perNormal);
-        const golden = sanitizeList(parsed?.golden, perGolden);
-        if (normal.length || golden.length) return { normal, golden };
+        const normal = sanitizeList(extractJson(text)?.normal, per);
+        if (normal.length) return normal;
       } catch (e) {
         // transient (rate limit / timeout) — fall through to retry
       }
     }
-    return { normal: [], golden: [] };
+    return [];
+  };
+  const results = await Promise.all(Array.from({ length: opts.runs }, runOnce));
+  return dedupeLines(results.flat()).slice(0, opts.nNormal);
+}
+
+// Per-persona golden pool — fewer, braver lines in the character's own voice,
+// anchored on the hand-written golden examples so the register stays direct.
+// The pool is small, so half the runs of the normal batch is plenty.
+async function generateGoldenForChar(env, id, opts) {
+  const runs = Math.max(1, Math.round(opts.runs / 2));
+  const per = Math.ceil(opts.nGolden / runs);
+  const runOnce = async () => {
+    const prompt = buildGoldenBatchPrompt(PERSONAS[id], per);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const { text } = await callLLMChain(env, opts.genChain, {
+          system: '',
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 1500, // ~10 lines of JSON per run — headroom against truncation
+          temperature: 1.0,
+          timeoutMs: 240000,
+          json: true,
+          models: opts.models,
+        });
+        const golden = sanitizeList(extractJson(text)?.golden, per);
+        if (golden.length) return golden;
+      } catch (e) {
+        // transient — fall through to retry
+      }
+    }
+    return [];
   };
   const results = await Promise.all(Array.from({ length: runs }, runOnce));
-  return {
-    normal: dedupeLines(results.flatMap((r) => r.normal)).slice(0, nNormal),
-    golden: dedupeLines(results.flatMap((r) => r.golden)).slice(0, nGolden),
-  };
+  return dedupeLines(results.flat()).slice(0, opts.nGolden);
 }
 
 const MOODS = ['watch', 'alone', 'lonely'];
@@ -322,18 +350,22 @@ async function generateAll(env) {
     nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
     runs: Math.max(1, parseInt(env.GEN_RUNS || '2', 10)),
   };
-  // Generate every persona CONCURRENTLY (cards + mutters). Sequential calls
-  // accumulate wall time and the later ones get throttled/cut; concurrent keeps
-  // total time ~= one call.
-  const results = await Promise.all(
-    CHAT_IDS.map(async (id) => {
-      const [c, m] = await Promise.all([
-        generateForChar(env, id, opts).catch(() => ({ normal: [], golden: [] })),
-        generateMuttersForChar(env, id, opts).catch(() => ({ mutters: { watch: [], alone: [], lonely: [] } })),
-      ]);
-      return { ...c, ...m };
-    })
-  );
+  // Generate the shared pool and every persona CONCURRENTLY (golden + mutters).
+  // Sequential calls accumulate wall time and the later ones get throttled/cut;
+  // concurrent keeps total time ~= one call.
+  const [normalRaw, results] = await Promise.all([
+    generateNormalPool(env, opts).catch(() => []),
+    Promise.all(
+      CHAT_IDS.map(async (id) => {
+        const [golden, m] = await Promise.all([
+          generateGoldenForChar(env, id, opts).catch(() => []),
+          generateMuttersForChar(env, id, opts).catch(() => ({ mutters: { watch: [], alone: [], lonely: [] } })),
+        ]);
+        return { golden, ...m };
+      })
+    ),
+  ]);
+  let normal = normalRaw;
   const cards = {};
   CHAT_IDS.forEach((id, i) => { cards[id] = results[i]; });
 
@@ -342,11 +374,17 @@ async function generateAll(env) {
   const prevRaw = await env.KV.get('cards:current');
   if (prevRaw) {
     try {
-      const prev = JSON.parse(prevRaw).cards || {};
+      const prev = JSON.parse(prevRaw);
+      const prevCards = prev.cards || {};
+      // pre-split batches kept normals per persona — flatten those so upgrading
+      // a hiccuping run never lands on an empty shared pool
+      const prevNormal = Array.isArray(prev.normal) && prev.normal.length
+        ? prev.normal
+        : dedupeLines(CHAT_IDS.flatMap((id) => prevCards[id]?.normal || []));
+      if (!normal.length && prevNormal.length) normal = prevNormal;
       for (const id of CHAT_IDS) {
-        const p = prev[id];
+        const p = prevCards[id];
         if (!p) continue;
-        if (!cards[id].normal.length && p.normal?.length) cards[id].normal = p.normal;
         if (!cards[id].golden.length && p.golden?.length) cards[id].golden = p.golden;
         if (p.mutters) for (const k of MOODS) {
           if (!cards[id].mutters[k]?.length && p.mutters[k]?.length) cards[id].mutters[k] = p.mutters[k];
@@ -355,7 +393,7 @@ async function generateAll(env) {
     } catch (e) {}
   }
 
-  const data = { date: today(), cards };
+  const data = { date: today(), normal, cards };
   await env.KV.put('cards:current', JSON.stringify(data));
   return data;
 }

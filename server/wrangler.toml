@@ -50,16 +50,18 @@ GEMINI_MODEL = "gemini-2.5-flash-lite"
 ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
 CHAT_DAILY_LIMIT = "100"
-# How many lines each persona's daily pool holds. Sized for the app's
+# Pool sizes. CARDS_PER_DAY is the SHARED normal pool (voice-neutral — every
+# persona draws from it); GOLDEN_PER_DAY is per persona. Sized for the app's
 # no-replacement gacha: heavy users burn through the whole pool in a day.
 CARDS_PER_DAY = "72"
 GOLDEN_PER_DAY = "14"
 # Mutters (private inner-monologue) per mood (watch/alone/lonely) per persona.
 MUTTERS_PER_DAY = "16"
-# Small generation calls per persona per day — several small batches, each with
+# Small generation calls per pool per day — several small batches, each with
 # its own random inspiration seeds, beat one long call that templates out.
 # Scales with CARDS_PER_DAY: ~18 normal lines per call keeps quality up
-# (long single batches template out toward the tail).
+# (long single batches template out toward the tail). Golden pools are small
+# and use half this many runs.
 GEN_RUNS = "4"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:

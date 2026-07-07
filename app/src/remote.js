@@ -4,7 +4,7 @@
 // to the built-in offline content in content.js.
 const pp = window.pp;
 
-let BATCH = null; // { date, cards: { [charId]: { normal: string[], golden: string[] } } }
+let BATCH = null; // { date, normal: string[], cards: { [charId]: { golden: string[], mutters } } }
 
 export async function refresh() {
   if (!pp || !pp.cards) return null;
@@ -30,8 +30,12 @@ function poolOf(charId, tier) {
   return Array.isArray(arr) && arr.length ? arr : null;
 }
 
-// Today's normal-card lines for a character, or null → use the built-in DAILY.
+// Today's normal-card lines — one shared voice-neutral pool for every
+// character, or null → use the built-in DAILY. Falls back to the per-character
+// field an older cached batch may still carry.
 export function normalPool(charId) {
+  const shared = BATCH && BATCH.normal;
+  if (Array.isArray(shared) && shared.length) return shared;
   return poolOf(charId, 'normal');
 }
 
