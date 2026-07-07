@@ -309,8 +309,14 @@ export class PetScene {
   }
 
   async setCharacter(id) {
+    // Switch generation guard: two in-flight switches (startup load + the
+    // book picker, or two quick picker taps) can resolve out of order —
+    // whichever finishes LAST would win the holder, not whichever was asked
+    // for last. Stale loads must drop their result.
+    const gen = (this._charGen = (this._charGen || 0) + 1);
     const model = await loadModel(id);
     const cardData = (await this.cardsData)[id];
+    if (gen !== this._charGen) return;
     this.holder.clear();
 
     // Normalize by TOTAL model height (cap / tassel / any headwear included) so
