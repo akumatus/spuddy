@@ -131,8 +131,9 @@ writes:
   card displacement from the motion system.
 - `src/scene.js` — the three.js scene: part hinges (claw = shoulder point · eye =
   own center · card = bottom edge), contact shadow, camera breathing, PBR
-  lighting (RoomEnvironment IBL + ACES tone mapping + warm key/rim; legacy baked
-  materials keep tone mapping off to stay as-is).
+  lighting (warm studio IBL — gradient dome + softbox/fill/back/bounce panels
+  through PMREM — + Neutral tone mapping + warm key/rim; legacy baked materials
+  keep tone mapping off to stay as-is).
 - `src/store.js` · `src/ui.js` · `src/sfx.js` · `src/remote.js` — persistence,
   DOM UI (bubbles / panel / book), sound, and the server gateway client.
 - `public/models/*.glb` — the whole crew (spud, donut, taco, grad, bloom, leo) is
@@ -146,7 +147,12 @@ writes:
   eyes), atlas edge padding, simplify + Draco, keeping the
   baseColor/normal/metallicRoughness maps for real-time lighting — the PBR export
   carries no baked lighting layer, so occlusion black / contact shadow / seam
-  creases simply don't exist to begin with. When an export bakes the bead eyes
+  creases simply don't exist to begin with. Two extras restore the soft yarn
+  depth the shaded export had, without its cross-part contact shadows: a
+  per-part isolated AO atlas (`scripts/bake_ao.py`, Blender headless — each part
+  baked with the others hidden from rays, packed into the ORM R channel as
+  `occlusionTexture`, darkening only indirect light) and `KHR_materials_sheen`
+  fabric backscatter on every yarn part (eyes stay glossy plastic). When an export bakes the bead eyes
   into the body instead of leaving them as separate meshes (bloom, leo), no eye
   mesh is rigged and the painted-on eyes stay fixed — no blink/dart, same as the
   legacy single-mesh look.

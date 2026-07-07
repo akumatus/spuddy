@@ -12,11 +12,14 @@
 //
 // Deps are in devDependencies (npm install covers them).
 // Usage:
-//   node process_rodin_pbr.mjs <in_pbr.glb> <out.glb> <card-plane-out.json>
-//   SIMPLIFY_ERROR=0.001 (default) — meshopt error bound; raise for smaller files.
+//   1. bake the per-part isolated AO atlas (see scripts/bake_ao.py):
+//      Blender -b -P bake_ao.py -- <in_pbr.glb> <dir>/ao.png
+//   2. node process_rodin_pbr.mjs <in_pbr.glb> <out.glb> <card-plane-out.json>
+//      AO_ATLAS=<path> — AO image location; default: ao.png next to the input.
+//      SIMPLIFY_ERROR=0.001 (default) — meshopt error bound; raise for smaller files.
 // Then merge the card JSON into public/models/cards.json under the character id.
 import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS, KHRMaterialsSheen } from '@gltf-transform/extensions';
 import { weld, simplify, textureCompress, prune, draco } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import draco3d from 'draco3dgltf';
@@ -104,6 +107,24 @@ for (const p of parts) {
   const mat = p.prim.getMaterial();
   if (mat) mat.setName(n);
   console.log(`part ${n}: tris=${p.prim.getIndices().getCount() / 3} center=[${p.b.center.map((x) => x.toFixed(3))}] size=[${p.b.size.map((x) => x.toFixed(3))}]`);
+}
+
+// ---- sheen: fabric backscatter on everything that is yarn ----
+// Knitted fiber catches light at grazing angles in a way the base BRDF can't
+// express — KHR_materials_sheen adds that soft fuzzy edge glow. three's
+// GLTFLoader upgrades these materials to MeshPhysicalMaterial automatically.
+// Bead eyes stay glossy plastic: no sheen there.
+{
+  const sheenExt = doc.createExtension(KHRMaterialsSheen);
+  for (const p of parts) {
+    if (p.node.getName().startsWith('eye')) continue;
+    const mat = p.prim.getMaterial();
+    if (!mat) continue;
+    const sheen = sheenExt.createSheen()
+      .setSheenColorFactor([0.33, 0.28, 0.22]) // warm fiber tint; magnitude = strength
+      .setSheenRoughnessFactor(0.8);           // broad, soft falloff
+    mat.setExtension('KHR_materials_sheen', sheen);
+  }
 }
 
 // drop tangents — three.js derives tangents in-shader for normal maps, and
@@ -327,11 +348,40 @@ console.log('total tris after simplify:', total);
   if (cardJsonPath) fs.writeFileSync(cardJsonPath, JSON.stringify(entry, null, 1));
 }
 
+// ---- occlusion: per-part isolated AO atlas → ORM R channel ----
+// bake_ao.py bakes each part's ambient occlusion with the other parts hidden
+// from rays: stitch-level crevice shading (the yarn look the shaded export
+// had) comes back, while cross-part contact shadows (the black-hole source)
+// never exist in the map. The AO goes into the R channel of the existing
+// metallicRoughness textures (glTF ORM layout, R was unused) and is
+// registered as occlusionTexture — zero extra texture memory, and three.js
+// applies it to indirect light (IBL + ambient) automatically.
+{
+  const aoPath = process.env.AO_ATLAS || srcPath.replace(/[^/\\]+$/, 'ao.png');
+  if (fs.existsSync(aoPath)) {
+    for (const tex of new Set(root.listMaterials().map((m) => m.getMetallicRoughnessTexture()).filter(Boolean))) {
+      const { data, info } = await sharp(tex.getImage())
+        .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const ao = await sharp(aoPath).resize(info.width, info.height).greyscale().raw().toBuffer();
+      for (let i = 0; i < ao.length; i++) data[i * 4] = ao[i];
+      tex.setImage(await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer());
+      tex.setMimeType('image/png');
+    }
+    for (const m of root.listMaterials()) {
+      const mr = m.getMetallicRoughnessTexture();
+      if (mr) m.setOcclusionTexture(mr);
+    }
+    console.log('AO atlas merged into ORM R channel:', aoPath);
+  } else {
+    console.warn('NO AO ATLAS at ' + aoPath + ' — run bake_ao.py first; writing model without occlusion');
+  }
+}
+
 // ---- textures + compression ----
 // normal + metallicRoughness carry shading signal — compress gently
 await doc.transform(
   textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], slots: /baseColor/ }),
-  textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 90, slots: /normal|metallicRoughness/ }),
+  textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 90, slots: /normal|metallicRoughness|occlusion/ }),
   prune(),
   draco(),
 );

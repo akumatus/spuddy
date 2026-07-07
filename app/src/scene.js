@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { Animator } from './motions.js';
 import { CardScreen } from './cardscreen.js';
 
@@ -111,6 +110,48 @@ function rigParts(model, sceneRoot) {
   return rig;
 }
 
+/* ──────────── warm studio environment for IBL ────────────
+   Replaces three's RoomEnvironment (a neutral office box that reads cold and
+   plasticky on yarn) with a photo-booth setup: a warm gradient dome, one big
+   warm softbox as the key, a cooler side fill for color contrast in the knit,
+   a back panel for rim sheen and a floor bounce. PMREM converts it into the
+   scene environment; the per-part AO baked into the PBR models darkens exactly
+   this indirect light inside the stitch crevices. */
+function makeStudioEnvScene() {
+  const scene = new THREE.Scene();
+
+  // gradient dome — warm cream overhead falling to amber near the floor
+  const dome = new THREE.SphereGeometry(16, 32, 24);
+  const top = new THREE.Color(0.40, 0.34, 0.26);
+  const bottom = new THREE.Color(0.15, 0.11, 0.08);
+  const pos = dome.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const t = THREE.MathUtils.smoothstep(pos.getY(i) / 16, -1, 1);
+    c.copy(bottom).lerp(top, t);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  dome.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  scene.add(new THREE.Mesh(dome, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+
+  // unlit panels read as pure radiance in the PMREM capture
+  const panel = (color, intensity, w, h, x, y, z) => {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity) })
+    );
+    m.position.set(x, y, z);
+    m.lookAt(0, 0, 0);
+    scene.add(m);
+  };
+  panel(0xfff1dc, 5.0, 7, 5, 4, 6, 5);    // key softbox — high right-front
+  panel(0xdfe8f2, 1.1, 8, 6, -7, 2, 2);   // cool fill — left side
+  panel(0xffd9a8, 2.2, 6, 4, -2, 4, -7);  // warm back panel (rim sheen)
+  panel(0xffc98f, 0.9, 10, 10, 0, -5, 0); // floor bounce
+  return scene;
+}
+
 // contact shadow — scales & fades as the pet leaves the ground (Turn 5)
 function makeShadowTexture() {
   const c = document.createElement('canvas');
@@ -142,19 +183,20 @@ export class PetScene {
     this.lookAt = new THREE.Vector3(0, 1.16, 0);
     this.cameraSway = true; // camera breathing sway, 11s/8.2s dual cycle (Turn 5)
 
-    // The PBR part-rigged model gets its texture from real-time lighting: IBL
-    // provides soft omnidirectional fill, a warm key light shapes it, rim light
-    // traces the outline. The legacy baked model is unaffected by lighting.
+    // The PBR part-rigged model gets its texture from real-time lighting: the
+    // warm studio IBL provides most of the fill (so the baked aoMap, which only
+    // darkens indirect light, actually reads), a warm key light shapes it, rim
+    // light traces the outline. The legacy baked model is unaffected by lighting.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environment = pmrem.fromScene(makeStudioEnvScene(), 0.04).texture;
+    this.scene.environmentIntensity = 0.85;
     pmrem.dispose();
 
-    this.scene.add(new THREE.AmbientLight(0xffedd0, 0.22));
-    const key = new THREE.DirectionalLight(0xffeccf, 1.35);
+    this.scene.add(new THREE.AmbientLight(0xffedd0, 0.1));
+    const key = new THREE.DirectionalLight(0xffeccf, 0.95);
     key.position.set(2, 4, 4);
     this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0xffe8c8, 0.5);
+    const rim = new THREE.DirectionalLight(0xffe8c8, 0.45);
     rim.position.set(-3, 2, -2);
     this.scene.add(rim);
 
