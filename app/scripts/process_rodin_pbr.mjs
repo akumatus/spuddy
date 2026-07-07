@@ -12,10 +12,12 @@
 //
 // Deps are in devDependencies (npm install covers them).
 // Usage:
-//   1. bake the per-part isolated AO atlas (see scripts/bake_ao.py):
-//      Blender -b -P bake_ao.py -- <in_pbr.glb> <dir>/ao.png
+//   1. bake the AO atlases (see scripts/bake_ao.py):
+//      Blender -b -P bake_ao.py -- <in_pbr.glb> <dir>/ao.png <dir>/ao_all.png 2048 0.16
 //   2. node process_rodin_pbr.mjs <in_pbr.glb> <out.glb> <card-plane-out.json>
-//      AO_ATLAS=<path> — AO image location; default: ao.png next to the input.
+//      AO_ATLAS / AO_ATLAS_ALL — atlas locations; default: ao.png / ao_all.png next to the input.
+//      BAKED_DIFFUSE=1 — opt into the baked-diffuse hybrid experiment (needs
+//      ao_all.png + base_basic_shaded.glb next to the input).
 //      SIMPLIFY_ERROR=0.001 (default) — meshopt error bound; raise for smaller files.
 // Then merge the card JSON into public/models/cards.json under the character id.
 import { NodeIO } from '@gltf-transform/core';
@@ -136,6 +138,47 @@ for (const mesh of root.listMeshes()) {
   }
 }
 
+// wave-fill: replace hole texels of an RGBA buffer with the average of their
+// known neighbors, wave by wave. Shared by the albedo cavity fill and the
+// baked-diffuse build (deep pits in the shaded texture).
+function waveFill(buf, hole, W, H) {
+  const N = W * H;
+  const nb4 = (i, fn) => {
+    const x = i % W;
+    if (x > 0) fn(i - 1);
+    if (x < W - 1) fn(i + 1);
+    if (i >= W) fn(i - W);
+    if (i < N - W) fn(i + W);
+  };
+  const state = new Uint8Array(N);
+  for (let i = 0; i < N; i++) state[i] = hole[i] ? 0 : 1;
+  let frontier = [];
+  for (let i = 0; i < N; i++) {
+    if (state[i] === 1) nb4(i, (j) => { if (state[j] === 0) { state[j] = 2; frontier.push(j); } });
+  }
+  let n = 0;
+  while (frontier.length) {
+    const acc = new Float32Array(frontier.length * 3);
+    let k = 0;
+    for (const i of frontier) {
+      let r = 0, g = 0, b = 0, c = 0;
+      nb4(i, (j) => { if (state[j] === 1) { const o = j * 4; r += buf[o]; g += buf[o + 1]; b += buf[o + 2]; c++; } });
+      acc[k++] = r / c; acc[k++] = g / c; acc[k++] = b / c;
+    }
+    k = 0;
+    for (const i of frontier) {
+      const o = i * 4;
+      buf[o] = acc[k++]; buf[o + 1] = acc[k++]; buf[o + 2] = acc[k++];
+      state[i] = 1;
+      n++;
+    }
+    const next = [];
+    for (const i of frontier) nb4(i, (j) => { if (state[j] === 0) { state[j] = 2; next.push(j); } });
+    frontier = next;
+  }
+  return n;
+}
+
 // ---- albedo cavity fill ----
 // Deep cavities (the card slot, sockets) are black in the albedo — no bake
 // camera ever saw inside. Diffuse surrounding yarn color into them so parts
@@ -204,55 +247,16 @@ for (const mesh of root.listMeshes()) {
     }
     protect = dilate1(dilate1(protect));
 
-    // wave-fill: replace hole texels with the average of their known
-    // neighbors, wave by wave
-    const nb4 = (i, fn) => {
-      const x = i % W;
-      if (x > 0) fn(i - 1);
-      if (x < W - 1) fn(i + 1);
-      if (i >= W) fn(i - W);
-      if (i < N - W) fn(i + W);
-    };
-    const waveFill = (buf, hole) => {
-      const state = new Uint8Array(N);
-      for (let i = 0; i < N; i++) state[i] = hole[i] ? 0 : 1;
-      let frontier = [];
-      for (let i = 0; i < N; i++) {
-        if (state[i] === 1) nb4(i, (j) => { if (state[j] === 0) { state[j] = 2; frontier.push(j); } });
-      }
-      let n = 0;
-      while (frontier.length) {
-        const acc = new Float32Array(frontier.length * 3);
-        let k = 0;
-        for (const i of frontier) {
-          let r = 0, g = 0, b = 0, c = 0;
-          nb4(i, (j) => { if (state[j] === 1) { const o = j * 4; r += buf[o]; g += buf[o + 1]; b += buf[o + 2]; c++; } });
-          acc[k++] = r / c; acc[k++] = g / c; acc[k++] = b / c;
-        }
-        k = 0;
-        for (const i of frontier) {
-          const o = i * 4;
-          buf[o] = acc[k++]; buf[o + 1] = acc[k++]; buf[o + 2] = acc[k++];
-          state[i] = 1;
-          n++;
-        }
-        const next = [];
-        for (const i of frontier) nb4(i, (j) => { if (state[j] === 0) { state[j] = 2; next.push(j); } });
-        frontier = next;
-      }
-      return n;
-    };
-
     const cavity = new Uint8Array(N);
     for (let i = 0; i < N; i++) {
       const o = i * 4;
       if (covered[i] && !protect[i] && Math.max(data[o], data[o + 1], data[o + 2]) < 30) cavity[i] = 1;
     }
-    const cavityFilled = waveFill(data, cavity);
+    const cavityFilled = waveFill(data, cavity, W, H);
 
     const bg = new Uint8Array(N);
     for (let i = 0; i < N; i++) bg[i] = covered[i] ? 0 : 1;
-    const padded = waveFill(data, bg);
+    const padded = waveFill(data, bg, W, H);
     console.log(`albedo fill: ${cavityFilled}px cavity, ${padded}px padding (eye UVs protected)`);
     tex.setImage(await sharp(data, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer());
     tex.setMimeType('image/png');
@@ -370,10 +374,118 @@ console.log('total tris after simplify:', total);
     for (const m of root.listMaterials()) {
       const mr = m.getMetallicRoughnessTexture();
       if (mr) m.setOcclusionTexture(mr);
+      // the albedo below carries the same AO — at full aoMap strength the
+      // crevices would be deducted twice and the whole doll turns murky
+      m.setOcclusionStrength(0.7);
     }
     console.log('AO atlas merged into ORM R channel:', aoPath);
+
+    // …and, warm-tinted, into the albedo. three's aoMap only dims indirect
+    // light, so the key/rim lights still flatten the crevices; the shaded
+    // export darkened everything. Multiply a gamma-softened occlusion into
+    // baseColor so direct light reads it too — tinted toward warm brown so
+    // shadows read as yarn bounce light, not gray soot. The multiply is done
+    // in linear space (baseColor is sRGB): for a per-texel constant factor,
+    // (linear·f)^(1/2.2) = encoded·f^(1/2.2), so a 256-entry LUT of encoded
+    // multipliers per channel is exact.
+    const AO_ALBEDO_GAMMA = 0.5;                 // softens the AO curve (lower = lighter mids); 1 = raw
+    const AO_ALBEDO_FLOOR = [0.48, 0.33, 0.24];  // multiplier at full occlusion
+    const lut = [0, 1, 2].map((c) => {
+      const t = new Float32Array(256);
+      for (let a = 0; a < 256; a++) {
+        const f = AO_ALBEDO_FLOOR[c] + (1 - AO_ALBEDO_FLOOR[c]) * Math.pow(a / 255, AO_ALBEDO_GAMMA);
+        t[a] = Math.pow(f, 1 / 2.2);
+      }
+      return t;
+    });
+    for (const tex of new Set(root.listMaterials().map((m) => m.getBaseColorTexture()).filter(Boolean))) {
+      const { data, info } = await sharp(tex.getImage())
+        .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const ao = await sharp(aoPath).resize(info.width, info.height).greyscale().raw().toBuffer();
+      for (let i = 0; i < ao.length; i++) {
+        const o = i * 4;
+        data[o] = Math.round(data[o] * lut[0][ao[i]]);
+        data[o + 1] = Math.round(data[o + 1] * lut[1][ao[i]]);
+        data[o + 2] = Math.round(data[o + 2] * lut[2][ao[i]]);
+      }
+      tex.setImage(await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer());
+      tex.setMimeType('image/png');
+    }
+    console.log('warm-tinted AO multiplied into albedo (gamma ' + AO_ALBEDO_GAMMA + ')');
   } else {
     console.warn('NO AO ATLAS at ' + aoPath + ' — run bake_ao.py first; writing model without occlusion');
+  }
+}
+
+// ---- baked-diffuse hybrid: shaded softness + live PBR highlights ----
+// The Rodin shaded export IS the cute look — a soft studio-GI photograph
+// baked into a texture — but it also baked the neighbors' contact shadows
+// (the black-hole artifacts). The two AO atlases from bake_ao.py measure that
+// pollution per texel: ratio = all-visible / isolated < 1 exactly where a
+// NEIGHBOR part darkened the bake. Dividing the shaded texture by the ratio
+// (in linear space) un-bakes the cross-part shadows and touches nothing else.
+// Deep pits no bake light ever reached (the card slot) cannot be recovered by
+// division — those texels get wave-filled from their clean neighborhood.
+//
+// The cleaned shaded texture ships as EMISSIVE: the dominant, unlit diffuse
+// look, exactly as soft and bright as the shaded export. The real-time PBR
+// layer stays on top at low weight — normal / metallicRoughness / sheen keep
+// producing live eye + glasses glints and fuzzy rim light as the doll turns
+// (baseColor is dimmed so real-time diffuse only adds gentle modeling).
+// Eyes keep their full real-time PBR material untouched.
+// OPT-IN experiment (BAKED_DIFFUSE=1): tried 2026-07 and set aside — the
+// fully-lit real-time look was preferred over the baked softness in the end.
+{
+  const aoAllPath = process.env.AO_ATLAS_ALL || srcPath.replace(/[^/\\]+$/, 'ao_all.png');
+  const aoIsoPath = process.env.AO_ATLAS || srcPath.replace(/[^/\\]+$/, 'ao.png');
+  const shadedPath = srcPath.replace(/[^/\\]+$/, 'base_basic_shaded.glb');
+  const enabled = process.env.BAKED_DIFFUSE === '1'
+    && fs.existsSync(aoAllPath) && fs.existsSync(aoIsoPath) && fs.existsSync(shadedPath);
+  if (enabled) {
+    const EMISSIVE_F = 0.85;  // weight of the baked shaded layer
+    const DIFFUSE_F = 0.2;    // weight of the real-time diffuse on top
+    const MIN_RATIO = 0.25;   // caps the un-shadow boost at 1/0.25 = 4x
+    const PIT_THRESH = 56;    // ao_all below this (of 255) = pit, wave-fill
+
+    const shadedDoc = await io.read(shadedPath);
+    const shadedMat = shadedDoc.getRoot().listMaterials()[0];
+    const shadedTex = shadedMat.getBaseColorTexture() || shadedMat.getEmissiveTexture();
+    const { data, info } = await sharp(shadedTex.getImage())
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const W = info.width, H = info.height;
+    const aoIso = await sharp(aoIsoPath).resize(W, H).greyscale().raw().toBuffer();
+    const aoAll = await sharp(aoAllPath).resize(W, H).greyscale().raw().toBuffer();
+
+    const hole = new Uint8Array(W * H);
+    let unshadowed = 0;
+    for (let i = 0; i < W * H; i++) {
+      if (aoAll[i] < PIT_THRESH) { hole[i] = 1; continue; }
+      const r = Math.min(1, Math.max(MIN_RATIO, aoAll[i] / Math.max(aoIso[i], 1)));
+      if (r > 0.995) continue;
+      // for a per-texel constant factor, linear ÷ratio == sRGB-encoded ×ratio^(-1/2.2)
+      const mult = Math.pow(r, -1 / 2.2);
+      const o = i * 4;
+      data[o] = Math.min(255, data[o] * mult);
+      data[o + 1] = Math.min(255, data[o + 1] * mult);
+      data[o + 2] = Math.min(255, data[o + 2] * mult);
+      unshadowed++;
+    }
+    const filled = waveFill(data, hole, W, H);
+    console.log(`baked-diffuse: un-shadowed ${unshadowed}px, pit-filled ${filled}px`);
+
+    const bakedTex = doc.createTexture('shaded_baked')
+      .setImage(await sharp(data, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer())
+      .setMimeType('image/png');
+    for (const p of parts) {
+      if (p.node.getName().startsWith('eye')) continue;
+      const mat = p.prim.getMaterial();
+      if (!mat) continue;
+      mat.setEmissiveTexture(bakedTex);
+      mat.setEmissiveFactor([EMISSIVE_F, EMISSIVE_F, EMISSIVE_F]);
+      mat.setBaseColorFactor([DIFFUSE_F, DIFFUSE_F, DIFFUSE_F, 1]);
+    }
+  } else if (process.env.BAKED_DIFFUSE === '1') {
+    console.warn('baked-diffuse hybrid requested but skipped — need ao.png + ao_all.png + base_basic_shaded.glb next to the input');
   }
 }
 
@@ -381,7 +493,7 @@ console.log('total tris after simplify:', total);
 // normal + metallicRoughness carry shading signal — compress gently
 await doc.transform(
   textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], slots: /baseColor/ }),
-  textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 90, slots: /normal|metallicRoughness|occlusion/ }),
+  textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 90, slots: /normal|metallicRoughness|occlusion|emissive/ }),
   prune(),
   draco(),
 );

@@ -1,22 +1,32 @@
-# Bake per-part ISOLATED ambient occlusion for a Rodin part-separated PBR GLB.
+# Bake per-part ambient occlusion atlases for a Rodin part-separated PBR GLB.
 #
-# Each part is baked with every other part hidden from rays, so cross-part
-# contact shadows (the "black hole" source: arm-on-body, eye-in-socket,
-# card-in-slot) never enter the map — while the part's own stitch-level
-# crevice shading, the core of the yarn look, is fully kept. Parts share one
-# non-overlapping UV atlas, so all bakes accumulate into a single AO image.
+# Two atlases come out of one run:
+#   <out_ao.png>      ISOLATED — each part baked with every other part hidden
+#                     from rays. Cross-part contact shadows (the "black hole"
+#                     source: arm-on-body, eye-in-socket, card-in-slot) never
+#                     enter this map; the part's own stitch-level crevice
+#                     shading, the core of the yarn look, is fully kept.
+#   <out_ao_all.png>  ALL-VISIBLE — same bake with every part visible, i.e.
+#                     the occlusion Rodin's own shaded bake saw. The per-texel
+#                     ratio all/iso measures exactly how much a texel was
+#                     darkened by NEIGHBOR parts — process_rodin_pbr.mjs
+#                     divides the shaded texture by it to un-bake the contact
+#                     shadows without touching clean texels.
+#
+# Parts share one non-overlapping UV atlas, so all bakes accumulate into a
+# single image per pass.
 #
 # The AO term is an explicit shader node (AO -> Emission, baked as EMIT)
 # instead of Blender's built-in AO bake: the node exposes the ray distance
 # directly, which the built-in bake buries in world settings.
 #
-# process_rodin_pbr.mjs then packs this image into the R channel of the
+# process_rodin_pbr.mjs packs the isolated atlas into the R channel of the
 # metallicRoughness textures (glTF ORM layout — zero extra texture memory)
 # and registers it as occlusionTexture.
 #
 # Usage:
 #   /Applications/Blender.app/Contents/MacOS/Blender -b -P bake_ao.py -- \
-#     <in_pbr.glb> <out_ao.png> [size=2048] [distance_scale=0.12] [samples=32]
+#     <in_pbr.glb> <out_ao.png> [out_ao_all.png] [size=2048] [distance_scale=0.12] [samples=32]
 #
 # distance_scale: AO ray distance as a fraction of the model bbox diagonal.
 # Smaller = only tight crevices darken; larger = broader soft form shading.
@@ -30,9 +40,10 @@ argv = sys.argv[sys.argv.index("--") + 1:]
 # absolute paths: Blender resolves relative image paths against the blend file
 # (there is none in headless mode), not the shell cwd
 SRC, OUT = os.path.abspath(argv[0]), os.path.abspath(argv[1])
-SIZE = int(argv[2]) if len(argv) > 2 else 2048
-DIST_SCALE = float(argv[3]) if len(argv) > 3 else 0.12
-SAMPLES = int(argv[4]) if len(argv) > 4 else 32
+OUT_ALL = os.path.abspath(argv[2]) if len(argv) > 2 else None
+SIZE = int(argv[3]) if len(argv) > 3 else 2048
+DIST_SCALE = float(argv[4]) if len(argv) > 4 else 0.12
+SAMPLES = int(argv[5]) if len(argv) > 5 else 32
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=SRC)
@@ -67,10 +78,14 @@ try:  # Metal GPU when available, silently fall back to CPU
 except Exception as e:
     print("cycles device: CPU (", e, ")")
 
-# shared bake target — white background so unbaked atlas texels stay neutral
-img = bpy.data.images.new("ao_bake", SIZE, SIZE, alpha=False)
-img.generated_color = (1.0, 1.0, 1.0, 1.0)
-img.colorspace_settings.name = "Non-Color"
+# shared bake targets — white background so unbaked atlas texels stay neutral
+def make_target(name):
+    im = bpy.data.images.new(name, SIZE, SIZE, alpha=False)
+    im.generated_color = (1.0, 1.0, 1.0, 1.0)
+    im.colorspace_settings.name = "Non-Color"
+    return im
+
+img = make_target("ao_bake")
 
 # one bake material for all parts: AO node -> Emission, image node active
 mat = bpy.data.materials.new("ao_bake_mat")
@@ -92,17 +107,30 @@ for o in meshes:
     o.data.materials.clear()
     o.data.materials.append(mat)
 
-for o in meshes:
-    for other in meshes:
-        other.hide_render = other is not o
-    bpy.ops.object.select_all(action="DESELECT")
-    o.select_set(True)
-    bpy.context.view_layer.objects.active = o
-    # never clear: bakes from all parts accumulate into the shared atlas
-    bpy.ops.object.bake(type="EMIT", use_clear=False, margin=16)
-    print("baked:", o.name)
 
+def bake_pass(target, isolated):
+    tex.image = target
+    for o in meshes:
+        for other in meshes:
+            other.hide_render = (other is not o) if isolated else False
+        bpy.ops.object.select_all(action="DESELECT")
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        # never clear: bakes from all parts accumulate into the shared atlas
+        bpy.ops.object.bake(type="EMIT", use_clear=False, margin=16)
+        print("baked:", o.name, "(isolated)" if isolated else "(all-visible)")
+
+
+bake_pass(img, isolated=True)
 img.filepath_raw = OUT
 img.file_format = "PNG"
 img.save()
 print("written:", OUT)
+
+if OUT_ALL:
+    img_all = make_target("ao_bake_all")
+    bake_pass(img_all, isolated=False)
+    img_all.filepath_raw = OUT_ALL
+    img_all.file_format = "PNG"
+    img_all.save()
+    print("written:", OUT_ALL)
