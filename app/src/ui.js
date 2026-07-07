@@ -140,10 +140,12 @@ function cardFont(msg) {
 }
 
 // Daily / golden card modal. actions: {onKeep, onLater}
-export function showCard(state, { onKeep, onLater }) {
+// view = { msg, rare, keptToday } — the card being offered, decoupled from
+// what's rendered on the potato so a draw can be declined without touching it.
+export function showCard(state, view, { onKeep, onLater }) {
   const ch = CHARS.find((c) => c.id === state.active) || CHARS[0];
-  const gold = state.rare;
-  const keepLabel = state.keptToday ? '♥ Open the Book' : 'Keep it ♥';
+  const gold = view.rare;
+  const keepLabel = view.keptToday ? '♥ Open the Book' : 'Keep it ♥';
   openOverlay(`
     <div class="cardbox ${gold ? 'gold' : ''}">
       ${gold ? `
@@ -153,10 +155,10 @@ export function showCard(state, { onKeep, onLater }) {
       <div class="inner">
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
         <div class="tag">${gold ? 'RARE · GOLDEN STITCH' : "TODAY'S CARD"}</div>
-        <div class="msg" style="font-size:${cardFont(state.msg)}px">${esc(state.msg)}</div>
+        <div class="msg" style="font-size:${cardFont(view.msg)}px">${esc(view.msg)}</div>
         <div class="sign">— ${ch.name} · day ${state.day}</div>
         <div class="row">
-          <button class="btn ${state.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>
+          <button class="btn ${view.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>
           <button class="btn ghost" id="mLater">Later</button>
         </div>
       </div>

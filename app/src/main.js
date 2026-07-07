@@ -338,16 +338,13 @@ function drawToday() {
   }
   if (fromBuiltin) state.usedBuiltins.push(msg);
   else if (serverPool) state.usedCards.used.push(msg);
+  persist(); // save the gacha bookkeeping (draws/pity/used) even before he keeps it
   sfx.draw();
   ui.showDrawAnim();
   setTimeout(() => {
-    state.drawn = true;
-    state.rare = false;
-    state.msg = msg;
-    state.keptToday = false;
-    persist();
-    updateCardScreen();
-    openCard();
+    // Don't put the card in his hands yet — the draw only offers it. It lands
+    // on the potato in openCard's onKeep; "Later" leaves his hands untouched.
+    openCard({ msg, rare: false });
     bubble(DRAWLINES[Math.floor(Math.random() * DRAWLINES.length)]);
   }, 1250);
 }
@@ -383,39 +380,54 @@ async function weaveGolden() {
   anim().setMode('idle');
   scene.setCardPulse(false);
   sfx.chime();
-  state.drawn = true;
-  state.rare = true;
   // live weave when it rolled and landed; else today's cron golden pool
   // (no-replacement); the hand-written built-ins only when the pool is
   // unreachable
   const gPool = remote.goldenPool(ch.id);
-  state.msg = aiMsg || (gPool ? pickGoldenFromPool(gPool) : goldenFallback(ch.id));
-  state.keptToday = false;
-  persist();
-  updateCardScreen();
-  openCard();
+  const gMsg = aiMsg || (gPool ? pickGoldenFromPool(gPool) : goldenFallback(ch.id));
+  persist(); // save the golden bookkeeping (draws/pity, used-list) before he keeps it
+  // Offer it in the overlay; it only lands on the potato if he keeps it.
+  openCard({ msg: gMsg, rare: true });
   bubble('Knit fresh, just for you.');
 }
 
-function openCard() {
-  scene.raiseCard(); // rig models play 'present', legacy 'raise' + quad slide
-  ui.showCard(state, {
+// openCard(card) offers a freshly drawn card in the overlay without touching
+// the potato's hands. card = { msg, rare } for a new draw; omit it to reopen
+// whatever he's already holding (state.msg) — e.g. when the draw budget is used
+// up. Only "Keep it" commits the card to his hands and the Book.
+function openCard(card) {
+  const fresh = !!card;
+  const view = fresh
+    ? { msg: card.msg, rare: card.rare, keptToday: false }
+    : { msg: state.msg, rare: state.rare, keptToday: state.keptToday };
+  if (!fresh) scene.raiseCard(); // reopening the held card — present it now
+  ui.showCard(state, view, {
     onKeep: () => {
-      if (state.keptToday) {
+      if (!fresh && state.keptToday) { // already in the Book → just open it
         sfx.pop();
         openBook('cards');
         return;
       }
       sfx.pop();
+      if (fresh) {
+        // this is the moment the card lands in his hands
+        state.drawn = true;
+        state.rare = card.rare;
+        state.msg = card.msg;
+        updateCardScreen();
+        scene.raiseCard(); // rig models play 'present', legacy 'raise' + quad slide
+      }
       state.cards.push({ m: state.msg, rare: state.rare, day: state.day, by: activeChar().name });
       state.keptToday = true;
       persist();
       ui.closeOverlay();
       bubble('Tucked into the Book. ♥');
     },
+    // "Later" declines the draw: nothing enters the Book and his hands are
+    // left holding exactly what they were before.
     onLater: () => {
       ui.closeOverlay();
-      bubble("I'll hold onto it. Tap me anytime.");
+      bubble('Maybe next time. ♥');
     },
   });
 }
