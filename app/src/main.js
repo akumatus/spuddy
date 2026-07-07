@@ -274,11 +274,29 @@ const BUILTIN_CARD_CHANCE = 0.08;
 
 const pickOf = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-// No-replacement bookkeeping: the per-batch used list resets when a fresh
+// No-replacement bookkeeping: the per-batch used lists reset when a fresh
 // daily pool lands (its date stamp changes — including the first fetch).
 function syncUsedCards() {
   const d = remote.batchDate();
   if (!state.usedCards || state.usedCards.date !== d) state.usedCards = { date: d, used: [] };
+  if (!state.usedGolden || state.usedGolden.date !== d) state.usedGolden = { date: d, used: [] };
+}
+
+// Golden-pool gacha without replacement — mirrors the normal pool's
+// bookkeeping so pool draws don't repeat until today's goldens are exhausted.
+function pickGoldenFromPool(pool) {
+  syncUsedCards();
+  const unseen = pool.filter((m) => !state.usedGolden.used.includes(m) && m !== state.msg);
+  let msg;
+  if (unseen.length) {
+    msg = pickOf(unseen);
+  } else {
+    state.usedGolden.used = [];
+    const lap = pool.filter((m) => m !== state.msg);
+    msg = pickOf(lap.length ? lap : pool);
+  }
+  state.usedGolden.used.push(msg);
+  return msg;
 }
 
 function drawToday() {
@@ -367,10 +385,11 @@ async function weaveGolden() {
   sfx.chime();
   state.drawn = true;
   state.rare = true;
-  // live weave when it rolled and landed; else today's cron golden pool; the
-  // hand-written voiced built-ins only when the pool is unreachable
+  // live weave when it rolled and landed; else today's cron golden pool
+  // (no-replacement); the hand-written built-ins only when the pool is
+  // unreachable
   const gPool = remote.goldenPool(ch.id);
-  state.msg = aiMsg || (gPool ? pickOf(gPool) : goldenFallback(ch.id));
+  state.msg = aiMsg || (gPool ? pickGoldenFromPool(gPool) : goldenFallback(ch.id));
   state.keptToday = false;
   persist();
   updateCardScreen();

@@ -24,6 +24,7 @@ export function defaultState() {
     keptToday: false,
     cards: [], // {m, rare, day, by, fav}
     usedCards: { date: null, used: [] }, // server-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
+    usedGolden: { date: null, used: [] }, // golden-pool lines drawn this batch — same no-replacement bookkeeping
     usedBuiltins: [], // built-in DAILY lines ever drawn — each retires permanently once seen
     memory: [], // {day, fact, kind} — durable facts he's distilled about the human
     chat: [{ who: 'pet', text: `${greet('spud')} Or just talk to me, I remember things.` }],

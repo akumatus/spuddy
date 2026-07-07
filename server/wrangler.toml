@@ -54,7 +54,9 @@ CHAT_DAILY_LIMIT = "100"
 # persona draws from it); GOLDEN_PER_DAY is per persona. Sized for the app's
 # no-replacement gacha: heavy users burn through the whole pool in a day.
 CARDS_PER_DAY = "72"
-GOLDEN_PER_DAY = "14"
+# Goldens land often (~37% of draws) and half of those skip the live weave, so
+# the pool needs depth — the app also draws it without replacement now.
+GOLDEN_PER_DAY = "28"
 # Mutters (private inner-monologue) per mood (watch/alone/lonely) per persona.
 MUTTERS_PER_DAY = "16"
 # Small generation calls per pool per day — several small batches, each with
