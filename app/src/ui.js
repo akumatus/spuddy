@@ -248,18 +248,35 @@ export function showBook(state, tab, filter, handlers) {
         ${state.cards.length ? '<button class="clear" id="cardsClear">clear all</button>' : ''}
       </div>`;
   } else if (tab === 'chat') {
-    // Full conversation transcript — the running context he replies from. His
-    // opening greeting is the only non-user line when the log is fresh.
+    // Full conversation, shown in the old Memory card style: each exchange is a
+    // card — what you said, then how he answered (his reply in his handwriting).
+    // Fold the flat who/text log into note+reply pairs; runs of your messages
+    // collapse into one note, his opening greeting stands as a reply-only card.
     const turns = state.chat || [];
     const spoken = turns.filter((m) => m.who === 'user').length;
+    const pairs = [];
+    let cur = null;
+    for (const m of turns) {
+      if (m.who === 'user') {
+        if (cur && !cur.reply) cur.note = cur.note ? `${cur.note}\n${m.text}` : m.text;
+        else { if (cur) pairs.push(cur); cur = { note: m.text, reply: '' }; }
+      } else {
+        if (!cur) cur = { note: '', reply: m.text };
+        else { cur.reply = cur.reply ? `${cur.reply}\n${m.text}` : m.text; pairs.push(cur); cur = null; }
+      }
+    }
+    if (cur) pairs.push(cur);
     body = `
       ${turns.length === 0 ? `<div class="empty">No messages yet — say hi and he'll answer.</div>` : ''}
-      <div class="chatlog">
-        ${turns
+      <div class="mems">
+        ${pairs
           .map(
-            (m) => `
-          <div class="turn ${m.who === 'user' ? 'me' : 'pet'}">
-            <div class="msg">${esc(m.text)}</div>
+            (p) => `
+          <div class="mem">
+            <div class="body">
+              ${p.note ? `<div class="note">you: ${esc(p.note)}</div>` : ''}
+              ${p.reply ? `<div class="reply">${esc(p.reply)}</div>` : ''}
+            </div>
           </div>`
           )
           .join('')}

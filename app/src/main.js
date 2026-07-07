@@ -727,21 +727,30 @@ const stage = $('stage');
 const panel = $('hoverpanel');
 let hovT = null;
 
+let panelHover = false; // pointer resting on the stage or one of the panel controls
+
+// The panel stays up while the pointer rests on it OR while the chat input holds
+// focus — a focused field means you're mid-message, so letting the pointer wander
+// off shouldn't yank the panel (and your half-typed text) away.
+function panelPinned() {
+  return panelHover || document.activeElement === $('chatInput');
+}
 function showPanel() {
   clearTimeout(hovT);
   if (!anim().tucked && !ui.isOverlayOpen()) panel.classList.add('show');
 }
 function hidePanelSoon() {
   clearTimeout(hovT);
+  if (panelPinned()) return;
   hovT = setTimeout(() => panel.classList.remove('show'), 320);
 }
-stage.addEventListener('mouseenter', showPanel);
-stage.addEventListener('mouseleave', hidePanelSoon);
+stage.addEventListener('mouseenter', () => { panelHover = true; showPanel(); });
+stage.addEventListener('mouseleave', () => { panelHover = false; hidePanelSoon(); });
 // The panel container is click-through now (only its controls catch the mouse),
 // so keep-alive listens on each control instead of the whole panel box.
 for (const el of [$('said'), $('icons'), $('chatrow')]) {
-  el.addEventListener('mouseenter', showPanel);
-  el.addEventListener('mouseleave', hidePanelSoon);
+  el.addEventListener('mouseenter', () => { panelHover = true; showPanel(); });
+  el.addEventListener('mouseleave', () => { panelHover = false; hidePanelSoon(); });
 }
 
 // tap vs drag: dragging the potato moves the whole window; horizontal drag
@@ -849,7 +858,10 @@ $('chatInput').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') $('chatInput').blur();
 });
 $('chatInput').addEventListener('focus', () => { brain.interrupt(); anim().setMode('lean'); }); // 04 · Listen Lean
-$('chatInput').addEventListener('blur', () => { if (!chatBusy && !weaving) anim().setMode('idle'); });
+$('chatInput').addEventListener('blur', () => {
+  if (!chatBusy && !weaving) anim().setMode('idle');
+  hidePanelSoon(); // focus no longer pins the panel — hide it unless the pointer still holds it
+});
 $('chatInput').placeholder = `tell ${activeChar().name} what's on your mind…`;
 
 $('bookBtn').onclick = () => { sfx.pop(); openBook('cards'); };

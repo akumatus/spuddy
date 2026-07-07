@@ -221,14 +221,16 @@ export class CardScreen {
       ctx.fillText(c.top, W / 2, top + ch * 0.12);
     }
 
-    // main text: auto-fit Caveat, wrapped — sized to fill the card so it stays
-    // legible at desktop-pet scale (hands may clip the edges of long messages)
+    // main text: auto-fit handwriting, wrapped — sized to fill the card so it
+    // stays legible at desktop-pet scale (hands may clip the edges of long ones).
+    // CJK falls through Caveat to a system handwriting face, mirroring --hand.
+    const HAND = `Caveat, 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive`;
     const maxW = cw * 0.98;
     const maxH = ch * (c.footL || c.footR ? 0.7 : 0.76);
     let size = Math.round(ch * 0.34);
     let lines = [];
     while (size > 10) {
-      ctx.font = `700 ${size}px Caveat, cursive`;
+      ctx.font = `700 ${size}px ${HAND}`;
       lines = wrapText(ctx, c.main || '', maxW);
       if (lines.length * size * 1.08 <= maxH && lines.every((l) => ctx.measureText(l).width <= maxW)) break;
       size -= 2;
@@ -246,7 +248,7 @@ export class CardScreen {
     }
     if (c.footR) {
       ctx.fillStyle = '#8A7455';
-      ctx.font = `600 ${Math.round(ch * 0.095)}px Caveat, cursive`;
+      ctx.font = `600 ${Math.round(ch * 0.095)}px ${HAND}`;
       ctx.textAlign = 'right';
       ctx.fillText(c.footR, W / 2 + cw / 2 - cw * 0.04, top + ch * 0.9);
     }

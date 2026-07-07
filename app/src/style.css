@@ -13,6 +13,10 @@
   --tan: #a8905a;
   --red: #b9543f;
   --heart: #d96a6a;
+  /* Handwriting stack: Caveat covers Latin only, so CJK characters fall through
+     to a system handwriting face (macOS 翩翩体/手札体/行楷, then generic) — keeps
+     Chinese looking hand-written like the English instead of a flat sans. */
+  --hand: 'Caveat', 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -55,7 +59,7 @@ html, body {
   position: absolute;
   top: 66%;
   right: 60px;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-weight: 700;
   font-size: 24px;
   color: #5a4934;
@@ -110,7 +114,7 @@ html, body {
   border: 1.5px dashed #d8c9ac;
   border-radius: 16px;
   padding: 7px 15px;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-size: 20px;
   font-weight: 600;
   color: #6b5b44;
@@ -139,7 +143,7 @@ html, body {
 #emotes .em {
   position: absolute;
   top: 37%;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-size: 26px;
   font-weight: 700;
   color: #c9964f;
@@ -191,7 +195,7 @@ html, body {
 #said {
   max-width: 220px;
   text-align: right;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-weight: 600;
   font-size: 18px;
   line-height: 1.15;
@@ -243,7 +247,7 @@ html, body {
   left: 0;
   right: 0;
   text-align: center;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-weight: 700;
   font-size: 11px;
   color: var(--tan);
@@ -277,7 +281,7 @@ html, body {
   flex: 1;
   min-width: 0;
   border: none;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
@@ -338,7 +342,7 @@ html, body {
 .cardbox.gold .tag { background: var(--gold); color: var(--gold-bg); }
 .cardbox .tag.green { background: #7e9469; color: #f4f8ee; }
 .cardbox .msg {
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-weight: 700;
   line-height: 1.14;
   text-align: center;
@@ -403,7 +407,7 @@ html, body {
   font-size: 26px;
   color: var(--heart);
 }
-.drawback .label { font-family: 'Caveat', cursive; font-weight: 700; font-size: 24px; color: var(--tan); }
+.drawback .label { font-family: var(--hand); font-weight: 700; font-size: 24px; color: var(--tan); }
 .drawback .brand { font-size: 10px; font-weight: 900; letter-spacing: 0.24em; color: #c9b99b; }
 
 .weavebox {
@@ -436,7 +440,7 @@ html, body {
   border-radius: 999px;
   background: radial-gradient(circle at 35% 30%, #f0d98a, var(--gold));
 }
-.weavebox .line { font-family: 'Caveat', cursive; font-weight: 700; font-size: 26px; color: #8a7455; text-align: center; }
+.weavebox .line { font-family: var(--hand); font-weight: 700; font-size: 26px; color: #8a7455; text-align: center; }
 .weavebox .brand { font-size: 11px; font-weight: 800; letter-spacing: 0.18em; color: var(--gold); }
 
 /* ── Card Book ── */
@@ -517,7 +521,7 @@ html, body {
 #book .empty {
   padding: 40px 20px;
   text-align: center;
-  font-family: 'Caveat', cursive;
+  font-family: var(--hand);
   font-weight: 700;
   font-size: 24px;
   color: var(--tan);
@@ -558,7 +562,7 @@ html, body {
 .ccard .acts .fav.on { color: var(--heart); }
 .ccard .acts .del { color: var(--tan); font-weight: 900; }
 .ccard .acts .del:hover { color: var(--red); }
-.ccard .m { font-family: 'Caveat', cursive; font-weight: 700; font-size: 17px; line-height: 1.08; padding-right: 46px; }
+.ccard .m { font-family: var(--hand); font-weight: 700; font-size: 17px; line-height: 1.08; padding-right: 46px; }
 .ccard .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 10.5px; font-weight: 800; color: var(--tan); }
 .ccard .foot .star { color: var(--gold); }
 
@@ -600,7 +604,9 @@ html, body {
 .mem { display: flex; gap: 10px; align-items: flex-start; background: var(--paper); border: 1.5px solid #eadfc8; border-radius: 12px; padding: 10px 12px; }
 .mem .day { font-size: 10px; font-weight: 900; color: var(--tan); letter-spacing: 0.08em; background: #f1e8d6; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 .mem .body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.mem .fact { font-family: 'Caveat', cursive; font-weight: 600; font-size: 17px; color: #8a7455; line-height: 1.25; padding: 1px 0; }
+.mem .note { font-size: 12.5px; font-weight: 700; white-space: pre-wrap; }
+.mem .reply { font-family: var(--hand); font-weight: 600; font-size: 16px; color: #8a7455; white-space: pre-wrap; }
+.mem .fact { font-family: var(--hand); font-weight: 600; font-size: 17px; color: #8a7455; line-height: 1.25; padding: 1px 0; }
 .mem .del {
   cursor: pointer;
   width: 22px;
@@ -633,18 +639,6 @@ html, body {
 .kind.milestone { background: var(--gold-bg); color: var(--gold); }
 .kind.feeling { background: #eee7f4; color: #6b5a86; }
 .kind.other { background: #f1e8d6; color: var(--tan); }
-
-/* chat transcript — the full conversation, user right / pet left */
-#book .chatlog { display: flex; flex-direction: column; gap: 7px; flex: 1; min-height: 0; overflow: auto; padding: 2px; }
-.chatlog .turn { display: flex; }
-.chatlog .turn.me { justify-content: flex-end; }
-.chatlog .turn.pet { justify-content: flex-start; }
-.chatlog .msg {
-  max-width: 78%; padding: 8px 12px; border-radius: 14px;
-  font-size: 13px; line-height: 1.35; white-space: pre-wrap; word-break: break-word;
-}
-.chatlog .turn.me .msg { background: #f3e7cf; color: var(--ink); border-bottom-right-radius: 5px; }
-.chatlog .turn.pet .msg { background: var(--paper); border: 1.5px solid #eadfc8; color: #6b5b43; border-bottom-left-radius: 5px; }
 
 #book .bookfoot { display: flex; align-items: center; justify-content: center; gap: 12px; }
 #book .bookfoot .clear {
