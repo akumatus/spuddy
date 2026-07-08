@@ -1,5 +1,6 @@
 // ── chat (heart-to-heart): send/reply loop, gesture acting, distilled memory ──
 import { MEMORY_KIND_IDS, PERS, chatFallback, limitReply } from '../content';
+import { lang } from '../locale';
 import { sfx, type SfxName } from '../sfx';
 import * as store from '../store';
 import type { MemoryKind, MemoryMood } from '../types';
@@ -34,20 +35,21 @@ const GESTURE_SFX: Record<string, SfxName> = {
   sing: 'chime', dance: 'chime', cheer: 'chime', hop: 'chime', hug: 'low', sulk: 'low',
 };
 
-// Client-side safety net so "sing me a song" still moves him when the LLM is
-// offline / over budget and returned no gesture of its own. Keyword-matched
-// against what the human just said.
+// Client-side safety net so "sing me a song" (or 「唱首歌」) still moves him
+// when the LLM is offline / over budget and returned no gesture of its own.
+// Keyword-matched against what the human just said, in both languages —
+// keyed on the words, not the UI language, so either works anytime.
 export function detectGesture(text: string): string | null {
   const t = (text || '').toLowerCase();
-  if (/\b(sing|song|serenade|a tune)\b/.test(t)) return 'sing';
-  if (/\b(hug|cuddle|hold me|squeeze|embrace)\b/.test(t)) return 'hug';
-  if (/\b(dance|boogie|twirl|pirouette)\b/.test(t)) return 'dance';
-  if (/\b(spin|turn around)\b/.test(t)) return 'spin';
-  if (/\b(wave|say hi|greet)\b/.test(t)) return 'wave';
-  if (/\b(jump|hop|bounce)\b/.test(t)) return 'hop';
-  if (/\b(stretch|yawn)\b/.test(t)) return 'stretch';
-  if (/\b(cheer|celebrate|hooray|hurray|yay|woohoo|party)\b/.test(t)) return 'cheer';
-  if (/\b(hide|be shy|peekaboo|peek-?a-?boo)\b/.test(t)) return 'shy';
+  if (/\b(sing|song|serenade|a tune)\b/.test(t) || /唱[首个支]?歌|唱一?[首个支]/.test(t)) return 'sing';
+  if (/\b(hug|cuddle|hold me|squeeze|embrace)\b/.test(t) || /抱抱|抱一?下|拥抱|抱我/.test(t)) return 'hug';
+  if (/\b(dance|boogie|twirl|pirouette)\b/.test(t) || /跳[个支段]?舞/.test(t)) return 'dance';
+  if (/\b(spin|turn around)\b/.test(t) || /转[个一]?圈|转一?下/.test(t)) return 'spin';
+  if (/\b(wave|say hi|greet)\b/.test(t) || /挥[挥个]?手|打个?招呼/.test(t)) return 'wave';
+  if (/\b(jump|hop|bounce)\b/.test(t) || /跳一?[下跳]|蹦[一个]?[下个]?/.test(t)) return 'hop';
+  if (/\b(stretch|yawn)\b/.test(t) || /伸个?懒腰|拉伸/.test(t)) return 'stretch';
+  if (/\b(cheer|celebrate|hooray|hurray|yay|woohoo|party)\b/.test(t) || /庆祝|欢呼|干杯|耶[!！]?/.test(t)) return 'cheer';
+  if (/\b(hide|be shy|peekaboo|peek-?a-?boo)\b/.test(t) || /躲起来|藏起来|捉迷藏|害羞/.test(t)) return 'shy';
   return null;
 }
 
@@ -124,6 +126,7 @@ export async function runChat(): Promise<void> {
       day: state.day,
       memory: state.memory.slice(-10),
       messages: state.chat.slice(-12),
+      lang: lang(), // picks the matching daily-batch musings server-side
     }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy
     chatPending.splice(0, covered.length); // clear what he just answered; keep mid-flight arrivals
 

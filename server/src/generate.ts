@@ -1,14 +1,16 @@
 // Daily batch generation — run by the cron trigger and POST /admin/generate.
-// Knits the shared normal pool, per-persona golden pools and mutter pools,
-// then stores the batch in KV (cards:current).
+// Knits the shared normal pool, per-persona golden pools and mutter pools —
+// once per language — then stores each batch in KV (cards:current for
+// English, cards:current:zh for Chinese).
 import { CHAT_IDS, PERSONAS, buildGoldenBatchPrompt, buildMutterPrompt, buildNormalBatchPrompt } from './personas';
 import { callLLMChain, genProviderChain, loadConfig } from './providers';
-import { MOODS, type CardsBatch, type CharBatch, type Env, type MutterMood } from './types';
+import { LANGS, MOODS, batchKey, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood } from './types';
 import { clean, today } from './util';
 
 interface GenOpts {
   genChain: string[];
   models?: Record<string, string>;
+  lang: Lang;
   nNormal: number;
   nGolden: number;
   nMutters: number;
@@ -16,10 +18,12 @@ interface GenOpts {
 }
 
 // Near-identical lines across runs collapse to one (punctuation/case ignored).
+// Unicode-aware: keep letters/digits in any script — the old [^a-z0-9] filter
+// reduced every Chinese line to the same empty key and deduped the whole pool.
 function dedupeLines(lines: string[]): string[] {
   const seen = new Set<string>();
   return lines.filter((s) => {
-    const key = s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    const key = s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '').trim();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -57,7 +61,7 @@ function extractJson(text: string): Record<string, unknown> | null {
 async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
   const per = Math.ceil(opts.nNormal / opts.runs);
   const runOnce = async (): Promise<string[]> => {
-    const prompt = buildNormalBatchPrompt(per); // fresh seeds per run
+    const prompt = buildNormalBatchPrompt(per, opts.lang); // fresh seeds per run
     // one retry — the batch call occasionally returns throttled/unparseable
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -89,7 +93,7 @@ async function generateGoldenForChar(env: Env, id: string, opts: GenOpts): Promi
   const runs = Math.max(1, Math.round(opts.runs / 2));
   const per = Math.ceil(opts.nGolden / runs);
   const runOnce = async (): Promise<string[]> => {
-    const prompt = buildGoldenBatchPrompt(PERSONAS[id], per);
+    const prompt = buildGoldenBatchPrompt(PERSONAS[id], per, opts.lang);
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const { text } = await callLLMChain(env, opts.genChain, {
@@ -117,7 +121,7 @@ async function generateMuttersForChar(env: Env, id: string, opts: GenOpts): Prom
   // Same small-runs strategy as the cards: fresh seeds per run, merge + dedupe.
   const per = Math.ceil(opts.nMutters / opts.runs);
   const runOnce = async (): Promise<Record<MutterMood, string[]> | null> => {
-    const prompt = buildMutterPrompt(PERSONAS[id], per); // fresh seeds per run
+    const prompt = buildMutterPrompt(PERSONAS[id], per, opts.lang); // fresh seeds per run
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const { text } = await callLLMChain(env, opts.genChain, {
@@ -147,16 +151,8 @@ async function generateMuttersForChar(env: Env, id: string, opts: GenOpts): Prom
   return { mutters };
 }
 
-export async function generateAll(env: Env): Promise<CardsBatch> {
-  const cfg = await loadConfig(env);
-  const opts: GenOpts = {
-    genChain: genProviderChain(env, cfg),
-    models: cfg.models,
-    nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
-    nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),
-    nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
-    runs: Math.max(1, parseInt(env.GEN_RUNS || '2', 10)),
-  };
+// One language's full batch: shared normal pool + per-persona golden/mutters.
+async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
   // Generate the shared pool and every persona CONCURRENTLY (golden + mutters).
   // Sequential calls accumulate wall time and the later ones get throttled/cut;
   // concurrent keeps total time ~= one call.
@@ -180,7 +176,8 @@ export async function generateAll(env: Env): Promise<CardsBatch> {
 
   // Never clobber good content with empties — if a field hiccups this run, keep
   // whatever it had last time so no character is ever left with nothing.
-  const prevRaw = await env.KV.get('cards:current');
+  const key = batchKey(opts.lang);
+  const prevRaw = await env.KV.get(key);
   if (prevRaw) {
     try {
       const prev = JSON.parse(prevRaw) as Partial<CardsBatch>;
@@ -203,6 +200,27 @@ export async function generateAll(env: Env): Promise<CardsBatch> {
   }
 
   const data: CardsBatch = { date: today(), normal, cards };
-  await env.KV.put('cards:current', JSON.stringify(data));
+  await env.KV.put(key, JSON.stringify(data));
   return data;
+}
+
+export async function generateAll(env: Env): Promise<Record<Lang, CardsBatch>> {
+  const cfg = await loadConfig(env);
+  const base = {
+    genChain: genProviderChain(env, cfg),
+    models: cfg.models,
+    nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
+    nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),
+    nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
+    runs: Math.max(1, parseInt(env.GEN_RUNS || '2', 10)),
+  };
+  // Languages run SEQUENTIALLY: one batch already fans out into 1 + 2×6
+  // concurrent chains, and Workers queues outbound connections beyond its
+  // concurrency cap — doubling the fan-out would just push the tail calls
+  // into the same timeout window that made the runs flaky before.
+  const out = {} as Record<Lang, CardsBatch>;
+  for (const lang of LANGS) {
+    out[lang] = await generateBatch(env, { ...base, lang });
+  }
+  return out;
 }

@@ -1,5 +1,6 @@
 // ── daily card: the gacha draw, the golden weave, and the card offer ──
-import { DAILY, DRAWLINES, PERS, WEAVELINES, goldenFallback } from '../content';
+import { PERS, TXT, goldenFallback } from '../content';
+import { lang } from '../locale';
 import * as remote from '../remote';
 import { sfx } from '../sfx';
 import { closeOverlay } from '../ui/overlay';
@@ -81,6 +82,7 @@ export function drawToday(): void {
   // Built-ins are a rare seasoning and never come back once seen; offline the
   // built-in DAILY pool carries alone.
   syncUsedCards();
+  const DAILY = TXT().daily;
   const serverPool = remote.normalPool(ctx.activeChar().id);
   const freshBuiltins = DAILY.map((d) => d.m).filter((m) => !state.usedBuiltins.includes(m));
   let msg: string;
@@ -115,7 +117,8 @@ export function drawToday(): void {
     // Don't put the card in his hands yet — the draw only offers it. It lands
     // on the potato in openCard's onKeep; "Later" leaves his hands untouched.
     openCard({ msg, rare: false });
-    bubble(DRAWLINES[Math.floor(Math.random() * DRAWLINES.length)]);
+    const lines = TXT().drawLines;
+    bubble(lines[Math.floor(Math.random() * lines.length)]);
   }, 1250);
 }
 
@@ -127,11 +130,12 @@ export async function weaveGolden(): Promise<void> {
   ctx.anim().play('bigSquish');
   ctx.anim().setMode('rock');
   ctx.scene.setCardPulse(true);
-  showWeave(WEAVELINES[0]);
+  const weaveLines = TXT().weaveLines;
+  showWeave(weaveLines[0]);
   let li = 0;
   const weaveInt = setInterval(() => {
-    li = (li + 1) % WEAVELINES.length;
-    setWeaveLine(WEAVELINES[li]);
+    li = (li + 1) % weaveLines.length;
+    setWeaveLine(weaveLines[li]);
   }, 2400);
 
   const ch = ctx.activeChar();
@@ -141,7 +145,7 @@ export async function weaveGolden(): Promise<void> {
     // saves the shared daily budget for chat. .catch → null so a dropped
     // connection can't leave the weave stuck spinning.
     Math.random() < GOLDEN_LIVE_CHANCE
-      ? pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory }).catch(() => null)
+      ? pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory, lang: lang() }).catch(() => null)
       : Promise.resolve(null),
     new Promise((r) => setTimeout(r, 1800)),
   ]);
@@ -158,7 +162,7 @@ export async function weaveGolden(): Promise<void> {
   ctx.persist(); // save the golden bookkeeping (draws/pity, used-list) before he keeps it
   // Offer it in the overlay; it only lands on the potato if he keeps it.
   openCard({ msg: gMsg, rare: true });
-  bubble('Knit fresh, just for you.');
+  bubble(TXT().ui.knitFresh);
 }
 
 // openCard(card) offers a freshly drawn card in the overlay without touching
@@ -192,13 +196,13 @@ export function openCard(card?: { msg: string; rare: boolean }): void {
       state.keptToday = true;
       ctx.persist();
       closeOverlay();
-      bubble('Tucked into the Book. ♥');
+      bubble(TXT().ui.tucked);
     },
     // "Later" declines the draw: nothing enters the Book and his hands are
     // left holding exactly what they were before.
     onLater: () => {
       closeOverlay();
-      bubble('Maybe next time. ♥');
+      bubble(TXT().ui.maybeNext);
     },
   });
 }

@@ -1,5 +1,5 @@
 // ── unlocks (2a rules) ──
-import { CHARS, UNLOCK } from '../content';
+import { CHARS, TXT, UNLOCK } from '../content';
 import { sfx } from '../sfx';
 import * as store from '../store';
 import { confettiBurst } from '../ui/effects';
@@ -19,7 +19,7 @@ export function checkUnlocks(): void {
   sfx.chime();
   ctx.anim().playCheer();
   confettiBurst();
-  bubble(`Unlocked: ${newly.map((c) => c.name).join(' & ')}! Say hi in Buddies.`, { hold: 4200 });
+  bubble(TXT().ui.unlocked(newly.map((c) => c.name).join(' & ')), { hold: 4200 });
   store.save(state);
   $('buddiesDot').classList.remove('hidden');
 }

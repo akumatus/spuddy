@@ -1,5 +1,5 @@
 // Buddies — the standalone character-picker panel.
-import { CHARS, PERS, UNLOCK } from '../content';
+import { CHARS, TXT, UNLOCK } from '../content';
 import { counts } from '../store';
 import type { AppState, CharId } from '../types';
 import { esc, modal, openOverlay } from './overlay';
@@ -10,6 +10,8 @@ export interface BuddiesHandlers {
 }
 
 export function showBuddies(state: AppState, handlers: BuddiesHandlers): void {
+  const t = TXT();
+  const ui = t.ui;
   const cts = counts(state);
   const unlocked = (id: CharId) => !UNLOCK[id] || state.unlockedIds.includes(id);
   const unlockedCount = CHARS.filter((c) => unlocked(c.id)).length;
@@ -17,8 +19,8 @@ export function showBuddies(state: AppState, handlers: BuddiesHandlers): void {
   openOverlay(`
     <div id="book" class="buddiespanel">
       <div class="head">
-        <span class="title">Buddies</span>
-        <span class="subcount">${unlockedCount}/6 friends</span>
+        <span class="title">${ui.buddiesTitle}</span>
+        <span class="subcount">${ui.friendsCount(unlockedCount, CHARS.length)}</span>
         <button class="close" id="buddiesClose">×</button>
       </div>
       <div class="buddies">
@@ -26,17 +28,18 @@ export function showBuddies(state: AppState, handlers: BuddiesHandlers): void {
           const un = unlocked(ch.id);
           const act = state.active === ch.id;
           const d = UNLOCK[ch.id];
-          const btn = act ? 'On duty ♥' : un ? 'Set active' : `${Math.min(cts[d!.key], d!.n)}/${d!.n} · ${d!.verb}`;
+          const dt = t.unlock[ch.id];
+          const btn = act ? ui.onDuty : un ? ui.setActive : `${Math.min(cts[d!.key], d!.n)}/${d!.n} · ${dt!.verb}`;
           return `
           <div class="buddy ${un ? '' : 'locked'} ${act ? 'active' : ''}">
             <div class="pic" style="background-image:url('./chars/char-${ch.id}.png')"></div>
             <div class="nm">${ch.name}</div>
-            <div class="ps">${un ? PERS[ch.id].p : esc(d!.how)}</div>
+            <div class="ps">${un ? t.pers[ch.id].p : esc(dt!.how)}</div>
             <button data-pick="${ch.id}">${btn}</button>
           </div>`;
         }).join('')}
       </div>
-      <div class="hint">each buddy joins for a different kind of care — keep · favorite · confide · show up · go gold. once a friend, always a friend</div>
+      <div class="hint">${ui.buddiesHint}</div>
     </div>`);
 
   document.getElementById('buddiesClose')!.onclick = handlers.onClose;

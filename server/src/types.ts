@@ -38,12 +38,21 @@ export interface MemoryItem {
   day?: number;
 }
 
+// batch/content language: English is the default and the legacy behavior
+export const LANGS = ['en', 'zh'] as const;
+export type Lang = (typeof LANGS)[number];
+export const asLang = (v: string | null | undefined): Lang => (v === 'zh' ? 'zh' : 'en');
+// per-language KV key for the daily batch — 'cards:current' stays the en key
+// so app builds from before the i18n work keep reading English pools
+export const batchKey = (lang: Lang): string => (lang === 'zh' ? 'cards:current:zh' : 'cards:current');
+
 // POST body shared by /chat, /golden and /greet (fields used vary per route)
 export interface ChatPayload {
   deviceId?: string;
   charId?: string;
   day?: number;
   daypart?: string;
+  lang?: string; // 'zh' → zh prompts + zh daily-batch musings
   memory?: MemoryItem[];
   messages?: { who?: string; text?: string }[];
 }

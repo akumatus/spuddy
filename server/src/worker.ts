@@ -16,7 +16,7 @@
 import { generateAll } from './generate';
 import { PERSONAS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
-import { MOODS, type CardsBatch, type ChatPayload, type Env } from './types';
+import { LANGS, MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type Env, type Lang } from './types';
 import { CORS, clean, json, today } from './util';
 
 // Optional soft gate: baking a shared token into the app deters casual abuse of
@@ -71,9 +71,9 @@ async function bumpQuota(env: Env, q: QuotaState): Promise<void> {
 // A few of today's cron-baked mutters, fed into the chat prompt as the pet's
 // inner life — conversational material the daily batch already paid for.
 // Best-effort: any KV miss or shape change just means no musings this turn.
-async function todaysMusings(env: Env, charId: string | undefined): Promise<string[]> {
+async function todaysMusings(env: Env, charId: string | undefined, lang: Lang): Promise<string[]> {
   try {
-    const raw = await env.KV.get('cards:current');
+    const raw = await env.KV.get(batchKey(lang));
     const mutters = raw ? (JSON.parse(raw) as CardsBatch).cards?.[charId || '']?.mutters : null;
     if (!mutters) return [];
     const pool = MOODS.flatMap((k) => mutters[k] || []);
@@ -94,7 +94,11 @@ export default {
       if (url.pathname === '/health') return json({ ok: true });
 
       if (url.pathname === '/cards' && request.method === 'GET') {
-        const raw = await env.KV.get('cards:current');
+        const lang = asLang(url.searchParams.get('lang'));
+        // no en fallback for a missing zh batch (possible until the first cron
+        // after deploy): the app treats an empty answer as "use built-ins",
+        // which keeps a Chinese user on Chinese cards instead of English ones
+        const raw = await env.KV.get(batchKey(lang));
         if (!raw) return json({ stale: true, date: null, normal: [], cards: {} });
         const data = JSON.parse(raw) as CardsBatch;
         const char = url.searchParams.get('char');
@@ -109,7 +113,7 @@ export default {
         if (!q.ok) return json({ limited: true, used: q.used, limit: q.limit }, 429);
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
-        const system = buildChatSystem(persona, p, await todaysMusings(env, p.charId));
+        const system = buildChatSystem(persona, p, await todaysMusings(env, p.charId, asLang(p.lang)));
         const messages = (p.messages || []).map((m) => ({
           role: m.who === 'user' ? 'user' : 'assistant',
           content: m.text || '',
@@ -202,20 +206,25 @@ export default {
       if (url.pathname === '/admin/generate' && request.method === 'POST') {
         const want = env.ADMIN_TOKEN || env.APP_TOKEN;
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
-        const data = await generateAll(env);
-        const counts = {
-          normal: data.normal.length,
-          ...Object.fromEntries(
-            Object.entries(data.cards).map(([k, v]) => [
-              k,
-              {
-                golden: v.golden.length,
-                mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
-              },
-            ])
-          ),
-        };
-        return json({ ok: true, date: data.date, counts });
+        const batches = await generateAll(env);
+        const counts = Object.fromEntries(
+          LANGS.map((lang) => [
+            lang,
+            {
+              normal: batches[lang].normal.length,
+              ...Object.fromEntries(
+                Object.entries(batches[lang].cards).map(([k, v]) => [
+                  k,
+                  {
+                    golden: v.golden.length,
+                    mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
+                  },
+                ])
+              ),
+            },
+          ])
+        );
+        return json({ ok: true, date: batches.en.date, counts });
       }
 
       return json({ error: 'not found' }, 404);

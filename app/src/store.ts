@@ -34,6 +34,7 @@ export function defaultState(): AppState {
     unlockedIds: ['spud'],
     buddyNew: false,
     sound: true,
+    lang: 'auto', // follow the system locale until the tray menu says otherwise
     nightShownDate: null,
     // personality engine (7a) — 0..100, design Tweaks defaults
     personality: { curiosity: 65, clinginess: 60, drama: 55, sleepiness: 35 },
@@ -74,6 +75,7 @@ export function load(): AppState {
   s.keptToday = false;
   if (typeof s.draws !== 'number') s.draws = s.drawn ? 1 : 0; // migrate old saves
   if (typeof s.pity !== 'number') s.pity = 0; // golden pity counter persists across days, not reset on day rollover
+  if (s.lang !== 'en' && s.lang !== 'zh') s.lang = 'auto'; // pre-i18n saves + bad values
   return s;
 }
 

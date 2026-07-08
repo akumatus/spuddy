@@ -11,7 +11,17 @@ import type {
   MemoryMood,
   RememberNote,
 } from '../../src/types';
-import { CARDS_CACHE, CONFIG, DEVICE_ID, SERVER_URL, serverFetch } from './config';
+import { CONFIG, DEVICE_ID, SERVER_URL, cardsCachePath, serverFetch } from './config';
+
+// Language rider for the local greet/golden prompts (the server builds its
+// own — see server/src/personas.ts; keep the wording in sync). Chat needs no
+// rider: its prompt already mirrors whatever language the human writes in.
+function zhRider(lang: string | undefined, kind: 'card' | 'greeting'): string {
+  if (lang !== 'zh') return '';
+  return kind === 'card'
+    ? ' Write the card in natural, conversational Simplified Chinese — never translated-sounding; the word limit becomes a 40-Chinese-character limit.'
+    : ' Speak in natural, conversational Simplified Chinese — never translated-sounding; the word limit becomes a 30-Chinese-character limit.';
+}
 
 // ── local AI fallback (used only when no serverUrl is configured) ──
 // Talks to DeepSeek's OpenAI-compatible /chat/completions endpoint — the same
@@ -160,7 +170,8 @@ export function registerAiIpc(): void {
         p.voice +
         ` Write ONE short encouragement card for your human. What you know about them:\n${ctx}\n` +
         `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing you know about them if any, ` +
-        `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.`;
+        `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.` +
+        zhRider(p.lang, 'card');
       const out = clean(await localChat({ messages: [{ role: 'user', content: prompt }], maxTokens: 200 }));
       return out && out.length > 4 && out.length < 220 ? out : null;
     } catch (e) {
@@ -195,7 +206,8 @@ export function registerAiIpc(): void {
           ? `What you know about them:\n${ctx}\nLightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `
           : 'Keep it warm and general. ') +
         `Rules: HARD LIMIT 20 words; sound spontaneous and a little different every time; plain text, ` +
-        `no emojis, no quotation marks, no emotion tag, no preamble. Output only the greeting.`;
+        `no emojis, no quotation marks, no emotion tag, no preamble. Output only the greeting.` +
+        zhRider(p.lang, 'greeting');
       const out = clean(await localChat({ messages: [{ role: 'user', content: prompt }], maxTokens: 120 }));
       return out && out.length > 2 && out.length < 200 ? out : null;
     } catch (e) {
@@ -203,23 +215,25 @@ export function registerAiIpc(): void {
     }
   });
 
-  // Daily card batch — pulled from the server (cron pre-generates it), cached to
-  // disk so draws still work offline. Returns null with no server configured, so
-  // the renderer falls back to its built-in DAILY pool.
-  ipcMain.handle('cards-today', async (): Promise<CardsBatch | null> => {
+  // Daily card batch — pulled from the server (cron pre-generates one per
+  // language), cached to disk per language so draws still work offline.
+  // Returns null with no server configured, so the renderer falls back to its
+  // built-in daily pool.
+  ipcMain.handle('cards-today', async (_e, lang?: string): Promise<CardsBatch | null> => {
     if (!SERVER_URL) return null;
+    const cache = cardsCachePath(lang);
     try {
-      const res = await serverFetch('/cards', { method: 'GET', timeout: 12000 });
+      const res = await serverFetch(`/cards${lang === 'zh' ? '?lang=zh' : ''}`, { method: 'GET', timeout: 12000 });
       if (res.ok) {
         const data = (await res.json()) as CardsBatch | null;
         if (data && data.cards && Object.keys(data.cards).length) {
-          try { fs.writeFileSync(CARDS_CACHE, JSON.stringify(data)); } catch (e) {}
+          try { fs.writeFileSync(cache, JSON.stringify(data)); } catch (e) {}
           return data;
         }
       }
     } catch (e) {
       // fall through to the last cached batch
     }
-    try { return JSON.parse(fs.readFileSync(CARDS_CACHE, 'utf8')); } catch (e) { return null; }
+    try { return JSON.parse(fs.readFileSync(cache, 'utf8')); } catch (e) { return null; }
   });
 }

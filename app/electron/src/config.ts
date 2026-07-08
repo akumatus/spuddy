@@ -20,7 +20,12 @@ export interface UserConfig {
 
 const CONFIG_DIR = path.join(app.getPath('home'), '.config', 'spuddy');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
-export const CARDS_CACHE = path.join(CONFIG_DIR, 'cards-cache.json');
+
+// One offline cache file per batch language, so switching languages never
+// serves a cached batch in the wrong one.
+export function cardsCachePath(lang?: string): string {
+  return path.join(CONFIG_DIR, lang === 'zh' ? 'cards-cache-zh.json' : 'cards-cache.json');
+}
 
 function readConfig(): UserConfig {
   try {

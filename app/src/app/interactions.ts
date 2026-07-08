@@ -1,7 +1,7 @@
 // ── input wiring: taps/pokes, window drag, hover panel, edge-dock naps,
 // cursor tracking, and the click-through choreography ──
 import { routineMs } from '../brain';
-import { CARDHINT, POKE, RETAP } from '../content';
+import { TXT } from '../content';
 import { CLIPS, WOBBLE } from '../scene/motions';
 import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
@@ -106,12 +106,13 @@ export function tapPet(target: PickTarget): void {
   if (name[0] === '@') return; // the show brings its own lines and sfx
   sfx.boing();
   heartsBurst();
+  const t = TXT();
   if (!ctx.state.drawn) {
-    bubble(Math.random() < 0.5 ? CARDHINT : POKE[Math.floor(Math.random() * POKE.length)]);
+    bubble(Math.random() < 0.5 ? t.cardHint : t.poke[Math.floor(Math.random() * t.poke.length)]);
   } else if (Math.random() < 0.5) {
-    bubble(POKE[Math.floor(Math.random() * POKE.length)]);
+    bubble(t.poke[Math.floor(Math.random() * t.poke.length)]);
   } else {
-    bubble(RETAP[retapIdx % RETAP.length]);
+    bubble(t.retap[retapIdx % t.retap.length]);
     retapIdx++;
   }
 }
@@ -139,6 +140,16 @@ export function wakeFromEdge(): void {
   $('zz').classList.add('hidden');
   ctx.anim().play('squish');
   sfx.boing();
+}
+
+// The static chrome that carries language: the chat placeholder and the hover
+// panel's button tooltips. Called at boot and again on every language switch.
+export function applyLangChrome(): void {
+  const ui = TXT().ui;
+  ($('chatInput') as HTMLInputElement).placeholder = ui.placeholder(ctx.activeChar().name);
+  $('bookBtn').title = ui.titleBook;
+  $('buddiesBtn').title = ui.titleBuddies;
+  $('soundBtn').title = ui.titleSound;
 }
 
 // Wires every DOM/IPC input handler. Called once from main.ts, after the
@@ -240,7 +251,7 @@ export function wireInteractions(): void {
       } else {
         ctx.anim().play('bigSquish');
         sfx.boing();
-        bubble('wheee— ok. landing.');
+        bubble(TXT().ui.landing);
       }
       return;
     }
@@ -259,7 +270,7 @@ export function wireInteractions(): void {
     if (!ctx.chatBusy && !ctx.weaving) ctx.anim().setMode('idle');
     hidePanelSoon(); // focus no longer pins the panel — hide it unless the pointer still holds it
   });
-  chatInput.placeholder = `tell ${ctx.activeChar().name} what's on your mind…`;
+  applyLangChrome();
 
   $('bookBtn').onclick = () => { sfx.pop(); openBook('cards'); };
   $('buddiesBtn').onclick = () => { sfx.pop(); openBuddies(); };

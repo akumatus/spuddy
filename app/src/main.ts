@@ -2,15 +2,17 @@
 // the feature modules together. All feature logic lives under src/app/;
 // rendering under src/scene/; popup markup under src/ui/.
 import { SpudBrain } from './brain';
-import { CHARS, NIGHTMSG, PERS, SEDENTARY, daypart, greet } from './content';
+import { CHARS, PERS, TXT, daypart, greet } from './content';
+import { lang, setLangPref } from './locale';
 import * as remote from './remote';
 import { PetScene } from './scene/scene';
 import { setSoundEnabled, sfx } from './sfx';
 import * as store from './store';
-import { isOverlayOpen } from './ui/overlay';
+import type { LangPref } from './types';
+import { closeOverlay, isOverlayOpen } from './ui/overlay';
 import { $, ctx, pp } from './app/context';
 import { installDebugHooks } from './app/debug';
-import { wireInteractions } from './app/interactions';
+import { applyLangChrome, wireInteractions } from './app/interactions';
 import { presentCare } from './app/panels';
 import { bubble, showMutter, spawnEmote } from './app/speech';
 import { checkUnlocks } from './app/unlocks';
@@ -21,6 +23,7 @@ const state = store.load();
 if (pp?.debug) state.unlockedIds = CHARS.map((c) => c.id);
 
 setSoundEnabled(state.sound);
+setLangPref(state.lang); // resolve the language before any text renders
 
 const scene = new PetScene($('pet') as HTMLCanvasElement);
 ctx.init(state, scene);
@@ -70,6 +73,22 @@ ctx.onPersist(() => {
 
 wireInteractions();
 
+// ── language switch (tray menu → main → here) ──
+// Persist the preference and re-render everything static; popups close so the
+// next open renders in the new language, and the daily pool re-pulls in it.
+function applyLangPref(pref: LangPref): void {
+  state.lang = pref;
+  setLangPref(pref);
+  store.save(state);
+  if (isOverlayOpen()) closeOverlay();
+  applyLangChrome();
+  ctx.updateCardScreen();
+  remote.refresh();
+  pp.lang?.report(pref, lang()); // tray checkmark + localized tray labels
+}
+pp.on('set-lang', (pref) => applyLangPref(pref));
+pp.lang?.report(state.lang, lang()); // initial sync so the tray matches the saved pref
+
 // (the old random idle-hop scheduler is gone — the soul engine (7a) owns
 // autonomous behavior now: boredom routines, dozing, knocking, mutters)
 
@@ -80,12 +99,12 @@ setInterval(() => {
   if (now.getHours() >= 23 && state.nightShownDate !== today) {
     state.nightShownDate = today;
     store.save(state);
-    presentCare('NIGHT CARE', NIGHTMSG);
+    presentCare(TXT().ui.careNight, TXT().nightMsg);
   }
 }, 60000);
 
 // sedentary reminder from the main process (90 min continuous activity)
-pp.on('sedentary', () => presentCare('STRETCH BREAK', SEDENTARY));
+pp.on('sedentary', () => presentCare(TXT().ui.careStretch, TXT().sedentary));
 
 // ── boot ──
 $('buddiesDot').classList.toggle('hidden', !state.buddyNew);
@@ -108,6 +127,7 @@ async function personalGreeting(): Promise<string | null> {
       daypart: daypart(),
       day: state.day,
       memory: state.memory.slice(-6),
+      lang: lang(),
     });
   } catch (e) {
     return null;

@@ -10,7 +10,10 @@ contextBridge.exposeInMainWorld('pp', {
     greet: (payload: unknown) => ipcRenderer.invoke('ai-greet', payload),
   },
   cards: {
-    today: () => ipcRenderer.invoke('cards-today'),
+    today: (lang?: string) => ipcRenderer.invoke('cards-today', lang),
+  },
+  lang: {
+    report: (pref: string, effective: string) => ipcRenderer.send('lang-changed', { pref, effective }),
   },
   win: {
     setIgnoreMouse: (v: boolean) => ipcRenderer.send('set-ignore-mouse', v),
@@ -19,7 +22,7 @@ contextBridge.exposeInMainWorld('pp', {
     modalGeometry: () => ipcRenderer.invoke('modal-geometry'),
   },
   on: (channel: string, cb: (data: unknown) => void) => {
-    if (channel === 'sedentary' || channel === 'cursor' || channel === 'edge') {
+    if (channel === 'sedentary' || channel === 'cursor' || channel === 'edge' || channel === 'set-lang') {
       ipcRenderer.on(channel, (_e, data) => cb(data));
     }
   },

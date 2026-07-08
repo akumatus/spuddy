@@ -4,6 +4,11 @@
 
 export type CharId = 'spud' | 'taco' | 'donut' | 'bloom' | 'leo' | 'grad';
 
+// UI / built-in-content language. 'auto' follows the system locale; the
+// resolved language is always a concrete Lang (see locale.ts).
+export type Lang = 'en' | 'zh';
+export type LangPref = 'auto' | Lang;
+
 // Emotion tag the LLM leads every chat reply with — drives the body reaction.
 export type EmotionTag = 'comfort' | 'cheer' | 'proud' | 'calm';
 
@@ -82,6 +87,7 @@ export interface AppState {
   unlockedIds: CharId[];
   buddyNew: boolean;
   sound: boolean;
+  lang: LangPref; // UI/content language — 'auto' follows the system locale
   nightShownDate: string | null;
   personality: PersonalitySliders;
 }
@@ -117,6 +123,7 @@ export interface AiReplyRequest {
   day: number;
   memory: MemoryFact[];
   messages: ChatMessage[];
+  lang?: Lang; // picks the matching daily-batch musings server-side
 }
 
 export interface AiReplyResult {
@@ -132,6 +139,7 @@ export interface AiGoldenRequest {
   charName: string;
   voice: string;
   memory: MemoryFact[];
+  lang?: Lang; // 'zh' → the card is written in Chinese
 }
 
 export interface AiGreetRequest {
@@ -141,6 +149,7 @@ export interface AiGreetRequest {
   daypart: Daypart;
   day: number;
   memory: MemoryFact[];
+  lang?: Lang; // 'zh' → the greeting is spoken in Chinese
 }
 
 // ── preload bridge (window.pp) ──
@@ -152,6 +161,7 @@ export interface PpEventMap {
   sedentary: void;
   cursor: { x: number; y: number };
   edge: EdgeSide;
+  'set-lang': LangPref; // tray menu language pick — renderer persists + applies
 }
 
 export interface PreloadBridge {
@@ -162,7 +172,11 @@ export interface PreloadBridge {
     greet(payload: AiGreetRequest): Promise<string | null>;
   };
   cards: {
-    today(): Promise<CardsBatch | null>;
+    today(lang?: Lang): Promise<CardsBatch | null>;
+  };
+  lang?: {
+    // renderer → main: keeps the tray menu's language checkmark in sync
+    report(pref: LangPref, effective: Lang): void;
   };
   win: {
     setIgnoreMouse(v: boolean): void;

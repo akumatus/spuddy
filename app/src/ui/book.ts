@@ -1,6 +1,6 @@
 // Card Book — the three-tab popup: kept cards, the day-grouped chat
 // transcript, and the memory quilt with its doodled faces.
-import { MEMORY_KINDS } from '../content';
+import { TXT } from '../content';
 import type { AppState, MemoryFact, MemoryKind, MemoryMood } from '../types';
 import { esc, modal, openOverlay } from './overlay';
 
@@ -21,16 +21,18 @@ export interface BookHandlers {
 }
 
 // ── Card Book · chat + memory doodles ──
-const KIND_LABEL = Object.fromEntries(MEMORY_KINDS.map((k) => [k.id, k.label])) as Record<MemoryKind, string>;
-const kindLabel = (id: MemoryKind) => KIND_LABEL[id] || 'Memory';
+const kindLabel = (id: MemoryKind) => TXT().kindLabels[id] || TXT().kindLabels.other;
 
 // Weekday for a chat day-divider, from the ISO date stamped on the first message
 // of that day (local, not UTC — parse the parts so "2026-07-07" reads as TUE here
 // rather than shifting a day at the edges). Missing dates just drop the weekday.
+// The locale follows the UI language: TUE in English, 周二 in Chinese.
 function weekday(dateStr: string | undefined): string {
   const [y, mo, d] = String(dateStr || '').split('-').map(Number);
   if (!y || !mo || !d) return '';
-  return new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+  return new Date(y, mo - 1, d)
+    .toLocaleDateString(TXT().ui.weekdayLocale, { weekday: 'short' })
+    .toUpperCase();
 }
 
 // A memory is a sunny patch, a rainy one, or a plain everyday one — the mood is
@@ -105,42 +107,39 @@ function memIcon(mood: MemoryMood): string {
 }
 
 export function showBook(state: AppState, tab: BookTab, filter: BookFilter, handlers: BookHandlers): void {
+  const ui = TXT().ui;
   let body = '';
   if (tab === 'cards') {
     let view = state.cards.map((cd, i) => ({ ...cd, i })).reverse();
     if (filter === 'gold') view = view.filter((c) => c.rare);
     if (filter === 'fav') view = view.filter((c) => c.fav);
     const emptyLine =
-      state.cards.length === 0
-        ? "No cards yet — tap your buddy for today's draw."
-        : filter === 'gold'
-          ? 'No golden cards yet — weave one.'
-          : 'No favorites yet — tap the ♥ on a card.';
+      state.cards.length === 0 ? ui.emptyCards : filter === 'gold' ? ui.emptyGold : ui.emptyFav;
     body = `
       <div class="filters">
-        <button class="f ${filter === 'all' ? 'on' : ''}" data-filter="all">all</button>
-        <button class="f ${filter === 'gold' ? 'on' : ''}" data-filter="gold">golden ✦</button>
-        <button class="f ${filter === 'fav' ? 'on' : ''}" data-filter="fav">favorites ♥</button>
+        <button class="f ${filter === 'all' ? 'on' : ''}" data-filter="all">${ui.filterAll}</button>
+        <button class="f ${filter === 'gold' ? 'on' : ''}" data-filter="gold">${ui.filterGold}</button>
+        <button class="f ${filter === 'fav' ? 'on' : ''}" data-filter="fav">${ui.filterFav}</button>
       </div>
       ${view.length === 0 ? `<div class="empty">${emptyLine}</div>` : ''}
       <div class="grid">
         ${view
           .map(
             (c) => `
-          <div class="ccard ${c.rare ? 'gold' : ''}" data-apply="${c.i}" title="hold this one">
+          <div class="ccard ${c.rare ? 'gold' : ''}" data-apply="${c.i}" title="${ui.holdTitle}">
             <div class="acts">
               <button class="fav ${c.fav ? 'on' : ''}" data-fav="${c.i}">♥</button>
               <button class="del" data-del="${c.i}">×</button>
             </div>
             <div class="m">${esc(c.m)}</div>
-            <div class="foot"><span>day ${c.day} — ${esc(c.by)}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
+            <div class="foot"><span>${ui.cardFoot(c.day, esc(c.by))}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
           </div>`
           )
           .join('')}
       </div>
       <div class="bookfoot">
-        <span class="hint">your kept cards — clear them anytime</span>
-        ${state.cards.length ? '<button class="clear" id="cardsClear">clear all</button>' : ''}
+        <span class="hint">${ui.hintCards}</span>
+        ${state.cards.length ? `<button class="clear" id="cardsClear">${ui.clearAll}</button>` : ''}
       </div>`;
   } else if (tab === 'chat') {
     // Full transcript, day by day: your lines as bubbles on the right, his in his
@@ -155,13 +154,12 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
     for (const m of turns) {
       const day = typeof m.day === 'number' ? m.day : null;
       if (day !== null && day !== lastDay) {
-        const wd = weekday(m.date);
-        rows += `<div class="cday"><span>DAY ${day}${wd ? ` · ${wd}` : ''}</span></div>`;
+        rows += `<div class="cday"><span>${ui.dayDivider(day, weekday(m.date))}</span></div>`;
         lastDay = day;
       }
       if (m.who === 'user') {
         const knit = m.mem
-          ? `<div class="knit">${YARN} knit into Memory · ${esc(kindLabel(m.mem))}</div>`
+          ? `<div class="knit">${YARN} ${ui.knitTag(esc(kindLabel(m.mem)))}</div>`
           : '';
         rows += `<div class="crow user"><div class="ubub">${esc(m.text)}</div>${knit}</div>`;
       } else {
@@ -169,11 +167,11 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
       }
     }
     body = `
-      ${turns.length === 0 ? `<div class="empty">No messages yet — say hi and he'll answer.</div>` : ''}
+      ${turns.length === 0 ? `<div class="empty">${ui.emptyChat}</div>` : ''}
       <div class="chatlog">${rows}</div>
       <div class="bookfoot">
-        <span class="hint">every word, kept — clearing wipes his context, not his memory of you</span>
-        ${spoken ? '<button class="clear" id="chatClear">clear all</button>' : ''}
+        <span class="hint">${ui.hintChat}</span>
+        ${spoken ? `<button class="clear" id="chatClear">${ui.clearAll}</button>` : ''}
       </div>`;
   } else {
     // Memory — the quilt he's making of you. Each distilled fact is its own
@@ -192,13 +190,13 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
               <div class="mface">${memFace(mood, kind)}</div>
               <div class="mmark">
                 <span class="micon">${memIcon(mood)}</span>
-                <button class="del" data-delmem="${m.i}" title="unpick this stitch">×</button>
+                <button class="del" data-delmem="${m.i}" title="${ui.unpickTitle}">×</button>
               </div>
             </div>
             <div class="mfact">${esc(m.fact)}</div>
             <div class="mmeta">
               <span class="kind ${kind}">${esc(kindLabel(kind))}</span>
-              <span class="mday">DAY ${m.day}</span>
+              <span class="mday">${ui.memDay(m.day)}</span>
             </div>
           </div>`;
       })
@@ -206,21 +204,21 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
     body = `
       ${
         state.memory.length === 0
-          ? `<div class="empty">Nothing here yet — the more you tell him about your life, the more he'll remember, and knit into your golden cards.</div>`
-          : `<div class="memhead">the quilt he's making of you — sunny patches and rainy ones, all kept</div>
+          ? `<div class="empty">${ui.emptyMem}</div>`
+          : `<div class="memhead">${ui.memHead}</div>
              <div class="memgrid">${patches}</div>`
       }
       <div class="bookfoot">
-        <span class="hint">his picture of you — unpick any stitch, anytime</span>
-        ${state.memory.length ? '<button class="clear" id="memClear">clear all</button>' : ''}
+        <span class="hint">${ui.hintMem}</span>
+        ${state.memory.length ? `<button class="clear" id="memClear">${ui.clearAll}</button>` : ''}
       </div>`;
   }
 
   const headInner = `
-        <span class="title">Card Book</span>
-        <button class="tab ${tab === 'cards' ? 'on' : ''}" data-tab="cards">Cards · ${state.cards.length}</button>
-        <button class="tab ${tab === 'chat' ? 'on' : ''}" data-tab="chat">Chat</button>
-        <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">Memory · ${state.memory.length}</button>
+        <span class="title">${ui.bookTitle}</span>
+        <button class="tab ${tab === 'cards' ? 'on' : ''}" data-tab="cards">${ui.tabCards} · ${state.cards.length}</button>
+        <button class="tab ${tab === 'chat' ? 'on' : ''}" data-tab="chat">${ui.tabChat}</button>
+        <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">${ui.tabMem} · ${state.memory.length}</button>
         <button class="close" id="bookClose">×</button>`;
 
   // Re-render in place while the book is already open. Recreating #book (via

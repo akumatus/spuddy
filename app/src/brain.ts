@@ -17,88 +17,21 @@
 //     browsing the Book, or he's tucked away
 //   - routine step mutter/speak lines are variant pools (arrays picked at
 //     random), not the prototype's single fixed strings
+import { TXT, type MutterPool } from './content';
 import type { AnimMode, Animator } from './scene/motions';
 import type { MutterMood } from './types';
 
 export type BrainState =
   | 'watch' | 'alone' | 'play' | 'doze' | 'knock' | 'wait' | 'sulk' | 'greet';
 
-// built-in mutter pools — the three MutterMood ones also have server pools
-type MutterPool = MutterMood | 'sleepy' | 'ignored' | 'wake';
-
 export const STATE_LABEL: Record<BrainState, string> = {
   watch: 'watching you work', alone: 'hanging out', play: 'self-play', doze: 'dozing',
   knock: 'saying hi', wait: 'waiting for you', sulk: 'feeling ignored', greet: 'welcome back',
 };
 
-const MUTTER: Record<MutterPool, string[]> = {
-  watch: [
-    'clack clack clack. look at them go.',
-    'so focused today. proud. quietly.',
-    "i'll supervise from here.",
-    'that was a strong keystroke. felt it from here.',
-    'important human business. do not interrupt. noted.',
-    'they blinked. i blinked back. teamwork.',
-  ],
-  alone: [
-    'counted my sprouts again. still three. consistency.',
-    'do clouds get tired? note to self: ask a cloud.',
-    "hm. that pixel wasn't there yesterday.",
-    'quiet is nice. we like quiet.',
-    "if i had knees, i'd stretch them.",
-    "today's plan: sit. so far, flawless.",
-    'i wonder what gravy dreams about.',
-    'rearranged my card. big day.',
-  ],
-  lonely: [
-    "they'll be back. they always come back.",
-    'the cursor left. classic cursor.',
-    'guarding the desk. nothing to report.',
-    'i could learn to whistle. do i have lips? investigating.',
-  ],
-  sleepy: [
-    'eyes are heavy… just resting them…',
-    'not sleeping. thinking with my eyes closed…',
-    'five more minutes…',
-    'zz… mashed… no… whipped…',
-    'the pixels are going soft…',
-    'gonna rest my eyes. just the eyes.',
-  ],
-  ignored: [
-    'noted. important human business.',
-    "ok. filing this under 'later'.",
-    "cool cool cool. i'll be right here.",
-    'the knock economy is rough right now.',
-  ],
-  wake: [
-    "i wasn't sleeping. i was thinking with my eyes closed.",
-    'awake! was awake the whole time. mostly.',
-    'mm. what year is it. ok good.',
-    'dreamt i was a croissant. troubling.',
-  ],
-};
-
-const SPEAK: Record<'greet' | 'knock' | 'delight', string[]> = {
-  greet: [
-    "oh! you're back. the desk is safe. i was very brave.",
-    "you're back! nothing happened. except one dust bunny. it was huge.",
-    'there you are. the chair missed you. i can tell.',
-    'welcome back. i kept your pixels warm.',
-  ],
-  knock: [
-    "knock knock. it's me. reason: none. just checking on you.",
-    "hey. tiny check-in — water break? i'll wait.",
-    "psst. shoulders down. they're not earrings.",
-    "you've been at it a while. blink with me? one… two.",
-    "quick survey: how's the human doing? one word is fine.",
-  ],
-  delight: [
-    "you're here! hi. hello. ok. that's all i needed.",
-    'worth it. carry on.',
-    'ah, there you are. as you were.',
-    "that's the stuff. ok. back to business.",
-  ],
-};
+// All spoken text (mutter pools, social lines, routine step lines) lives in
+// the language packs — TXT().mutter / .speak / .routines — and is resolved at
+// speak time, so a language switch applies to the very next line.
 
 export interface Personality {
   curious: number;
@@ -115,12 +48,16 @@ interface Needs {
 
 /* self-play routines: weight fn of personality, energy cost, step script.
    step: { clip | mode | mutter | speak | sfx | emote | wait(ms real) }
-   mutter/speak take a string or an array of variants (picked at random) */
+   mutter/speak take a string, an array of variants (picked at random), or a
+   thunk resolved at play time — the language-pack lines are thunks so they
+   follow the active language */
+export type SpokenLine = string | string[] | (() => string | string[]);
+
 export interface RoutineStep {
   clip?: string;
   mode?: AnimMode;
-  mutter?: string | string[];
-  speak?: string | string[];
+  mutter?: SpokenLine;
+  speak?: SpokenLine;
   sfx?: string;
   emote?: string;
   wait?: number;
@@ -140,20 +77,10 @@ const ROUTINES: Record<RoutineKey, Routine> = {
   chase: {
     label: 'tail-chase', cost: 14, w: (P) => 0.5 + P.drama * 0.9,
     steps: [
-      { mutter: [
-        'is that… my tail? hold on.',
-        'something moved back there. suspicious.',
-        'do i even have a tail? one way to find out.',
-        'the tail. today is the day.',
-      ], wait: 1500 },
+      { mutter: () => TXT().routines.chaseStart, wait: 1500 },
       { clip: 'chase', sfx: 'whoosh', wait: 2350 },
       { clip: 'wobble', wait: 2400 },
-      { mutter: [
-        'conclusion: the tail remains theoretical.',
-        'the tail wins again. respect.',
-        'update: round on all sides. investigation ongoing.',
-        "i'll catch it tomorrow. it knows i will.",
-      ] },
+      { mutter: () => TXT().routines.chaseEnd },
     ],
   },
   juggle: {
@@ -162,46 +89,24 @@ const ROUTINES: Record<RoutineKey, Routine> = {
       { clip: 'bounceCard', wait: 1950 },
       { clip: 'bounceCard', wait: 1950 },
       { clip: 'hop', sfx: 'boing', wait: 900 },
-      { mutter: [
-        'nailed it. nobody saw. still counts.',
-        'gravity tried. i tried harder.',
-        'flawless routine. the stapler seemed impressed.',
-        'and the crowd goes… quiet. impressed quiet.',
-      ] },
+      { mutter: () => TXT().routines.juggleEnd },
     ],
   },
   study: {
     label: 'card-study', cost: 5, w: (P) => 0.4 + P.curious * 0.9,
     steps: [
-      { mutter: [
-        'card inspection time.',
-        'daily card audit. very official.',
-        'quality control. someone has to do it.',
-      ], wait: 1300 },
+      { mutter: () => TXT().routines.studyStart, wait: 1300 },
       { clip: 'cardStudy', wait: 3450 },
-      { mutter: [
-        'checked twice. still true.',
-        'all words present and accounted for.',
-        'inspection complete. no notes.',
-        'hm. reads even better upside down.',
-      ] },
+      { mutter: () => TXT().routines.studyEnd },
     ],
   },
   practice: {
     label: 'wave practice', cost: 8, w: (P) => 0.35 + P.drama * 0.6,
     steps: [
-      { mutter: [
-        'rehearsal. gotta keep the wave sharp.',
-        'wave drills. form is everything.',
-        'practicing my wave. for waving emergencies.',
-      ], wait: 1400 },
+      { mutter: () => TXT().routines.practiceStart, wait: 1400 },
       { clip: 'wave', wait: 1800 },
       { clip: 'wave', wait: 1900 },
-      { mutter: [
-        'wave form: excellent. audience: none.',
-        'that one had real wrist in it. if i had wrists.',
-        'the follow-through needs work. the enthusiasm does not.',
-      ] },
+      { mutter: () => TXT().routines.practiceEnd },
     ],
   },
   hum: {
@@ -211,22 +116,14 @@ const ROUTINES: Record<RoutineKey, Routine> = {
       { emote: '♪', wait: 1400 },
       { emote: '♪', wait: 1300 },
       { emote: '♪', wait: 1300 },
-      { mode: 'idle', mutter: [
-        'that song has no words. perfect song.',
-        "i made that one up. it's about soup.",
-        'same three notes as yesterday. a classic now.',
-      ] },
+      { mode: 'idle', mutter: () => TXT().routines.humEnd },
     ],
   },
   stretch: {
     label: 'stretch', cost: -4, w: () => 0.45,
     steps: [
       { clip: 'stretch', wait: 2450 },
-      { mutter: [
-        'ooh. heard a click. good click, i think.',
-        'taller now. probably. by a little.',
-        'stretching complete. i am basically elastic.',
-      ] },
+      { mutter: () => TXT().routines.stretchEnd },
     ],
   },
   peek: {
@@ -237,11 +134,7 @@ const ROUTINES: Record<RoutineKey, Routine> = {
     label: 'sneeze', cost: 3, w: () => 0,
     steps: [
       { clip: 'sneeze', sfx: 'sneeze', wait: 1450 },
-      { mutter: [
-        '…dusty in here. excuse me.',
-        '…startled myself. again.',
-        'that one came from deep in the starch.',
-      ] },
+      { mutter: () => TXT().routines.sneezeEnd },
     ],
   },
 };
@@ -255,7 +148,10 @@ export function routineMs(key: string): number {
 }
 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
-const line = (v: string | string[]): string => (Array.isArray(v) ? pick(v) : v);
+const line = (v: SpokenLine): string => {
+  const r = typeof v === 'function' ? v() : v;
+  return Array.isArray(r) ? pick(r) : r;
+};
 
 export interface BrainCallbacks {
   mutter?: (text: string) => void;
@@ -405,7 +301,7 @@ export class SpudBrain {
         return m;
       }
     }
-    const pool = MUTTER[poolKey];
+    const pool = TXT().mutter[poolKey];
     let m = pick(pool);
     if (pool.length > 2 && m === this.lastPool[poolKey]) m = pick(pool);
     this.lastPool[poolKey] = m;
@@ -541,7 +437,7 @@ export class SpudBrain {
     this.runSteps([
       { clip: 'peek', wait: 1100 },
       { clip: 'knock', sfx: 'knock', wait: 700 },
-      { speak: pick(SPEAK.knock), wait: 1300 },
+      { speak: () => TXT().speak.knock, wait: 1300 },
     ], () => {
       this.busy = false;
       this.setState('wait');
@@ -559,7 +455,7 @@ export class SpudBrain {
     this.emote('♥'); this.emote('♥');
     this.runSteps([
       { clip: 'cheer', sfx: 'chime', wait: 1600 },
-      { speak: pick(SPEAK.delight), wait: 1400 },
+      { speak: () => TXT().speak.delight, wait: 1400 },
     ], () => { this.busy = false; this.setState('watch'); });
   }
 
@@ -594,7 +490,7 @@ export class SpudBrain {
     this.log('act', 'you are back → greeting');
     this.runSteps([
       { clip: 'hop', sfx: 'boing', wait: 750 },
-      { speak: pick(SPEAK.greet), wait: 1500 },
+      { speak: () => TXT().speak.greet, wait: 1500 },
     ], () => { this.busy = false; this.setState('watch'); });
   }
 }

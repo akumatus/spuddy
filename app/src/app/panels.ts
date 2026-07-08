@@ -1,5 +1,5 @@
 // ── the Card Book, the Buddies panel, and care cards (scheduler / OS events) ──
-import { CHARS, UNLOCK, greet } from '../content';
+import { CHARS, TXT, UNLOCK, greet } from '../content';
 import { sfx } from '../sfx';
 import { showBook, type BookFilter, type BookTab } from '../ui/book';
 import { showBuddies } from '../ui/buddies';
@@ -38,7 +38,7 @@ function renderBook(): void {
       ctx.updateCardScreen();
       closeOverlay();
       ctx.scene.raiseCard();
-      bubble('Holding this one for you. ♥');
+      bubble(TXT().ui.holding);
     },
     onFav: (i) => {
       sfx.pop();
@@ -103,7 +103,7 @@ function renderBuddies(): void {
       if (d && !state.unlockedIds.includes(id)) {
         sfx.low();
         closeOverlay();
-        bubble(`${ch.name} joins when you ${d.how}.`, { hold: 3600 });
+        bubble(TXT().ui.joinsWhen(ch.name, TXT().unlock[id]?.how || ''), { hold: 3600 });
         return;
       }
       sfx.pop();
@@ -115,7 +115,7 @@ function renderBuddies(): void {
       ctx.updateCardScreen();
       ctx.anim().play(ctx.scene.hasRig() ? 'wave' : 'hop'); // reporting for duty
       bubble(greet(id), { hold: 3600 }); // his hello is spoken, not written to the record
-      ($('chatInput') as HTMLInputElement).placeholder = `tell ${ctx.activeChar().name} what's on your mind…`;
+      ($('chatInput') as HTMLInputElement).placeholder = TXT().ui.placeholder(ctx.activeChar().name);
     },
   });
 }

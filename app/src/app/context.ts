@@ -2,7 +2,7 @@
 // live at the top of a monolithic main.js. Feature modules import { ctx } and
 // read/write through it; construction and wiring happen once in main.ts.
 import type { SpudBrain } from '../brain';
-import { CHARS, type Character } from '../content';
+import { CHARS, TXT, type Character } from '../content';
 import type { PetScene } from '../scene/scene';
 import type { Animator } from '../scene/motions';
 import * as store from '../store';
@@ -59,11 +59,11 @@ class AppContext {
         top: this.state.rare ? '✦ · ✦ · ✦' : '· · ♥ · ·',
         gold: this.state.rare,
         main: this.state.msg,
-        footL: `DAY ${this.state.day}`,
+        footL: TXT().ui.dayShort(this.state.day),
         footR: `— ${this.activeChar().name}`,
       });
     } else {
-      this.scene.setCardContent({ top: '· ♥ ·', main: 'tap me :)' });
+      this.scene.setCardContent({ top: '· ♥ ·', main: TXT().ui.tapMe });
     }
   }
 }

@@ -1,11 +1,15 @@
 // The small one-shot popups: daily / golden card, care cards, the draw
 // animation and the golden-weave spinner.
-import { CHARS } from '../content';
+import { CHARS, TXT } from '../content';
 import type { AppState } from '../types';
 import { esc, openOverlay } from './overlay';
 
+// CJK carries ~2× the message per character, so Chinese lines hit the same
+// visual length at about half the count — size by the CJK thresholds then.
 function cardFont(msg: string): number {
-  const n = (msg || '').length;
+  const s = msg || '';
+  const n = s.length;
+  if (/[㐀-鿿]/.test(s)) return n < 30 ? 31 : n < 48 ? 26 : 22;
   return n < 70 ? 31 : n < 110 ? 26 : 22;
 }
 
@@ -24,9 +28,10 @@ export interface CardActions {
 
 // Daily / golden card modal.
 export function showCard(state: AppState, view: CardView, { onKeep, onLater }: CardActions): void {
+  const ui = TXT().ui;
   const ch = CHARS.find((c) => c.id === state.active) || CHARS[0];
   const gold = view.rare;
-  const keepLabel = view.keptToday ? '♥ Open the Book' : 'Keep it ♥';
+  const keepLabel = view.keptToday ? ui.openTheBook : ui.keepIt;
   openOverlay(`
     <div class="cardbox ${gold ? 'gold' : ''}">
       ${gold ? `
@@ -35,12 +40,12 @@ export function showCard(state: AppState, view: CardView, { onKeep, onLater }: C
         <span class="sparkle" style="bottom:30px;left:24px;font-size:12px;animation-delay:.9s;">✦</span>` : ''}
       <div class="inner">
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
-        <div class="tag">${gold ? 'RARE · GOLDEN STITCH' : "TODAY'S CARD"}</div>
+        <div class="tag">${gold ? ui.goldenTag : ui.todaysCardTag}</div>
         <div class="msg" style="font-size:${cardFont(view.msg)}px">${esc(view.msg)}</div>
-        <div class="sign">— ${ch.name} · day ${state.day}</div>
+        <div class="sign">${ui.signDay(ch.name, state.day)}</div>
         <div class="row">
           <button class="btn ${view.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>
-          <button class="btn ghost" id="mLater">Later</button>
+          <button class="btn ghost" id="mLater">${ui.later}</button>
         </div>
       </div>
     </div>`);
@@ -57,7 +62,7 @@ export function showCareCard(state: AppState, tag: string, msg: string, onClose:
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
         <div class="tag">${esc(tag)}</div>
         <div class="msg" style="font-size:${cardFont(msg)}px">${esc(msg)}</div>
-        <button class="btn dark" id="mThanks">Thanks, ${ch.name} ♥</button>
+        <button class="btn dark" id="mThanks">${TXT().ui.thanks(ch.name)}</button>
       </div>
     </div>`);
   document.getElementById('mThanks')!.onclick = onClose;
@@ -68,7 +73,7 @@ export function showDrawAnim(): void {
     <div class="drawback">
       <div class="inner">
         <div class="ring">♥</div>
-        <div class="label">today's card</div>
+        <div class="label">${TXT().ui.drawLabel}</div>
         <div class="brand">SPUDDY</div>
       </div>
     </div>`);
@@ -80,7 +85,7 @@ export function showWeave(line: string): void {
       <div class="inner">
         <div class="spinner"><span class="orbit"></span><span class="ball"></span></div>
         <div class="line" id="weaveLine">${esc(line)}</div>
-        <div class="brand">GOLDEN STITCH IN PROGRESS</div>
+        <div class="brand">${TXT().ui.weaveBrand}</div>
       </div>
     </div>`);
 }
