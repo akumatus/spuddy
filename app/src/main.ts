@@ -8,11 +8,11 @@ import * as remote from './remote';
 import { PetScene } from './scene/scene';
 import { setSoundEnabled, sfx } from './sfx';
 import * as store from './store';
-import type { LangPref } from './types';
-import { closeOverlay, isOverlayOpen } from './ui/overlay';
+import { isOverlayOpen } from './ui/overlay';
 import { $, ctx, pp } from './app/context';
 import { installDebugHooks } from './app/debug';
-import { applyLangChrome, wireInteractions } from './app/interactions';
+import { wireInteractions } from './app/interactions';
+import { applyLangPref } from './app/lang';
 import { presentCare } from './app/panels';
 import { bubble, showMutter, spawnEmote } from './app/speech';
 import { checkUnlocks } from './app/unlocks';
@@ -73,19 +73,8 @@ ctx.onPersist(() => {
 
 wireInteractions();
 
-// ── language switch (tray menu → main → here) ──
-// Persist the preference and re-render everything static; popups close so the
-// next open renders in the new language, and the daily pool re-pulls in it.
-function applyLangPref(pref: LangPref): void {
-  state.lang = pref;
-  setLangPref(pref);
-  store.save(state);
-  if (isOverlayOpen()) closeOverlay();
-  applyLangChrome();
-  ctx.updateCardScreen();
-  remote.refresh();
-  pp.lang?.report(pref, lang()); // tray checkmark + localized tray labels
-}
+// ── language switch: the ⚙ settings panel and the tray menu share one path
+// (app/lang.ts applyLangPref); the tray reaches it through this IPC push ──
 pp.on('set-lang', (pref) => applyLangPref(pref));
 pp.lang?.report(state.lang, lang()); // initial sync so the tray matches the saved pref
 

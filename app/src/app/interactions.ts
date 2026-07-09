@@ -2,6 +2,7 @@
 // cursor tracking, and the click-through choreography ──
 import { routineMs } from '../brain';
 import { TXT } from '../content';
+import { lang } from '../locale';
 import { CLIPS, WOBBLE } from '../scene/motions';
 import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
@@ -11,6 +12,7 @@ import { isDraggingModal, isOverlayOpen } from '../ui/overlay';
 import { chatSend } from './chat';
 import { $, ctx, pp } from './context';
 import { DAILY_DRAW_LIMIT, drawToday, openCard } from './gacha';
+import { applyLangPref, onLangChange } from './lang';
 import { openBook, openBuddies } from './panels';
 import { bubble, hideBubble, setBubbleHover, setMutterHover } from './speech';
 
@@ -149,7 +151,66 @@ export function applyLangChrome(): void {
   ($('chatInput') as HTMLInputElement).placeholder = ui.placeholder(ctx.activeChar().name);
   $('bookBtn').title = ui.titleBook;
   $('buddiesBtn').title = ui.titleBuddies;
-  $('soundBtn').title = ui.titleSound;
+  $('settingsBtn').title = ui.titleSettings;
+}
+
+// ── ⚙ settings panel (design: Hover 图标重设计 §2) ──
+// Language pills (中文 / English) + the sound toggle that replaced the old
+// one-click ♪ mute. The popover pins the hover panel open while it's up.
+let settingsOpen = false;
+
+export function isSettingsOpen(): boolean {
+  return settingsOpen;
+}
+
+function renderSettingsPanel(): void {
+  const sp = $('spanel');
+  const ui = TXT().ui;
+  const zh = lang() === 'zh';
+  const on = ctx.state.sound;
+  sp.classList.toggle('zh', zh);
+  sp.innerHTML = `
+    <div class="sp-head">
+      <span class="sp-title">${ui.settingsTitle}</span>
+      <button class="sp-x" id="spClose">×</button>
+    </div>
+    <div class="sp-div"></div>
+    <div class="sp-lbl">${ui.langLabel}</div>
+    <div class="sp-pills">
+      <div class="sp-pill ${zh ? 'on' : ''}" id="spZh">中文</div>
+      <div class="sp-pill ${zh ? '' : 'on'}" id="spEn">English</div>
+    </div>
+    <div class="sp-row">
+      <span class="sp-lbl">${ui.soundLabel}</span>
+      <div class="sp-snd">
+        <span class="sp-word ${on ? 'on' : ''}">${on ? ui.soundOn : ui.soundOff}</span>
+        <div class="sp-tgl ${on ? 'on' : ''}" id="spTgl"><div class="sp-knob"></div></div>
+      </div>
+    </div>`;
+  $('spClose').onclick = () => closeSettings();
+  $('spZh').onclick = () => { applyLangPref('zh'); sfx.pop(); };
+  $('spEn').onclick = () => { applyLangPref('en'); sfx.pop(); };
+  $('spTgl').onclick = () => {
+    ctx.state.sound = !ctx.state.sound;
+    setSoundEnabled(ctx.state.sound);
+    store.save(ctx.state);
+    if (ctx.state.sound) sfx.pop(); // turning it on gets to say so; turning it off goes quiet at once
+    renderSettingsPanel();
+  };
+}
+
+function openSettings(): void {
+  settingsOpen = true;
+  renderSettingsPanel();
+  $('spanel').classList.remove('hidden');
+  $('settingsBtn').classList.add('open');
+}
+
+export function closeSettings(): void {
+  if (!settingsOpen) return;
+  settingsOpen = false;
+  $('spanel').classList.add('hidden');
+  $('settingsBtn').classList.remove('open');
 }
 
 // Wires every DOM/IPC input handler. Called once from main.ts, after the
@@ -161,11 +222,11 @@ export function wireInteractions(): void {
 
   let panelHover = false; // pointer resting on the stage or one of the panel controls
 
-  // The panel stays up while the pointer rests on it OR while the chat input holds
-  // focus — a focused field means you're mid-message, so letting the pointer wander
-  // off shouldn't yank the panel (and your half-typed text) away.
+  // The panel stays up while the pointer rests on it, while the chat input
+  // holds focus (mid-message), or while the ⚙ settings popover is open — all
+  // three mean the human is actively using it.
   function panelPinned(): boolean {
-    return panelHover || document.activeElement === $('chatInput');
+    return panelHover || settingsOpen || document.activeElement === $('chatInput');
   }
   function showPanel(): void {
     clearTimeout(hovT);
@@ -271,17 +332,20 @@ export function wireInteractions(): void {
     hidePanelSoon(); // focus no longer pins the panel — hide it unless the pointer still holds it
   });
   applyLangChrome();
+  // a language switch (panel pills or tray) refreshes the chrome and, if the
+  // popover is up, re-renders it in the new language on the spot
+  onLangChange(() => {
+    applyLangChrome();
+    if (settingsOpen) renderSettingsPanel();
+  });
 
-  $('bookBtn').onclick = () => { sfx.pop(); openBook('cards'); };
-  $('buddiesBtn').onclick = () => { sfx.pop(); openBuddies(); };
-  $('soundBtn').onclick = () => {
-    ctx.state.sound = !ctx.state.sound;
-    setSoundEnabled(ctx.state.sound);
-    $('soundBtn').classList.toggle('off', !ctx.state.sound);
-    if (ctx.state.sound) sfx.pop();
-    store.save(ctx.state);
+  $('bookBtn').onclick = () => { sfx.pop(); closeSettings(); openBook('cards'); };
+  $('buddiesBtn').onclick = () => { sfx.pop(); closeSettings(); openBuddies(); };
+  $('settingsBtn').onclick = () => {
+    sfx.pop();
+    if (settingsOpen) closeSettings();
+    else openSettings();
   };
-  $('soundBtn').classList.toggle('off', !ctx.state.sound);
 
   // click-through everywhere except interactive elements
   document.addEventListener('mousemove', (e) => {

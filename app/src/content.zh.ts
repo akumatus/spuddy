@@ -512,6 +512,11 @@ export const ZH: TextPack = {
     unlocked: (names) => `解锁新伙伴：${names}！去“伙伴”里打个招呼。`,
     titleBook: '卡册',
     titleBuddies: '伙伴',
-    titleSound: '音效',
+    titleSettings: '设置',
+    settingsTitle: '设置',
+    langLabel: '语言',
+    soundLabel: '音效',
+    soundOn: '开',
+    soundOff: '关',
   },
 };

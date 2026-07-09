@@ -10,25 +10,12 @@ const pp = window.pp;
 let BATCH: CardsBatch | null = null;
 let batchLang: Lang | null = null;
 
-// A zh request can still come back English — a server from before the i18n
-// work ignores ?lang, and a fresh deploy may not have baked a zh batch yet.
-// Sniff the content: a genuinely Chinese batch has CJK in its normal pool.
-// Discarding a mismatch drops draws to the built-in zh pool, which beats
-// handing a Chinese user English cards.
-function matchesLang(data: CardsBatch, want: Lang): boolean {
-  if (want !== 'zh') return true;
-  const sample = (data.normal || []).concat(
-    Object.values(data.cards || {}).flatMap((c) => (c && c.golden) || [])
-  );
-  return sample.length === 0 || sample.some((s) => /[㐀-鿿]/.test(s));
-}
-
 export async function refresh(): Promise<CardsBatch | null> {
   if (!pp || !pp.cards) return null;
   const want = lang();
   try {
     const data = await pp.cards.today(want);
-    if (data && data.cards && matchesLang(data, want)) {
+    if (data && data.cards) {
       BATCH = data;
       batchLang = want;
     }

@@ -529,6 +529,11 @@ export const EN: TextPack = {
     unlocked: (names) => `Unlocked: ${names}! Say hi in Buddies.`,
     titleBook: 'Card Book',
     titleBuddies: 'buddies',
-    titleSound: 'sound',
+    titleSettings: 'settings',
+    settingsTitle: 'settings',
+    langLabel: 'language',
+    soundLabel: 'sound',
+    soundOn: 'on',
+    soundOff: 'off',
   },
 };

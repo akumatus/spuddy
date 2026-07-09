@@ -82,7 +82,13 @@ export interface UiText {
   unlocked(names: string): string;
   titleBook: string;
   titleBuddies: string;
-  titleSound: string;
+  titleSettings: string;
+  // settings panel (⚙ popover)
+  settingsTitle: string;
+  langLabel: string;
+  soundLabel: string;
+  soundOn: string;
+  soundOff: string;
 }
 
 // One language's complete built-in copy. Both packs must cover every key —
