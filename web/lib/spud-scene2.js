@@ -857,6 +857,8 @@ export class PetScene {
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NeutralToneMapping;
+    // exposure matches the desktop client (LIGHT_BASE.exposure)
+    this.renderer.toneMappingExposure = 1.12;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(opts.fov ?? 26, 1, 0.1, 50);
@@ -864,11 +866,13 @@ export class PetScene {
     this.lookAt = new THREE.Vector3(...(opts.lookAt ?? [0, 1.02, 0]));
     this.cameraSway = opts.cameraSway ?? true;
 
-    this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.6));
-    this.key = new THREE.DirectionalLight(0xffffff, 1.25);
-    this.key.position.set(2, 4, 4);
+    // light rig copied from the desktop client's LIGHT_BASE
+    // (app/src/scene/lighting.ts) so both potatoes read identically
+    this.scene.add(new THREE.AmbientLight(0xffedd0, 0.16));
+    this.key = new THREE.DirectionalLight(0xffeccf, 1.05);
+    this.key.position.set(2, 3, 5.5);
     this.scene.add(this.key);
-    this.rim = new THREE.DirectionalLight(0xffe8c8, 0.5);
+    this.rim = new THREE.DirectionalLight(0xffe8c8, 0.45);
     this.rim.position.set(-3, 2, -2);
     this.scene.add(this.rim);
     applyEnvironment(this.renderer, this.scene);

@@ -41,15 +41,18 @@ export async function applySpudPBR(root) {
   return root;
 }
 
-/* Warm cream studio env — gradient dome + two bright softbox panels,
-   PMREM'd so MeshStandardMaterial gets diffuse fill + speculars. */
+/* Warm studio env — mirrors the desktop client's photo booth
+   (app/src/scene/lighting.ts makeStudioEnvScene + LIGHT_BASE) so the website
+   potato reads identically: gradient dome, warm softbox key, cooler side
+   fill, warm back panel for rim sheen and a floor bounce, PMREM'd into the
+   scene environment. */
 export function applyEnvironment(renderer, scene) {
   const env = new THREE.Scene();
-  const geo = new THREE.SphereGeometry(10, 32, 16);
-  const colTop = new THREE.Color(0xfff8ea), colBot = new THREE.Color(0xd6c2a0);
+  const geo = new THREE.SphereGeometry(16, 32, 24);
+  const colTop = new THREE.Color(0.40, 0.34, 0.26), colBot = new THREE.Color(0.15, 0.11, 0.08);
   const pos = geo.attributes.position, cols = [];
   for (let i = 0; i < pos.count; i++) {
-    const k = (pos.getY(i) / 10 + 1) / 2;
+    const k = THREE.MathUtils.smoothstep(pos.getY(i) / 16, -1, 1);
     const c = colBot.clone().lerp(colTop, k);
     cols.push(c.r, c.g, c.b);
   }
@@ -62,10 +65,12 @@ export function applyEnvironment(renderer, scene) {
     p.lookAt(0, 0, 0);
     env.add(p);
   };
-  panel(4, 4, 3, 4, 4, 0xffffff, 1.35);
-  panel(3, 5, -4, 2, -2, 0xffe8c8, 1.0);
+  panel(7, 5, 4, 6, 5, 0xfff1dc, 5.0);    // key softbox — high right-front
+  panel(8, 6, -7, 2, 2, 0xdfe8f2, 1.1);   // cool fill — left side
+  panel(6, 4, -2, 4, -7, 0xffd9a8, 2.2);  // warm back panel (rim sheen)
+  panel(10, 10, 0, -5, 0, 0xffc98f, 0.9); // floor bounce
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(env, 0.04).texture;
-  scene.environmentIntensity = 0.85;
+  scene.environmentIntensity = 1.05;
   pmrem.dispose();
 }
