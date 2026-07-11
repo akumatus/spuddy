@@ -21,6 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Enable corepack
+        # Must happen before setup-node: its yarn cache probe runs `yarn` against
+        # app/package.json, whose packageManager pin (yarn 4) aborts under the
+        # runner's global yarn 1 unless corepack provides the pinned version.
+        run: corepack enable
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22 # 22.12+ supports require(ESM), which electron-builder 26 needs
@@ -28,10 +34,7 @@ jobs:
           cache-dependency-path: app/yarn.lock
 
       - name: Install dependencies
-        # corepack picks the yarn version pinned by package.json's packageManager
-        run: |
-          corepack enable
-          yarn install --immutable
+        run: yarn install --immutable
 
       - name: Build renderer
         # electron-builder only packages the prebuilt dist/ — it does not run Vite.
