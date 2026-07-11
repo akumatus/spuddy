@@ -34,6 +34,10 @@ function hasCJK(s: string): boolean {
   return /[぀-ヿ㐀-鿿]/.test(s);
 }
 
+// CJK punctuation that must not start a line (避头尾) — when a break would
+// strand one of these at a line head, it rides along with the previous char.
+const NO_LINE_START = /[，。、；：？！）】》”’…—]/;
+
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
   const tokens = hasCJK(text) ? Array.from(text) : text.split(' ');
   const glue = hasCJK(text) ? '' : ' ';
@@ -41,7 +45,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   let line = '';
   for (const t of tokens) {
     const probe = line ? line + glue + t : t;
-    if (ctx.measureText(probe).width > maxW && line) {
+    if (ctx.measureText(probe).width > maxW && line && !NO_LINE_START.test(t)) {
       lines.push(line);
       line = t;
     } else {
@@ -259,18 +263,25 @@ export class CardScreen {
     // stays legible at desktop-pet scale (hands may clip the edges of long ones).
     // CJK falls through Caveat to a system handwriting face, mirroring --hand.
     const HAND = `Caveat, 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive`;
-    const maxW = cw * 0.98;
+    // hanzi fill the em box where Caveat leaves air: Latin's tight 1.08 leading
+    // glues Chinese lines together, so CJK cards start a notch smaller and
+    // breathe more between lines (mirrors the html.zh trims in style.css).
+    // CJK also gets a narrower measure — hanzi lines pack solid ink right up to
+    // the wrap limit, and at 0.98 they visibly touch the card's edge.
+    const cjk = /[㐀-鿿]/.test(c.main || '');
+    const lead = cjk ? 1.38 : 1.08;
+    const maxW = cw * (cjk ? 0.86 : 0.98);
     const maxH = ch * (c.footL || c.footR ? 0.7 : 0.76);
-    let size = Math.round(ch * 0.34);
+    let size = Math.round(ch * (cjk ? 0.3 : 0.34));
     let lines: string[] = [];
     while (size > 10) {
       ctx.font = `700 ${size}px ${HAND}`;
       lines = wrapText(ctx, c.main || '', maxW);
-      if (lines.length * size * 1.08 <= maxH && lines.every((l) => ctx.measureText(l).width <= maxW)) break;
+      if (lines.length * size * lead <= maxH && lines.every((l) => ctx.measureText(l).width <= maxW)) break;
       size -= 2;
     }
     ctx.fillStyle = '#4A3B28';
-    const lh = size * 1.08;
+    const lh = size * lead;
     const y0 = H / 2 - ((lines.length - 1) * lh) / 2;
     lines.forEach((l, i) => ctx.fillText(l, W / 2, y0 + i * lh));
 
