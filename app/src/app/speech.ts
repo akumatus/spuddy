@@ -50,17 +50,27 @@ export function bubble(text: string, { hold = 2600, type = false }: BubbleOpts =
   el.classList.remove('hidden');
   el.textContent = text; // even for typewriter: the clamp measures the final size
   clampOverhead(el, 0); // auto-margin centering is plain layout — no transform share
+  // reading dwell scales with length so long replies stay up long enough to
+  // read; hold is the floor for short lines. Start the countdown only once the
+  // typewriter finishes, so the reveal never eats into the reading window.
+  const dwell = hold ? hold + text.length * 55 : 0;
+  const startHide = () => {
+    if (dwell) bubbleTimer = window.setTimeout(() => el.classList.add('hidden'), dwell);
+  };
   if (type) {
     let i = 0;
     el.textContent = '';
     typeTimer = window.setInterval(() => {
       i += 2;
       el.textContent = text.slice(0, i);
-      if (i >= text.length + 1) clearInterval(typeTimer);
+      if (i >= text.length + 1) {
+        clearInterval(typeTimer);
+        startHide();
+      }
     }, 30);
+  } else {
+    startHide();
   }
-  const life = hold ? hold + (type ? text.length * 15 : 0) : 0;
-  if (life) bubbleTimer = window.setTimeout(() => el.classList.add('hidden'), life);
 }
 
 export function hideBubble(): void {
@@ -81,7 +91,7 @@ export function showMutter(text: string): void {
   el.style.animation = 'none';
   void el.offsetWidth; // restart the pop-in
   el.style.animation = '';
-  mutterTimer = window.setTimeout(() => el.classList.add('hidden'), 2300 + text.length * 40);
+  mutterTimer = window.setTimeout(() => el.classList.add('hidden'), 2800 + text.length * 75);
 }
 
 // ── floating emotes (♪ ♥ Z) drifting off his head (7a) ──
