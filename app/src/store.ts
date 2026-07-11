@@ -41,7 +41,7 @@ export function defaultState(): AppState {
     unlockedIds: ['spud'],
     buddyNew: false,
     sound: true,
-    lang: 'auto', // follow the system locale until the tray menu says otherwise
+    lang: 'en', // default to English; the tray menu offers Auto/中文 to switch
     nightShownDate: null,
     // personality engine (7a) — 0..100, design Tweaks defaults
     personality: { curiosity: 65, clinginess: 60, drama: 55, sleepiness: 35 },
