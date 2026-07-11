@@ -1,7 +1,6 @@
 // Card Book — the three-tab popup: kept cards, the day-grouped chat
 // transcript, and the memory quilt with its doodled faces.
 import { TXT } from '../content';
-import { lang } from '../locale';
 import type { AppState, MemoryFact, MemoryKind, MemoryMood } from '../types';
 import { esc, modal, openOverlay } from './overlay';
 
@@ -238,9 +237,6 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
         ${body}
       </div>`);
   }
-  // CJK has no glyphs in the handwriting font and falls back at full size, so
-  // the pet bubble reads oversized in Chinese — the .zh hook trims it down.
-  document.getElementById('book')!.classList.toggle('zh', lang() === 'zh');
 
   document.getElementById('bookClose')!.onclick = handlers.onClose;
   modal().querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => (b.onclick = () => handlers.onTab(b.dataset.tab as BookTab)));

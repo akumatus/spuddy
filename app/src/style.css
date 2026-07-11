@@ -15,9 +15,32 @@
   --heart: #d96a6a;
   /* Handwriting stack: Caveat covers Latin only, so CJK characters fall through
      to a system handwriting face (macOS 翩翩体/手札体/行楷, then generic) — keeps
-     Chinese looking hand-written like the English instead of a flat sans. */
+     Chinese looking hand-written like the English instead of a flat sans. Those
+     CJK faces render visually heavier than Caveat at the same px, so every
+     handwriting element below carries an html.zh override to size Chinese down. */
   --hand: 'Caveat', 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive;
 }
+
+/* Chinese handwriting sizing — the system CJK faces render ~20% heavier than
+   Caveat at the same px, so every --hand element gets a smaller size when the
+   root is in Chinese (locale.ts toggles html.zh). Hanzi also fill their em box
+   where Caveat leaves air, so the base leading (tuned for Latin, 1.08–1.32)
+   glues Chinese lines together — multi-line elements get looser leading too.
+   English keeps its own sizes. Symbol-only handwriting (#zz, #emotes .em ♪♥Z,
+   .zzlabel) is left alone. The popup card message is JS-sized inline — see
+   cardFont() in ui/popups.ts; the 3D card canvas mirrors this in cardscreen.ts. */
+html.zh #mutter { font-size: 16px; line-height: 1.45; }
+html.zh #said { font-size: 15px; line-height: 1.4; }
+html.zh #chatrow input { font-size: 13px; }
+html.zh .drawback .label { font-size: 19px; }
+html.zh .weavebox .line { font-size: 21px; }
+html.zh #book .empty { font-size: 19px; line-height: 1.4; }
+html.zh .cardbox .msg { line-height: 1.5; }
+html.zh .ccard .m { font-size: 14px; line-height: 1.48; }
+html.zh .pbub { font-size: 15px; line-height: 1.6; }
+html.zh .ubub { line-height: 1.55; }
+html.zh .memhead { font-size: 17px; }
+html.zh .mfact { font-size: 16px; line-height: 1.5; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -812,9 +835,6 @@ html, body {
   white-space: pre-wrap; word-break: break-word;
   box-shadow: 0 8px 16px -14px rgba(70, 50, 25, 0.6);
 }
-/* Chinese falls back out of the handwriting font and renders heavy at 19px —
-   pull it back so it sits closer to the user bubble. English is untouched. */
-#book.zh .pbub { font-size: 15px; line-height: 1.5; }
 
 /* ── Memory · the quilt ── */
 .memhead {

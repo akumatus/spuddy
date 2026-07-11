@@ -9,7 +9,10 @@ import { esc, openOverlay } from './overlay';
 function cardFont(msg: string): number {
   const s = msg || '';
   const n = s.length;
-  if (/[㐀-鿿]/.test(s)) return n < 30 ? 31 : n < 48 ? 26 : 22;
+  // CJK handwriting renders heavier than Caveat, so size Chinese a notch below
+  // the Latin sizes (matches the html.zh trims elsewhere); the card box always
+  // fits it since smaller only helps.
+  if (/[㐀-鿿]/.test(s)) return n < 30 ? 26 : n < 48 ? 22 : 18;
   return n < 70 ? 31 : n < 110 ? 26 : 22;
 }
 

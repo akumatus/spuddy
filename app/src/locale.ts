@@ -11,6 +11,13 @@ export function systemLang(): Lang {
 
 export function setLangPref(p: LangPref): void {
   pref = p === 'en' || p === 'zh' ? p : 'auto';
+  // Reflect the resolved language on the root element so CSS can size Chinese
+  // handwriting down (see the html.zh rules in style.css) — CJK renders heavier
+  // than Caveat at the same px. This is the one call boot and every switch flow
+  // through, so the class always tracks the active language.
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('zh', lang() === 'zh');
+  }
 }
 
 export function langPref(): LangPref {
