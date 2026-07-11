@@ -9,11 +9,14 @@ routes = [
   { pattern = "api.cherry.surf", custom_domain = true }
 ]
 
-# Daily card pre-generation.
-# 16:00 UTC = 00:00 Asia/Shanghai. Adjust to taste — the batch is just
-# overwritten each run, so timezone only affects "when the new pool appears".
+# Daily card pre-generation — one cron PER LANGUAGE, because one invocation's
+# subrequest budget only fits one language's batch (~40 LLM calls vs the free
+# plan's ~50-subrequest cap). 16:00 UTC = 00:00 Asia/Shanghai generates English;
+# 16:20 generates Chinese (the worker maps the expression via CRON_ZH — keep
+# these in sync with src/worker.ts). The batch is just overwritten each run, so
+# timing only affects "when the new pool appears".
 [triggers]
-crons = ["0 16 * * *"]
+crons = ["0 16 * * *", "20 16 * * *"]
 
 # KV: daily card batches (cards:current) + per-device quota counters (q:*) +
 # live provider/model config (config:current, set via POST /admin/config).

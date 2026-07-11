@@ -4,7 +4,8 @@
 //   POST /chat           real-time chat reply (geo-routed, per-device quota)
 //   POST /golden         real-time personalized golden card (same quota)
 //   POST /greet          real-time personalized open-the-app greeting (same quota)
-//   POST /admin/generate manual batch regen (protected) — run once after deploy
+//   POST /admin/generate?lang=en|zh  manual batch regen (protected) — one
+//                        language per call; run once per language after deploy
 //   GET  /health         liveness
 //
 // Daily pools are knit by the cron trigger (scheduled handler in generate.ts)
@@ -13,11 +14,15 @@
 // mutter pools. Real-time endpoints are metered against a per-device daily
 // budget.
 
-import { generateAll } from './generate';
+import { generateForLang } from './generate';
 import { PERSONAS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
-import { LANGS, MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type Env, type Lang } from './types';
+import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type Env, type Lang } from './types';
 import { CORS, clean, json, today } from './util';
+
+// The zh cron expression — must match the second entry in wrangler.toml's
+// [triggers]; any other firing (the 16:00 one) generates the English batch.
+const CRON_ZH = '20 16 * * *';
 
 // Optional soft gate: baking a shared token into the app deters casual abuse of
 // your key. It is not real auth (extractable from the build) — the per-device
@@ -206,25 +211,25 @@ export default {
       if (url.pathname === '/admin/generate' && request.method === 'POST') {
         const want = env.ADMIN_TOKEN || env.APP_TOKEN;
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
-        const batches = await generateAll(env);
-        const counts = Object.fromEntries(
-          LANGS.map((lang) => [
-            lang,
-            {
-              normal: batches[lang].normal.length,
-              ...Object.fromEntries(
-                Object.entries(batches[lang].cards).map(([k, v]) => [
-                  k,
-                  {
-                    golden: v.golden.length,
-                    mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
-                  },
-                ])
-              ),
-            },
-          ])
-        );
-        return json({ ok: true, date: batches.en.date, counts });
+        // One language per call — a single invocation's subrequest budget can't
+        // fit both batches (see generateForLang). Run it once per language.
+        const langParam = url.searchParams.get('lang');
+        if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
+        const lang = asLang(langParam);
+        const batch = await generateForLang(env, lang);
+        const counts = {
+          normal: batch.normal.length,
+          ...Object.fromEntries(
+            Object.entries(batch.cards).map(([k, v]) => [
+              k,
+              {
+                golden: v.golden.length,
+                mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
+              },
+            ])
+          ),
+        };
+        return json({ ok: true, lang, date: batch.date, counts });
       }
 
       return json({ error: 'not found' }, 404);
@@ -234,6 +239,10 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(generateAll(env));
+    // One language per firing (see generateForLang): the en cron and the zh
+    // cron are separate invocations, each with its own subrequest budget.
+    // Keep the expressions in sync with [triggers] in wrangler.toml.
+    const lang = event.cron === CRON_ZH ? 'zh' : 'en';
+    ctx.waitUntil(generateForLang(env, lang));
   },
 } satisfies ExportedHandler<Env>;

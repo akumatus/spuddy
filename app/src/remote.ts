@@ -10,12 +10,27 @@ const pp = window.pp;
 let BATCH: CardsBatch | null = null;
 let batchLang: Lang | null = null;
 
+// The server can answer in the wrong language — an out-of-date Worker ignores
+// ?lang and serves the English batch for zh, and that answer may already sit
+// in the per-language disk cache. Trust a batch only when its lines are
+// actually written in the requested language: sample the shared normal pool
+// plus the golden pools and check which script they're in.
+function batchMatchesLang(batch: CardsBatch, want: Lang): boolean {
+  const lines = [
+    ...(Array.isArray(batch.normal) ? batch.normal : []),
+    ...Object.values(batch.cards || {}).flatMap((c) => (c && Array.isArray(c.golden) ? c.golden : [])),
+  ];
+  if (!lines.length) return false; // empty batch — nothing usable in it anyway
+  const cjk = lines.filter((s) => /[一-鿿]/.test(s)).length;
+  return want === 'zh' ? cjk > lines.length / 2 : cjk <= lines.length / 2;
+}
+
 export async function refresh(): Promise<CardsBatch | null> {
   if (!pp || !pp.cards) return null;
   const want = lang();
   try {
     const data = await pp.cards.today(want);
-    if (data && data.cards) {
+    if (data && data.cards && batchMatchesLang(data, want)) {
       BATCH = data;
       batchLang = want;
     }

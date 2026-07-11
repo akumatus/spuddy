@@ -214,6 +214,17 @@ function zhLine(lang: string | undefined, charLimit: number): string {
     : '';
 }
 
+// Language rider for the [[remember:]] fact. The Memory quilt renders facts in
+// the app language, not the conversation language — without this, the English
+// examples pull models toward English facts even in a Chinese app. Category and
+// mood words must stay English: the parser matches them literally. Mirrors
+// zhRememberRider in electron/src/ai.ts — keep the wording in sync.
+function zhRememberLine(lang: string | undefined): string {
+  return lang === 'zh'
+    ? ` Write the <fact> itself in natural Simplified Chinese whatever language the conversation is in — only the category and mood words stay English, e.g. [[remember: work | plain | 在做一款叫 spuddy 的桌宠应用]].`
+    : '';
+}
+
 // Language block for the batch-generation prompts: everything (imagery seeds
 // included) stays English in the prompt, only the OUTPUT switches language.
 function zhBatchBlock(lang: Lang, charLimit: number): string {
@@ -303,7 +314,9 @@ export function buildChatSystem(persona: Persona, p: ChatPayload, musings: strin
     `You are not a therapist: if they seem in real distress, drop the playfulness, stay warm and sincere, and gently suggest also talking to a human they trust. ` +
     `Begin your reply with exactly one emotion tag in square brackets — [comfort] if they seem down, [cheer] if celebrating with them, [proud] if they did something good, [calm] otherwise — then the message itself.` +
     ` When their message calls for a physical action — they ask you to sing, dance, hug, wave, spin, jump, stretch, hide, peek, sneeze, sulk, or show your card, or acting one out would clearly land the moment — add ONE gesture tag immediately AFTER the emotion tag, chosen from EXACTLY this list: [wave] [hug] [dance] [spin] [cheer] [hop] [sing] [stretch] [shy] [peek] [sulk] [sneeze] [present]. Use it only when it truly fits; most replies have no gesture tag. Never invent gesture words outside that list. Example: "[cheer][dance] you got it — watch this."` +
-    ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information). Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost her mother years ago]] · [[remember: milestone | sunny | just ran her first 10k]]. Most replies reveal nothing new — then add nothing. Never restate something already in your long-term memory below, never record passing moods or small talk, and at most one per reply.` +
+    ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information). Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost her mother years ago]] · [[remember: milestone | sunny | just ran her first 10k]].` +
+    zhRememberLine(p.lang) +
+    ` Most replies reveal nothing new — then add nothing. Never restate something already in your long-term memory below, never record passing moods or small talk, and at most one per reply.` +
     (muse ? `\nLittle thoughts already drifting through your head today — bring one up in passing only when it genuinely fits:\n${muse}` : '') +
     (mem ? `\nLong-term memory of them (already known — don't re-remember these):\n${mem}` : '')
   );

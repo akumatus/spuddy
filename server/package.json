@@ -8,7 +8,7 @@
     "dev": "node scripts/dev.mjs",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "gen:dev": "curl -s -X POST http://localhost:8787/admin/generate -H \"x-pp-admin: dev\"",
+    "gen:dev": "curl -s -X POST 'http://localhost:8787/admin/generate?lang=en' -H \"x-pp-admin: dev\" && curl -s -X POST 'http://localhost:8787/admin/generate?lang=zh' -H \"x-pp-admin: dev\"",
     "typecheck": "tsc"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@
 // English, cards:current:zh for Chinese).
 import { CHAT_IDS, PERSONAS, buildGoldenBatchPrompt, buildMutterPrompt, buildNormalBatchPrompt } from './personas';
 import { callLLMChain, genProviderChain, loadConfig } from './providers';
-import { LANGS, MOODS, batchKey, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood } from './types';
+import { MOODS, batchKey, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood } from './types';
 import { clean, today } from './util';
 
 interface GenOpts {
@@ -204,23 +204,23 @@ async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
   return data;
 }
 
-export async function generateAll(env: Env): Promise<Record<Lang, CardsBatch>> {
+// ONE language per invocation — hard requirement, not a preference. A single
+// batch is ~40 LLM fetches (4 normal runs + 6 personas × 6 runs) and the free
+// plan caps an invocation at ~50 subrequests. Generating both languages in one
+// invocation spends the whole budget on en + the head of zh, and every later zh
+// call dies instantly at the exact same spot — which is how the zh pools ended
+// up with only the shared normal pool and the first persona filled. Callers
+// (the per-language cron firings and POST /admin/generate?lang=) give each
+// language its own invocation and therefore its own budget.
+export async function generateForLang(env: Env, lang: Lang): Promise<CardsBatch> {
   const cfg = await loadConfig(env);
-  const base = {
+  return generateBatch(env, {
     genChain: genProviderChain(env, cfg),
     models: cfg.models,
+    lang,
     nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
     nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),
     nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
     runs: Math.max(1, parseInt(env.GEN_RUNS || '2', 10)),
-  };
-  // Languages run SEQUENTIALLY: one batch already fans out into 1 + 2×6
-  // concurrent chains, and Workers queues outbound connections beyond its
-  // concurrency cap — doubling the fan-out would just push the tail calls
-  // into the same timeout window that made the runs flaky before.
-  const out = {} as Record<Lang, CardsBatch>;
-  for (const lang of LANGS) {
-    out[lang] = await generateBatch(env, { ...base, lang });
-  }
-  return out;
+  });
 }

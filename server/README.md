@@ -21,7 +21,7 @@ Electron app.
 | GET    | `/cards[?char=id]` | Today's pre-generated pool(s).                    |
 | POST   | `/chat`            | Body: `{deviceId,charId,day,memory,messages}`. 429 when over quota. |
 | POST   | `/golden`          | Body: `{deviceId,charId,memory}`. Same quota.     |
-| POST   | `/admin/generate`  | Manual regen. Header `x-pp-admin: <ADMIN_TOKEN>`. |
+| POST   | `/admin/generate?lang=en\|zh` | Manual regen, one language per call. Header `x-pp-admin: <ADMIN_TOKEN>`. |
 | GET    | `/health`          | Liveness.                                         |
 
 ## First deploy
@@ -42,8 +42,11 @@ npx wrangler secret put ADMIN_TOKEN      # protects /admin/generate
 # 3. ship it
 npx wrangler deploy
 
-# 4. knit the first batch now (cron fills it going forward)
-curl -X POST https://<your-worker>.workers.dev/admin/generate \
+# 4. knit the first batches now (cron fills them going forward) — one call
+#    per language: a single invocation's subrequest budget only fits one batch
+curl -X POST "https://<your-worker>.workers.dev/admin/generate?lang=en" \
+  -H "x-pp-admin: <ADMIN_TOKEN>"
+curl -X POST "https://<your-worker>.workers.dev/admin/generate?lang=zh" \
   -H "x-pp-admin: <ADMIN_TOKEN>"
 ```
 
