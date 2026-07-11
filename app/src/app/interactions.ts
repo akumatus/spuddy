@@ -14,7 +14,7 @@ import { $, ctx, pp } from './context';
 import { DAILY_DRAW_LIMIT, drawToday, openCard } from './gacha';
 import { applyLangPref, onLangChange } from './lang';
 import { openBook, openBuddies } from './panels';
-import { bubble, hideBubble, setBubbleHover, setMutterHover } from './speech';
+import { bubble, hideBubble } from './speech';
 
 // ── tap / poke ──
 // Tap reaction pool: each tap plays a random motion (user feedback: a fixed
@@ -220,13 +220,13 @@ export function wireInteractions(): void {
   const panel = $('hoverpanel');
   let hovT = 0;
 
-  let panelHover = false; // pointer resting on the stage or one of the panel controls
+  let panelHover = false; // pointer resting on one of the panel controls
 
-  // The panel stays up while the pointer rests on it, while the chat input
-  // holds focus (mid-message), or while the ⚙ settings popover is open — all
-  // three mean the human is actively using it.
+  // The panel stays up while the pointer rests on its controls or on the
+  // potato himself, while the chat input holds focus (mid-message), or while
+  // the ⚙ settings popover is open — all of these mean the human is around.
   function panelPinned(): boolean {
-    return panelHover || settingsOpen || document.activeElement === $('chatInput');
+    return panelHover || onPotato || settingsOpen || document.activeElement === $('chatInput');
   }
   function showPanel(): void {
     clearTimeout(hovT);
@@ -235,11 +235,14 @@ export function wireInteractions(): void {
   function hidePanelSoon(): void {
     clearTimeout(hovT);
     if (panelPinned()) return;
-    hovT = window.setTimeout(() => panel.classList.remove('show'), 320);
+    // The grace stretches with the lift: parked at the top of the screen the
+    // stage rides up but the panel stays anchored at the window bottom, so the
+    // silhouette→controls trip crosses up to ~LIFT_MAX extra px of dead air.
+    hovT = window.setTimeout(() => panel.classList.remove('show'), 320 + lift);
   }
-  stage.addEventListener('mouseenter', () => { panelHover = true; showPanel(); });
-  stage.addEventListener('mouseleave', () => { panelHover = false; hidePanelSoon(); });
-  // The panel container is click-through now (only its controls catch the mouse),
+  // The panel pops on hovering the potato himself (see the raycast hit test in
+  // the mousemove handler below — the stage box is no longer a hover target).
+  // The panel container is click-through (only its controls catch the mouse),
   // so keep-alive listens on each control instead of the whole panel box.
   for (const el of [$('said'), $('icons'), $('chatrow')]) {
     el.addEventListener('mouseenter', () => { panelHover = true; showPanel(); });
@@ -271,6 +274,10 @@ export function wireInteractions(): void {
   stage.addEventListener('pointerdown', (e) => {
     if (isOverlayOpen()) return; // visible behind the modal, but hands off —
     // dragging would move the fullscreen window and taps could stack modals
+    // Only his body takes a grab. Stage air is normally click-through and never
+    // reaches us, but the mouse-active state trails the cursor by a beat
+    // (throttled raycast below), so a stale press could sneak in — re-check.
+    if (!ctx.scene.pick(e.clientX, e.clientY)) return;
     drag = { x: e.screenX, y: e.screenY, moved: false };
     stage.setPointerCapture(e.pointerId);
   });
@@ -305,6 +312,9 @@ export function wireInteractions(): void {
     if (!drag) return;
     const moved = drag.moved;
     drag = null;
+    lastCast = 0; // bypass the throttle — the last mid-drag verdict is stale here
+    refreshMouseRegion(e.clientX, e.clientY); // settle click-through right away —
+    // the drop spot may be off his silhouette and shouldn't hold the mouse
     if (moved) {
       ctx.anim().setDragging(false); // spring-back with one overshoot
       if (edgeSide) {
@@ -317,6 +327,16 @@ export function wireInteractions(): void {
       return;
     }
     tapPet(ctx.scene.pick(e.clientX, e.clientY));
+  });
+  // a captured drag can be cancelled out from under us (system gestures etc.);
+  // without cleanup `drag` would pin the window mouse-active forever
+  stage.addEventListener('pointercancel', (e) => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    if (moved) ctx.anim().setDragging(false); // drop the pose — no landing fanfare
+    lastCast = 0;
+    refreshMouseRegion(e.clientX, e.clientY);
   });
 
   const chatInput = $('chatInput') as HTMLInputElement;
@@ -347,25 +367,75 @@ export function wireInteractions(): void {
     else openSettings();
   };
 
-  // click-through everywhere except interactive elements
-  document.addEventListener('mousemove', (e) => {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
+  // ── click-through everywhere except interactive elements ──
+  // The stage box is 300×400 but the potato only fills part of it, so the
+  // window takes the mouse strictly where something real sits under the
+  // cursor: his raycast silhouette (holder-only cast — the ground shadow is
+  // outside the holder and stays click-through), the hover panel's visible
+  // controls, or a popup. The speech bubble / mutter card are pointer-events:
+  // none, so the desktop above his head stays usable while he talks.
+  let onPotato = false; // cursor currently over his silhouette (throttle-cached)
+  let lastCast = 0;
+  let castTrail = 0; // deferred re-cast for a sample the throttle swallowed
+  let lastPos: { x: number; y: number } | null = null; // last in-window pointer spot
+
+  function refreshMouseRegion(cx: number, cy: number): void {
+    clearTimeout(castTrail);
+    const el = document.elementFromPoint(cx, cy);
+    const onStage = !!(el && el.closest('#stage'));
+    const was = onPotato;
+    if (!onStage) {
+      onPotato = false;
+      lastCast = 0; // next stage entry raycasts immediately
+    } else if (performance.now() - lastCast > 40) {
+      // raycasting the model on every high-rate mousemove would be wasteful —
+      // one cast per ~40ms, the verdict holds in between
+      lastCast = performance.now();
+      onPotato = !isOverlayOpen() && !!ctx.scene.pick(cx, cy);
+    } else {
+      // this sample fell inside the hold — re-cast once when it expires, so a
+      // pointer that stops right after crossing his outline can't keep a stale
+      // verdict (no newer mousemove means the cursor is still at cx, cy)
+      castTrail = window.setTimeout(() => refreshMouseRegion(cx, cy), 45);
+    }
+    // his silhouette is also the hover-panel trigger now, not the stage box
+    if (onPotato && !was) showPanel();
+    else if (!onPotato && was) hidePanelSoon();
     // In panel mode (Card Book / Buddies) the overlay backdrop is click-through,
     // so the desktop and other apps stay usable around the floating panel. The
     // panel content itself still carries data-interactive, so it stays clickable.
     const onPanelBackdrop = !!(el && el.id === 'overlay' && el.classList.contains('panel'));
-    // while a popup is being dragged, hold the window mouse-active even as the
-    // cursor sweeps over the click-through backdrop, so the drag keeps its events
-    const interactive = isDraggingModal() || (!onPanelBackdrop && !!(el && el.closest('[data-interactive]')));
+    const interactive =
+      // while the potato or a popup is being dragged, hold the window
+      // mouse-active even as the cursor outruns the moving target
+      isDraggingModal() || !!drag ||
+      onPotato ||
+      // modal up: his whole box stays a dead zone exactly as before — a dimmed
+      // screen shouldn't leak clicks to the desktop around his silhouette
+      (onStage && isOverlayOpen()) ||
+      (!onPanelBackdrop && !!(el && el.closest('[data-interactive]')));
     pp.win.setIgnoreMouse(!interactive);
-    setBubbleHover(!!(el && el.closest('#bubble')));
-    setMutterHover(!!(el && el.closest('#mutter')));
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    lastPos = { x: e.clientX, y: e.clientY };
+    refreshMouseRegion(e.clientX, e.clientY);
   });
   document.addEventListener('mouseleave', () => {
+    lastPos = null;
+    clearTimeout(castTrail);
+    onPotato = false;
+    lastCast = 0;
     pp.win.setIgnoreMouse(true);
-    setBubbleHover(false);
-    setMutterHover(false);
+    hidePanelSoon();
   });
+  // He also moves under a parked cursor — hops, skits, edge naps and
+  // spring-backs all shift the silhouette with no mousemove to notice it. A
+  // slow re-check at the resting spot keeps the hit region honest (cheap:
+  // off-stage it's just an elementFromPoint, on stage one BVH cast per tick).
+  window.setInterval(() => {
+    if (lastPos && !drag) refreshMouseRegion(lastPos.x, lastPos.y);
+  }, 200);
 
   // turns to watch your cursor (Turn 5) — the main process polls the global cursor so he
   // keeps watching even while the pointer roams other windows; eyes lead, head

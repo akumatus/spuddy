@@ -1,11 +1,21 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { Animator } from './motions';
 import { CardScreen, type CardPlacement } from './cardscreen';
 import { rigParts } from './rig';
 import { LIGHT_BASE, LIGHT_TWEAKS, makeShadowTexture, makeStudioEnvScene, type LightRig } from './lighting';
 import type { CharId } from '../types';
+
+// BVH-accelerated raycasting: the scan models run 125k–332k triangles and a
+// naive cast costs ~10ms — pick() now fires on hover (interactions.ts hit
+// region), not just on click, so that would hitch the render loop. With a
+// per-geometry BVH a cast is well under 0.1ms. Meshes without a boundsTree
+// (e.g. the legacy card quad) silently fall back to the stock raycast.
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 const loader = new GLTFLoader();
 const draco = new DRACOLoader();
@@ -31,6 +41,9 @@ async function loadModel(id: string): Promise<THREE.Group> {
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) {
       const mesh = o as THREE.Mesh;
+      // clones share geometry with the cached original, so each model id pays
+      // the BVH build once at load and every clone reuses the tree
+      if (!mesh.geometry.boundsTree) mesh.geometry.computeBoundsTree();
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       // legacy single-mesh scans are a baked emissive texture (black base
@@ -214,6 +227,7 @@ export class PetScene {
     const r = this.canvas.getBoundingClientRect();
     if (!this._raycaster || !this._ndc) {
       this._raycaster = new THREE.Raycaster();
+      this._raycaster.firstHitOnly = true; // BVH fast path — we only read hits[0]
       this._ndc = new THREE.Vector2();
     }
     this._ndc.set(

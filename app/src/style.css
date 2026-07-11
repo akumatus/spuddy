@@ -88,6 +88,9 @@ html, body {
   box-shadow: 0 4px 0 rgba(62, 50, 38, 0.14);
   animation: pp-bubble 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 6;
+  /* click-through: the bubble floats over other apps' windows and must never
+     eat their clicks — only the potato's own silhouette takes the mouse */
+  pointer-events: none;
 }
 #bubble::after {
   content: '';
@@ -122,8 +125,9 @@ html, body {
   box-shadow: 0 8px 20px -12px rgba(90, 70, 40, 0.4);
   animation: pp-mut 0.28s ease-out;
   z-index: 5;
-  /* hoverable (like #bubble) so resting the pointer on the thought card
-     freezes its auto-hide — elementFromPoint must be able to hit it */
+  /* click-through, same as #bubble — the thought card must not block clicks
+     meant for whatever sits behind it on the desktop */
+  pointer-events: none;
 }
 #mutter::after {
   content: '';

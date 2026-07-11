@@ -11,7 +11,9 @@
 <body>
   <div id="confetti"></div>
 
-  <div id="stage" data-interactive>
+  <!-- no data-interactive: the mouse-active region is the potato's raycast
+       silhouette (see interactions.ts), not this whole 300×400 box -->
+  <div id="stage">
     <div id="bubble" class="hidden"></div>
     <div id="mutter" class="hidden"></div>
     <div id="zz" class="hidden">z z</div>

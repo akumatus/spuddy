@@ -3913,6 +3913,7 @@ __metadata:
     meshoptimizer: "npm:^1.2.0"
     sharp: "npm:^0.35.3"
     three: "npm:^0.170.0"
+    three-mesh-bvh: "npm:^0.9.11"
     typescript: "npm:^6.0.3"
     vite: "npm:^5.4.0"
   languageName: unknown
@@ -3992,6 +3993,15 @@ __metadata:
     async-exit-hook: "npm:^2.0.1"
     fs-extra: "npm:^10.0.0"
   checksum: 10c0/70e441909097346a930ae02278df9b0133cd02dddf0b49e5ddaade735fef1410a50a448a2a812106f97c045294c99cc19f26943eb88f1d728d41fbc445a40298
+  languageName: node
+  linkType: hard
+
+"three-mesh-bvh@npm:^0.9.11":
+  version: 0.9.11
+  resolution: "three-mesh-bvh@npm:0.9.11"
+  peerDependencies:
+    three: ">= 0.159.0"
+  checksum: 10c0/053457fe5bc2c82e5b3da2090226c428ca33f9fa953013bb5cb698b6139ee035ad630fffbef42665aa4db0d00d373037c8bda9f46d3d7881fcde9b8991c3083b
   languageName: node
   linkType: hard
 
