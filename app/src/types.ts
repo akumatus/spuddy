@@ -183,6 +183,9 @@ export interface PreloadBridge {
     // resolves to how many px the window fell short of the requested vertical
     // move (macOS pins the top under the menu bar)
     moveBy(dx: number, dy: number): Promise<number>;
+    // which flank of the potato the hover panel fits on, given where the
+    // window sits on screen — queried at boot and after each drag ends
+    panelSide(): Promise<'left' | 'right'>;
     setModal(v: boolean): void;
     modalGeometry(): Promise<{ dx: number; dy: number } | null>;
   };

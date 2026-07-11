@@ -249,6 +249,14 @@ export function wireInteractions(): void {
     el.addEventListener('mouseleave', () => { panelHover = false; hidePanelSoon(); });
   }
 
+  // Which flank of the potato the panel hangs on. Recomputed when a drag
+  // settles (and once at boot): parked near the left screen edge the default
+  // left-side panel would clip offscreen, so it mirrors to his right.
+  async function settlePanelSide(): Promise<void> {
+    panel.classList.toggle('flip', (await pp.win.panelSide()) === 'right');
+  }
+  void settlePanelSide(); // boot: the spawn corner is right, but resolve it anyway
+
   // tap vs drag: dragging the potato moves the whole window; horizontal drag
   // also spins him — release lets the underdamped spring swing him back.
   // (the Turn 5/6 double-tap → pirouette mapping is gone: it hijacked every
@@ -316,6 +324,7 @@ export function wireInteractions(): void {
     refreshMouseRegion(e.clientX, e.clientY); // settle click-through right away —
     // the drop spot may be off his silhouette and shouldn't hold the mouse
     if (moved) {
+      void settlePanelSide(); // the drop spot decides which flank the panel takes
       ctx.anim().setDragging(false); // spring-back with one overshoot
       if (edgeSide) {
         sleepAtEdge(); // landed against an edge — tuck in for a nap
@@ -334,7 +343,10 @@ export function wireInteractions(): void {
     if (!drag) return;
     const moved = drag.moved;
     drag = null;
-    if (moved) ctx.anim().setDragging(false); // drop the pose — no landing fanfare
+    if (moved) {
+      void settlePanelSide(); // the window stays wherever the cancel left it
+      ctx.anim().setDragging(false); // drop the pose — no landing fanfare
+    }
     lastCast = 0;
     refreshMouseRegion(e.clientX, e.clientY);
   });

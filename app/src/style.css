@@ -36,7 +36,9 @@ html, body {
 /* ── pet stage (bottom-right) ── */
 #stage {
   position: absolute;
-  right: 16px;
+  /* horizontally centered in the window so the hover panel has room on either
+     flank of the potato (it mirrors sides near the left screen edge) */
+  right: calc(50% - 150px);
   bottom: 0;
   width: 300px;
   height: 400px;
@@ -96,7 +98,10 @@ html, body {
   content: '';
   position: absolute;
   bottom: -8px;
-  left: 50%;
+  /* --shift is the on-screen clamp offset (speech.ts clampOverhead): the tail
+     counter-shifts so it keeps pointing at his head when the bubble is nudged
+     away from a screen edge, clamped clear of the rounded corners */
+  left: clamp(18px, calc(50% - var(--shift, 0px)), calc(100% - 18px));
   width: 13px;
   height: 13px;
   background: var(--paper);
@@ -133,7 +138,8 @@ html, body {
   content: '';
   position: absolute;
   bottom: -12px;
-  left: 24px;
+  /* counter-shift like #bubble's tail — the dot trail stays over his head */
+  left: clamp(14px, calc(24px - var(--shift, 0px)), calc(100% - 24px));
   width: 9px;
   height: 9px;
   border-radius: 999px;
@@ -163,17 +169,18 @@ html, body {
   animation: pp-heart 0.95s ease-out forwards;
 }
 
-/* ── hover panel (left of pet) ── */
+/* ── hover panel (left of pet by default, mirrored near the left screen edge) ── */
 #hoverpanel {
   position: absolute;
-  /* above the stage (z-index 50): the panel overlaps the stage's left edge
-     (stage spans right:16–316px), so without this the right of the icon row /
-     chat box would fall under the stage and lose clicks (e.g. ♪ mute) */
+  /* above the stage (z-index 50): the panel overlaps the stage's near edge by
+     46px, so without this the potato-side end of the icon row / chat box would
+     fall under the stage and lose clicks (e.g. ♪ mute) */
   z-index: 51;
-  /* tucked in close to the potato's left edge (~right:256px). Nudge this value
-     down to move nearer, up to back off — keep it ≳ his silhouette so the chat
-     box doesn't paint over him (the panel now sits above the stage). */
-  right: 270px;
+  /* tucked in close to the potato's left edge: the stage is centered (its left
+     edge sits at 50% - 150px) and the panel's right edge reaches 46px past it.
+     Nudge the 104 up to move nearer, down to back off — keep the overlap ≲ his
+     silhouette so the chat box doesn't paint over him. */
+  right: calc(50% + 104px);
   /* the chat box (panel's bottom edge) sits level with the pet's base — his
      model bottom renders ~78px above the window bottom (fixed for every buddy) */
   bottom: 78px;
@@ -185,6 +192,19 @@ html, body {
   pointer-events: none;
   transform: translateX(10px);
   transition: opacity 0.35s ease, transform 0.35s ease;
+}
+/* mirrored to the potato's right flank — set from the drag-end side check
+   (interactions.ts settlePanelSide) when he parks near the left screen edge,
+   where the default left-side panel would clip offscreen */
+#hoverpanel.flip {
+  right: auto;
+  left: calc(50% + 104px);
+  align-items: flex-start;
+  transform: translateX(-10px);
+}
+#hoverpanel.flip #said {
+  text-align: left;
+  transform-origin: left bottom;
 }
 #hoverpanel.show {
   opacity: 1;
@@ -314,6 +334,19 @@ html, body {
   border-right: 1.5px solid #e0d2b8;
   border-bottom: 1.5px solid #e0d2b8;
   transform: rotate(45deg);
+}
+/* mirrored panel: grow the popover toward the open side (right) instead of
+   over the potato; the tail stays under the gear, still the row's last button */
+#hoverpanel.flip #spanel {
+  right: auto;
+  left: 0;
+  transform-origin: 0 100%;
+}
+#hoverpanel.flip #spanel::after {
+  right: auto;
+  /* gear center from the icon row's left edge (2×39px buttons + 2×8px gaps
+     + 19.5px to mid-gear) minus half the 12px tail ≈ 107px */
+  left: 107px;
 }
 #spanel .sp-head { display: flex; align-items: center; justify-content: space-between; }
 #spanel .sp-title { font-weight: 900; font-size: 13px; letter-spacing: 0.04em; color: var(--ink2, #3e3226); }

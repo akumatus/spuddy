@@ -35,7 +35,10 @@ async function expandForModal(seq: number): Promise<void> {
   if (seq !== modalSeq) return;
   if (g) {
     const st = stageEl().style;
-    st.right = `${16 + g.dx}px`;
+    // the stage's resting right offset is %-based (centered in the window), so
+    // measure the pixel gap before the resize and pin it as an absolute value
+    const baseRight = window.innerWidth - stageEl().getBoundingClientRect().right;
+    st.right = `${baseRight + g.dx}px`;
     st.bottom = `${g.dy}px`;
     await painted(); // the offset stage is on screen before the window grows
     if (seq !== modalSeq) return;

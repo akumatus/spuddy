@@ -5,6 +5,7 @@ import type { CharId } from '../types';
 import { ctx } from './context';
 import { drawToday } from './gacha';
 import { playTapReaction, tapPet } from './interactions';
+import { bubble, showMutter } from './speech';
 
 // redraw simulates the next day: fresh text each time, golden by pity-smoothed roll
 export function debugRedraw(): void {
@@ -37,6 +38,9 @@ export function installDebugHooks(): void {
     redraw: debugRedraw,
     reset: debugReset,
     play: (name: string) => ctx.anim().play(name),
+    // deterministic speech triggers — tap() can land on a silent skit
+    say: bubble,
+    mutter: showMutter,
     setChar: (id: CharId) => ctx.scene.setCharacter(id).then(() => ctx.updateCardScreen()),
     sceneObj: ctx.scene,
     cardProbe: () => {

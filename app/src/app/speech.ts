@@ -10,6 +10,32 @@ let bubbleTimer = 0;
 let typeTimer = 0;
 let mutterTimer = 0;
 
+// ── keep the head cards on screen ──
+// Both cards hang over the potato's head, centered on the stage — but the
+// window rides wherever he's dragged and can hang off a screen edge, so the
+// centered spot may fall on the offscreen strip (or, at full lift, above the
+// window's top). Measure the layout spot when a card pops, clamp it into
+// view, and carry the shift in --shift so the ::after tail can counter-shift
+// and keep pointing at him. offsetLeft/Top are used instead of the element's
+// own rect because the pop-in keyframes scale it mid-animation; xAnchor covers
+// transform-based centering (the mutter's translateX(-50%)), which offsetLeft
+// doesn't see.
+const EDGE = 10; // breathing room against screen/window edges
+
+function clampOverhead(el: HTMLElement, xAnchor: number): void {
+  const stage = $('stage').getBoundingClientRect(); // includes the lift transform
+  const scr = screen as Screen & { availLeft?: number; availTop?: number };
+  // the window's on-screen strip, in window coords
+  const visL = Math.max((scr.availLeft ?? 0) - window.screenX, 0);
+  const visR = Math.min((scr.availLeft ?? 0) + scr.availWidth - window.screenX, window.innerWidth);
+  const visT = Math.max((scr.availTop ?? 0) - window.screenY, 0);
+  const left = stage.left + el.offsetLeft - el.offsetWidth * xAnchor;
+  const shiftX = Math.max(visL + EDGE, Math.min(left, visR - EDGE - el.offsetWidth)) - left;
+  const shiftY = Math.max(visT + EDGE - (stage.top + el.offsetTop), 0); // only ever pushed down
+  el.style.translate = `${shiftX}px ${shiftY}px`; // separate property — the keyframes own `transform`
+  el.style.setProperty('--shift', `${shiftX}px`);
+}
+
 export interface BubbleOpts {
   hold?: number;
   type?: boolean; // typewriter reveal
@@ -22,9 +48,9 @@ export function bubble(text: string, { hold = 2600, type = false }: BubbleOpts =
   $('mutter').classList.add('hidden'); // speak outranks the inner monologue
   const el = $('bubble');
   el.classList.remove('hidden');
-  if (!type) {
-    el.textContent = text;
-  } else {
+  el.textContent = text; // even for typewriter: the clamp measures the final size
+  clampOverhead(el, 0); // auto-margin centering is plain layout — no transform share
+  if (type) {
     let i = 0;
     el.textContent = '';
     typeTimer = window.setInterval(() => {
@@ -51,6 +77,7 @@ export function showMutter(text: string): void {
   clearTimeout(mutterTimer);
   el.textContent = text;
   el.classList.remove('hidden');
+  clampOverhead(el, 0.5); // centered by translateX(-50%), invisible to offsetLeft
   el.style.animation = 'none';
   void el.offsetWidth; // restart the pop-in
   el.style.animation = '';

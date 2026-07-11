@@ -4,7 +4,11 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const WIN_W = 680;
+// The stage (300px wide) sits at the window's horizontal center (CSS: right:
+// calc(50% - 150px)), leaving equal room on both sides of the potato so the
+// hover panel can hang off either flank — near the left screen edge it mirrors
+// to his right instead of clipping offscreen (see 'panel-side' below).
+const WIN_W = 720;
 const WIN_H = 640;
 
 // app icon — design 1b "classic full-body with heart card", rebuilt by scripts/make-icon.cjs
@@ -23,7 +27,10 @@ export function createWindow(): void {
   win = new BrowserWindow({
     width: WIN_W,
     height: WIN_H,
-    x: workArea.x + workArea.width - WIN_W - 8,
+    // spawn with the potato tucked into the bottom-right corner (stage center
+    // ~174px from the screen edge); the window's empty right half hangs off
+    // the screen — it's transparent and click-through, so nothing shows
+    x: workArea.x + workArea.width - ANCHOR_X - 174,
     y: workArea.y + workArea.height - WIN_H,
     icon: ICON_PATH,
     transparent: true,
@@ -88,11 +95,12 @@ export function createWindow(): void {
 let savedBounds: Electron.Rectangle | null = null;
 
 // ── edge dock: report which screen edge the potato is pushed against ──
-// The potato renders in the bottom-right of the transparent window (CSS stage:
-// right:16 bottom:0, 300x400), so its on-screen anchor sits at this offset
-// inside the window. We only dock on the sides / top — the bottom is his
-// resting spot, so docking there would put him to sleep the moment he boots.
-const ANCHOR_X = 514; // WIN_W - 16 - 150 → stage horizontal center
+// The potato renders at the horizontal center of the transparent window (CSS
+// stage: right: calc(50% - 150px), bottom:0, 300x400), so its on-screen anchor
+// sits at this offset inside the window. We only dock on the sides / top — the
+// bottom is his resting spot, so docking there would put him to sleep the
+// moment he boots.
+const ANCHOR_X = WIN_W / 2; // stage horizontal center
 const ANCHOR_Y = 490; // roughly the potato's body center
 const DOCK = 95; // how close the anchor must get to count as "at the edge"
 let lastEdge: string | null = null;
@@ -113,10 +121,25 @@ function reportEdge(): void {
   }
 }
 
+// ── hover panel side ──
+// The panel (chat box + icon row) hangs off the potato's left flank by
+// default. Its far edge reaches ~336px left of the stage center, so once the
+// potato parks closer than that (plus a little margin) to the left screen
+// edge, the panel would clip — the renderer asks after each drag ends and
+// mirrors it to his right instead.
+const PANEL_ROOM = 350;
+
 // ── IPC: window control ──
 export function registerWindowIpc(): void {
   ipcMain.on('set-ignore-mouse', (_e, ignore: boolean) => {
     if (win) win.setIgnoreMouseEvents(ignore, { forward: true });
+  });
+
+  ipcMain.handle('panel-side', () => {
+    if (!win) return 'left';
+    const [x] = win.getPosition();
+    const wa = screen.getDisplayMatching(win.getBounds()).workArea;
+    return x + ANCHOR_X - wa.x < PANEL_ROOM ? 'right' : 'left';
   });
 
   // Returns how many pixels the window fell short of the requested vertical move —
