@@ -1,6 +1,7 @@
 import { Menu, Tray, app, ipcMain, nativeImage } from 'electron';
 import path from 'node:path';
 import type { Lang, LangPref } from '../../src/types';
+import { checkForUpdates, getUpdateStatus, onUpdateStatus, quitAndInstall } from './updater';
 import { getWin } from './window';
 
 let tray: Tray | null = null;
@@ -11,9 +12,42 @@ let tray: Tray | null = null;
 let pref: LangPref = 'auto';
 let effective: Lang = 'en';
 
-const LABELS: Record<Lang, { showHide: string; language: string; auto: string; quit: string }> = {
-  en: { showHide: 'Show / Hide', language: 'Language', auto: 'Auto (System)', quit: 'Quit Spuddy' },
-  zh: { showHide: '显示 / 隐藏', language: '语言', auto: '跟随系统', quit: '退出 Spuddy' },
+const LABELS: Record<
+  Lang,
+  {
+    showHide: string;
+    language: string;
+    auto: string;
+    quit: string;
+    checkUpdates: string;
+    checking: string;
+    downloading: (v: string) => string;
+    uptodate: string;
+    restart: (v: string) => string;
+  }
+> = {
+  en: {
+    showHide: 'Show / Hide',
+    language: 'Language',
+    auto: 'Auto (System)',
+    quit: 'Quit Spuddy',
+    checkUpdates: 'Check for Updates',
+    checking: 'Checking for updates…',
+    downloading: (v) => `Downloading ${v}…`,
+    uptodate: 'Up to date',
+    restart: (v) => `Restart to update (${v})`,
+  },
+  zh: {
+    showHide: '显示 / 隐藏',
+    language: '语言',
+    auto: '跟随系统',
+    quit: '退出 Spuddy',
+    checkUpdates: '检查更新',
+    checking: '正在检查更新…',
+    downloading: (v) => `正在下载 ${v}…`,
+    uptodate: '已是最新版本',
+    restart: (v) => `重启并更新到 ${v}`,
+  },
 };
 
 function pickLang(p: LangPref): void {
@@ -27,6 +61,24 @@ function pickLang(p: LangPref): void {
 
 function systemLang(): Lang {
   return /^zh/i.test(app.getLocale() || '') ? 'zh' : 'en';
+}
+
+// one entry that morphs with the updater state: a clickable "Check for
+// Updates" at rest, progress while busy, "Restart to update" once staged
+function updateItem(L: (typeof LABELS)[Lang]): Electron.MenuItemConstructorOptions {
+  const u = getUpdateStatus();
+  switch (u.state) {
+    case 'checking':
+      return { label: L.checking, enabled: false };
+    case 'downloading':
+      return { label: L.downloading(u.version ?? '…'), enabled: false };
+    case 'ready':
+      return { label: L.restart(u.version ?? ''), click: () => quitAndInstall() };
+    case 'uptodate':
+      return { label: L.uptodate, enabled: false };
+    default:
+      return { label: L.checkUpdates, enabled: app.isPackaged, click: () => checkForUpdates() };
+  }
 }
 
 function rebuildMenu(): void {
@@ -50,6 +102,8 @@ function rebuildMenu(): void {
         ],
       },
       { type: 'separator' },
+      updateItem(L),
+      { type: 'separator' },
       { label: L.quit, click: () => app.quit() },
     ])
   );
@@ -57,6 +111,7 @@ function rebuildMenu(): void {
 
 export function createTray(): void {
   effective = systemLang();
+  onUpdateStatus(rebuildMenu); // update entry morphs as the updater progresses
   // renderer boot (and every language change) reports the persisted preference
   ipcMain.on('lang-changed', (_e, data: { pref?: LangPref; effective?: Lang }) => {
     if (data && (data.pref === 'auto' || data.pref === 'en' || data.pref === 'zh')) pref = data.pref;

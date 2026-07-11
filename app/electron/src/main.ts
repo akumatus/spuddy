@@ -4,6 +4,7 @@
 import { app, nativeImage } from 'electron';
 import { registerAiIpc } from './ai';
 import { createTray } from './tray';
+import { startUpdater } from './updater';
 import { startWatchers } from './watchers';
 import { ICON_PATH, createWindow, getWin, registerWindowIpc } from './window';
 
@@ -38,6 +39,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     createWindow();
     createTray();
+    startUpdater();
   });
 }
 
