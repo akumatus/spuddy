@@ -4,6 +4,8 @@
 
 # Spuddy
 
+**[spud.cherry.surf](https://spud.cherry.surf)**
+
 **A hand-crocheted potato who lives in the corner of your screen — and hands you a little card of encouragement, one day at a time.**
 
 He's a *real* crocheted doll, 3D-scanned and brought to life on your desktop. He follows your cursor, mutters to himself, remembers what you tell him, and knits you a golden card when you least expect it.
@@ -28,20 +30,6 @@ He's a *real* crocheted doll, 3D-scanned and brought to life on your desktop. He
 <br />
 
 > He doesn't take up a window. He doesn't ping you. He just sits in the bottom-right corner of your day, glancing over when you move your mouse, holding out something kind.
-
----
-
-## ⬇️ Get Spuddy
-
-<div align="center">
-
-**[⬇ Download for macOS](https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg)** · Apple silicon · signed & notarized
-
-or meet him first at **[spud.cherry.surf](https://spud.cherry.surf)** — the potato on the website is alive too
-
-</div>
-
-Drag him into **Applications**, open, and say hi. macOS asks once whether to open an app downloaded from the internet — that's the only gate.
 
 ---
 
