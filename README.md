@@ -31,6 +31,20 @@ He's a *real* crocheted doll, 3D-scanned and brought to life on your desktop. He
 
 ---
 
+## ⬇️ Get Spuddy
+
+<div align="center">
+
+**[⬇ Download for macOS](https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg)** · Apple silicon · signed & notarized
+
+or meet him first at **[spud.cherry.surf](https://spud.cherry.surf)** — the potato on the website is alive too
+
+</div>
+
+Drag him into **Applications**, open, and say hi. macOS asks once whether to open an app downloaded from the internet — that's the only gate.
+
+---
+
 ## 🥔 A card a day
 
 <div align="center">
@@ -137,7 +151,7 @@ This isn't a sprite. Under the hood:
 
 ---
 
-## 🚀 Run it
+## 🚀 Run it from source
 
 ```bash
 cd app
@@ -145,7 +159,7 @@ yarn install
 yarn start
 ```
 
-A little potato appears in the bottom-right corner, and a matching one lands in your menu bar (**Show / Hide**, **Quit**).
+A little potato appears in the bottom-right corner, and a matching one lands in your menu bar (**Show / Hide**, **Quit**). Prefer the packaged app? Grab the [signed DMG](https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg) above.
 
 ---
 
