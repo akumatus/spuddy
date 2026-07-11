@@ -44,8 +44,11 @@
           ]
         }
       ],
-      "identity": "-",
-      "hardenedRuntime": false
+      "identity": "Developer ID Application: YUE WU (76GBLFCPBF)",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "notarize": true
     },
     "publish": [
       {

@@ -40,12 +40,34 @@ jobs:
         run: yarn build
 
       - name: Build and publish DMG
-        # Unsigned build (identity: null) — see release notes about first-open on macOS.
+        # Signed with Developer ID and notarized by Apple, so the dmg opens without
+        # the "damaged / unidentified developer" Gatekeeper prompt.
+        # CSC_LINK / CSC_KEY_PASSWORD: electron-builder imports the .p12 into a
+        # throwaway keychain. APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
+        # activate the notarization step (an app-specific password, not the Apple
+        # account password).
         # --publish always uploads the dmg to a draft GitHub Release for this tag.
         run: yarn electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify signature and notarization
+        # electron-builder only *warns* and keeps going when the notarization env
+        # vars are absent, so a green run can still ship an unnotarized app. Assert
+        # the ticket is really stapled rather than trusting the exit code.
+        run: |
+          APP="$(find release -maxdepth 2 -name 'Spuddy.app' -print -quit)"
+          test -n "$APP" || { echo "::error::no Spuddy.app in release/"; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute -vv "$APP" 2>&1 | tee /tmp/spctl.txt
+          grep -q "source=Notarized Developer ID" /tmp/spctl.txt \
+            || { echo "::error::app is not notarized"; exit 1; }
 
       - name: Upload build artifact
         # Keeps the dmg on the workflow run too (handy for manual/dispatch runs).

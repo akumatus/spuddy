@@ -3,3 +3,5 @@ claude-design/
 .DS_Store
 .claude/settings.local.json
 web/.wrangler/
+*.p12
+*.p8
