@@ -24,6 +24,7 @@
   "build": {
     "appId": "com.spuddy.app",
     "productName": "Spuddy",
+    "artifactName": "${productName}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
