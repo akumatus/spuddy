@@ -812,6 +812,9 @@ html, body {
   white-space: pre-wrap; word-break: break-word;
   box-shadow: 0 8px 16px -14px rgba(70, 50, 25, 0.6);
 }
+/* Chinese falls back out of the handwriting font and renders heavy at 19px —
+   pull it back so it sits closer to the user bubble. English is untouched. */
+#book.zh .pbub { font-size: 15px; line-height: 1.5; }
 
 /* ── Memory · the quilt ── */
 .memhead {
