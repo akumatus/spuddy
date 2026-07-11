@@ -87,8 +87,9 @@ export function chatSend(): void {
 // Long-term memory is now the pet's own distillation, not a filter over raw
 // chat: the reply carries an optional `remember` — a durable fact he chose to
 // keep about the human, tagged with a category. Store it once, skipping
-// near-duplicates (models re-surface the same fact across a conversation).
-const normFact = (f: string) => f.trim().toLowerCase().replace(/[.!?]+$/, '');
+// near-duplicates: models re-surface the same fact across a conversation,
+// often re-told with extra detail, so dedupe is by containment (store.normFact)
+// rather than equality.
 
 // Stores the fact and returns the category it was filed under (or null when
 // skipped as too-short / a near-duplicate), so the caller can tag the message
@@ -100,9 +101,20 @@ function rememberFact(fact: string, kind: string | undefined, mood: MemoryMood |
   const state = ctx.state;
   const f = (fact || '').trim();
   if (f.length < 4) return null;
-  if (state.memory.some((m) => normFact(m.fact) === normFact(f))) return null;
+  const n = store.normFact(f);
+  // an existing fact already says this (in equal or richer detail) → skip
+  if (state.memory.some((m) => store.normFact(m.fact).includes(n))) return null;
   const k: MemoryKind = MEMORY_KIND_IDS.includes(kind as MemoryKind) ? (kind as MemoryKind) : 'other';
   const md = mood || (tag === 'comfort' ? 'rainy' : tag === 'cheer' || tag === 'proud' ? 'sunny' : 'plain');
+  // a re-telling that adds detail upgrades the old card instead of adding a
+  // twin; day stays — that's when he first learned it
+  const prior = state.memory.find((m) => n.includes(store.normFact(m.fact)));
+  if (prior) {
+    prior.fact = f;
+    prior.kind = k;
+    prior.mood = md;
+    return k;
+  }
   state.memory.push({ day: state.day, fact: f, kind: k, mood: md });
   return k;
 }

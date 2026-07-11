@@ -1,4 +1,4 @@
-import type { AppState } from './types';
+import type { AppState, MemoryFact } from './types';
 
 const KEY = 'pp_ritual_v1';
 
@@ -16,6 +16,37 @@ export function todayStr(): string {
 
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+}
+
+// ── memory dedupe ──
+// The model re-surfaces the same fact across conversations, often re-told with
+// extra detail ("has a daughter named 芋圆" → "…芋圆, six months old"). Flatten
+// case, punctuation and spacing so a re-telling that only adds a clause reads
+// as containment of the shorter fact, not as a brand-new one.
+export function normFact(f: string): string {
+  return f.toLowerCase().replace(/[\p{P}\p{S}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Collapse facts that contain one another: the richer telling keeps the card,
+// the earliest day stays (when he first learned it). Runs on load to heal
+// saves that collected twins before containment-aware dedupe existed.
+export function dedupeMemory(mem: MemoryFact[]): MemoryFact[] {
+  const kept: MemoryFact[] = [];
+  for (const m of mem) {
+    const n = normFact(m.fact);
+    const twin = n && kept.find((k) => {
+      const kn = normFact(k.fact);
+      return kn.includes(n) || n.includes(kn);
+    });
+    if (!twin) { kept.push({ ...m }); continue; }
+    if (n.length > normFact(twin.fact).length) {
+      twin.fact = m.fact;
+      twin.kind = m.kind;
+      twin.mood = m.mood;
+    }
+    twin.day = Math.min(twin.day, m.day);
+  }
+  return kept;
 }
 
 export function defaultState(): AppState {
@@ -61,6 +92,8 @@ export function load(): AppState {
       // Long-term memory moved from raw {day, note, reply} chat excerpts to
       // {day, fact} distilled facts. Old excerpts don't translate — start clean.
       if (!Array.isArray(s.memory)) s.memory = [];
+      // heal twins saved before dedupe became containment-aware (chat.ts rememberFact)
+      s.memory = dedupeMemory(s.memory);
       // pre-TS saves carried a journal field — drop it on load
       delete (s as { journal?: unknown }).journal;
     }
