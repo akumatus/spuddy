@@ -3,6 +3,7 @@
 // (esbuild) — package.json "main" points at the bundle.
 import { app, nativeImage } from 'electron';
 import { registerAiIpc } from './ai';
+import { registerStoreIpc } from './store';
 import { createTray } from './tray';
 import { startUpdater } from './updater';
 import { startWatchers } from './watchers';
@@ -19,6 +20,7 @@ if (process.env.PP_USERDATA) app.setPath('userData', process.env.PP_USERDATA);
 
 registerWindowIpc();
 registerAiIpc();
+registerStoreIpc();
 startWatchers();
 
 // one potato per desk — stacked transparent instances render ghost overlaps

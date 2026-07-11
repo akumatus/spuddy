@@ -174,6 +174,14 @@ export interface PreloadBridge {
   cards: {
     today(lang?: Lang): Promise<CardsBatch | null>;
   };
+  store?: {
+    // persisted-state JSON file in userData. load is synchronous — read once
+    // at boot before anything renders; null ⇒ no file yet (first run, or a
+    // pre-file save still living in localStorage)
+    load(): string | null;
+    save(json: string): void;
+    reset(): void;
+  };
   lang?: {
     // renderer → main: keeps the tray menu's language checkmark in sync
     report(pref: LangPref, effective: Lang): void;

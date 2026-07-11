@@ -76,7 +76,7 @@ export function createWindow(): void {
           bubble: { cls: document.getElementById('bubble').className, text: document.getElementById('bubble').textContent },
           panel: document.getElementById('hoverpanel').className,
           hasPP: typeof window.pp,
-          store: localStorage.getItem('pp_ritual_v1'),
+          store: window.pp?.store?.load() ?? localStorage.getItem('pp_ritual_v1'),
         })`);
         console.log('[probe]', JSON.stringify(probe));
         const img = await win.webContents.capturePage();

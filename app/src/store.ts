@@ -2,6 +2,13 @@ import type { AppState } from './types';
 
 const KEY = 'pp_ritual_v1';
 
+// State lives in a JSON file in userData (main process does the IO — see
+// electron/src/store.ts), not localStorage: the chat log is unbounded and
+// localStorage's ~5MB quota would make save() silently drop everything.
+// localStorage remains as the read fallback so pre-file saves migrate on
+// first launch, and as the store when running in a plain browser (vite dev).
+const fileStore = () => window.pp?.store;
+
 export function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -44,7 +51,7 @@ export function defaultState(): AppState {
 export function load(): AppState {
   let s = defaultState();
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || 'null') as
+    const raw = JSON.parse(fileStore()?.load() || localStorage.getItem(KEY) || 'null') as
       | (Partial<AppState> & { journal?: unknown })
       | null;
     if (raw && Array.isArray(raw.cards)) {
@@ -81,15 +88,18 @@ export function load(): AppState {
 
 export function save(s: AppState): void {
   try {
-    localStorage.setItem(
-      KEY,
-      JSON.stringify({ ...s, chat: s.chat.slice(-40), memory: s.memory.slice(-60) })
-    );
+    const json = JSON.stringify({ ...s, memory: s.memory.slice(-60) });
+    const fs = fileStore();
+    if (fs) fs.save(json);
+    else localStorage.setItem(KEY, json);
   } catch (e) {}
 }
 
 export function reset(): void {
   try {
+    // clear both: a leftover localStorage copy would resurrect pre-migration
+    // state through load()'s fallback on the next boot
+    fileStore()?.reset();
     localStorage.removeItem(KEY);
   } catch (e) {}
 }

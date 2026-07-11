@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('pp', {
   cards: {
     today: (lang?: string) => ipcRenderer.invoke('cards-today', lang),
   },
+  store: {
+    // sendSync: one blocking read at boot, before anything renders
+    load: () => ipcRenderer.sendSync('state-load') as string | null,
+    save: (json: string) => ipcRenderer.send('state-save', json),
+    reset: () => ipcRenderer.send('state-reset'),
+  },
   lang: {
     report: (pref: string, effective: string) => ipcRenderer.send('lang-changed', { pref, effective }),
   },
