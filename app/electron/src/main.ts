@@ -23,6 +23,12 @@ startWatchers();
 
 // one potato per desk — stacked transparent instances render ghost overlaps
 if (!app.requestSingleInstanceLock()) {
+  // When Squirrel relaunches us right after an update, the dying instance can
+  // still hold the lock for a beat — bounce once instead of silently giving
+  // up (the marker keeps a genuine second potato from bouncing forever).
+  if (!process.argv.includes('--lock-retried')) {
+    app.relaunch({ args: process.argv.slice(1).concat('--lock-retried') });
+  }
   app.quit();
 } else {
   app.on('second-instance', () => {
