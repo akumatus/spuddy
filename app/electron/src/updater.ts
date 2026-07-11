@@ -1,11 +1,12 @@
 // Auto-update via electron-updater against the public GitHub releases.
-// Quiet by design: checks 30s after launch and every 6h, downloads silently,
-// installs on quit — the pet never nags. The tray mirrors the state (see
-// tray.ts): the menu shows the current version, a manual "Check for Updates"
-// entry (whose result comes back as a system notification — the GitHub check
-// can take a while from slow networks, and a closed tray menu would swallow
-// the feedback), and a "Restart to update" entry once a download is staged.
-import { app } from 'electron';
+// Quiet by design: checks 30s after launch, every 6h, and after waking from a
+// long sleep; downloads silently, installs on quit — the pet never nags. The
+// tray mirrors the state (see tray.ts): the menu shows the current version, a
+// manual "Check for Updates" entry, and a "Restart to update" entry once a
+// download is staged. Check results are spoken by the pet itself (the
+// 'update-note' bubble) — macOS drops our system notifications unless the
+// user grants them, so Notification is only a best-effort echo.
+import { app, powerMonitor } from 'electron';
 import { autoUpdater } from 'electron-updater';
 
 export type UpdateState = 'idle' | 'checking' | 'downloading' | 'ready' | 'uptodate' | 'error';
@@ -14,6 +15,7 @@ export interface UpdateStatus {
   state: UpdateState;
   version?: string; // set while downloading / ready
   manual?: boolean; // this state came from a user-clicked check
+  slow?: boolean; // transient: a manual check is taking long — reassure, don't change state
 }
 
 let status: UpdateStatus = { state: 'idle' };
@@ -33,6 +35,9 @@ function setStatus(next: UpdateStatus): void {
     manualCheck = false;
     revertTimer = setTimeout(() => setStatus({ state: 'idle' }), 60_000);
   }
+  // once the click got its answer ("found vX"), the rest of the download and
+  // any later auto checks are background business again
+  if (next.state === 'downloading' || next.state === 'ready') manualCheck = false;
   notify?.(status);
 }
 
@@ -45,9 +50,28 @@ export function onUpdateStatus(cb: (s: UpdateStatus) => void): void {
   notify = cb;
 }
 
+let lastCheckAt = 0;
+let checkSeq = 0; // ties the slow-note timer to its own check — a later check must not inherit it
+
 export function checkForUpdates(manual = false): void {
   if (!app.isPackaged) return;
-  manualCheck = manual;
+  // escalate only — electron-updater coalesces overlapping checks into one
+  // in-flight promise, so an auto check landing mid-manual-check must not
+  // demote the shared result to "silent background check"
+  if (manual) manualCheck = true;
+  lastCheckAt = Date.now();
+  const seq = ++checkSeq;
+  if (manual) {
+    // the HTTP layer's timeout is a hardcoded 60s and GitHub can crawl on a
+    // bad network — reassure after 12s instead of leaving the click unanswered.
+    // Synthetic ping only: status itself stays 'checking'. The seq guard keeps
+    // an orphaned timer from narrating some unrelated later check.
+    setTimeout(() => {
+      if (seq === checkSeq && status.state === 'checking') {
+        notify?.({ state: 'checking', manual: true, slow: true });
+      }
+    }, 12_000);
+  }
   autoUpdater.checkForUpdates().catch(() => setStatus({ state: 'error' }));
 }
 
@@ -75,4 +99,13 @@ export function startUpdater(): void {
   // stay out of the boot path: the potato appears first, updates come later
   setTimeout(checkForUpdates, 30_000);
   setInterval(() => checkForUpdates(), CHECK_EVERY);
+  // timers freeze while the lid is closed, so a laptop that sleeps nightly
+  // could dodge the 6h cycle forever — top up after waking from a long gap.
+  // Staleness is re-tested at fire time: a manual check in the 10s grace
+  // window makes this a no-op instead of a duplicate.
+  powerMonitor.on('resume', () => {
+    setTimeout(() => {
+      if (Date.now() - lastCheckAt > 60 * 60 * 1000) checkForUpdates();
+    }, 10_000);
+  });
 }

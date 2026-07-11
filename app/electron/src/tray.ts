@@ -29,6 +29,7 @@ const LABELS: Record<
     notifyFound: (v: string) => string;
     notifyReady: (v: string) => string;
     notifyFailed: string;
+    notifySlow: string;
   }
 > = {
   en: {
@@ -42,10 +43,11 @@ const LABELS: Record<
     uptodate: 'Up to date',
     restart: (v) => `Restart to update (${v})`,
     checkFailed: 'Update check failed',
-    notifyUptodate: (v) => `You're on the latest version (v${v}).`,
-    notifyFound: (v) => `Found v${v} — downloading in the background.`,
-    notifyReady: (v) => `v${v} is ready — restart from the menu bar to update.`,
-    notifyFailed: "Couldn't reach the update server. Will retry later.",
+    notifyUptodate: (v) => `i'm already the newest me (v${v})`,
+    notifyFound: (v) => `found v${v} — fetching it quietly…`,
+    notifyReady: (v) => `v${v} is ready — restart me from the menu bar whenever`,
+    notifyFailed: "couldn't reach the update server — i'll try again later",
+    notifySlow: 'the network is slow today — still checking…',
   },
   zh: {
     showHide: '显示 / 隐藏',
@@ -58,10 +60,11 @@ const LABELS: Record<
     uptodate: '已是最新版本',
     restart: (v) => `重启并更新到 ${v}`,
     checkFailed: '检查更新失败',
-    notifyUptodate: (v) => `已是最新版本（v${v}）。`,
-    notifyFound: (v) => `发现 v${v}，正在后台下载。`,
-    notifyReady: (v) => `v${v} 已就绪 — 从菜单栏重启即可完成更新。`,
-    notifyFailed: '暂时连不上更新服务器，稍后会自动重试。',
+    notifyUptodate: (v) => `我已经是最新的我啦（v${v}）`,
+    notifyFound: (v) => `发现 v${v}，正在悄悄下载…`,
+    notifyReady: (v) => `v${v} 准备好了，从菜单栏让我重启就能焕新`,
+    notifyFailed: '暂时够不到更新服务器，稍后我再试试',
+    notifySlow: '今天网络有点慢，还在看有没有新版本…',
   },
 };
 
@@ -99,14 +102,21 @@ function updateItem(L: (typeof LABELS)[Lang]): Electron.MenuItemConstructorOptio
 }
 
 // The GitHub check can take a long while on a slow network and the tray menu
-// closes on click, so a manual check answers via a system notification. Auto
+// closes on click, so a manual check answers out loud. The potato's own speech
+// bubble is the primary channel — macOS quietly drops notifications from apps
+// the user never granted (this app registers no notification permission on a
+// fresh Mac), so the system Notification is only a best-effort echo. Auto
 // checks stay silent except the one moment worth knowing: an update is staged.
 let notifiedReady: string | null = null;
 
 function maybeNotify(u: UpdateStatus): void {
   const L = LABELS[effective];
   let body: string | null = null;
-  if (u.state === 'ready' && u.version && notifiedReady !== u.version) {
+  let echo = true; // also mirror to a system notification
+  if (u.slow) {
+    body = L.notifySlow;
+    echo = false; // a "hang on" is bubble-only — as a banner it'd just be noise
+  } else if (u.state === 'ready' && u.version && notifiedReady !== u.version) {
     notifiedReady = u.version;
     body = L.notifyReady(u.version);
   } else if (u.manual) {
@@ -115,10 +125,12 @@ function maybeNotify(u: UpdateStatus): void {
     else if (u.state === 'error') body = L.notifyFailed;
   }
   if (!body) return;
+  getWin()?.webContents.send('update-note', body);
+  if (!echo) return;
   try {
     new Notification({ title: 'Spuddy', body }).show();
   } catch (e) {
-    // notifications are a convenience — the tray menu still tells the story
+    // notifications are a convenience — the bubble already told the story
   }
 }
 

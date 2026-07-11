@@ -162,6 +162,7 @@ export interface PpEventMap {
   cursor: { x: number; y: number };
   edge: EdgeSide;
   'set-lang': LangPref; // tray menu language pick — renderer persists + applies
+  'update-note': string; // updater feedback, pre-localized — the pet says it out loud
 }
 
 export interface PreloadBridge {

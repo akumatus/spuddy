@@ -78,6 +78,12 @@ wireInteractions();
 pp.on('set-lang', (pref) => applyLangPref(pref));
 pp.lang?.report(state.lang, lang()); // initial sync so the tray matches the saved pref
 
+// ── update feedback: the updater's answers come out of the potato's own
+// mouth — macOS may swallow system notifications, but nobody can mute him ──
+pp.on('update-note', (text) => {
+  if (typeof text === 'string' && text) bubble(text, { hold: 3600 });
+});
+
 // (the old random idle-hop scheduler is gone — the soul engine (7a) owns
 // autonomous behavior now: boredom routines, dozing, knocking, mutters)
 

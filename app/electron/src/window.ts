@@ -68,6 +68,12 @@ export function createWindow(): void {
         .catch((e) => console.log('[uitest] failed', e.message));
     }, 5000);
   }
+  if (process.env.PP_TEST_UPDATE_NOTE) {
+    // exercises the update-note path end to end (main → preload → bubble);
+    // fires before the PP_SNAPSHOT probe so the bubble shows up in it
+    const note = process.env.PP_TEST_UPDATE_NOTE;
+    setTimeout(() => win?.webContents.send('update-note', note), 6000);
+  }
   if (process.env.PP_SNAPSHOT) {
     setTimeout(async () => {
       try {

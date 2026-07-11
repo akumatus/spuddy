@@ -29,7 +29,13 @@ contextBridge.exposeInMainWorld('pp', {
     modalGeometry: () => ipcRenderer.invoke('modal-geometry'),
   },
   on: (channel: string, cb: (data: unknown) => void) => {
-    if (channel === 'sedentary' || channel === 'cursor' || channel === 'edge' || channel === 'set-lang') {
+    if (
+      channel === 'sedentary' ||
+      channel === 'cursor' ||
+      channel === 'edge' ||
+      channel === 'set-lang' ||
+      channel === 'update-note'
+    ) {
       ipcRenderer.on(channel, (_e, data) => cb(data));
     }
   },
