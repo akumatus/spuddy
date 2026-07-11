@@ -81,11 +81,21 @@ pp.lang?.report(state.lang, lang()); // initial sync so the tray matches the sav
 // (the old random idle-hop scheduler is gone — the soul engine (7a) owns
 // autonomous behavior now: boredom routines, dozing, knocking, mutters)
 
-// night care at 23:00 (once per day)
+// night care at 23:00 (once per day) — only when he's actually been keeping
+// us company across the 23:00 boundary. If the machine was off or asleep at 11
+// and the app only came up later, we skip tonight's card rather than firing a
+// stale catch-up the moment we open.
+let lastCareTick = Date.now();
 setInterval(() => {
   const now = new Date();
+  const sinceLast = now.getTime() - lastCareTick;
+  const prevHour = new Date(lastCareTick).getHours();
+  lastCareTick = now.getTime();
+
   const today = state.lastDate;
-  if (now.getHours() >= 23 && state.nightShownDate !== today) {
+  const crossedIntoNight = prevHour < 23 && now.getHours() >= 23;
+  const ranThrough = sinceLast < 90_000; // continuous ticks, not a cold boot / wake gap
+  if (crossedIntoNight && ranThrough && state.nightShownDate !== today) {
     state.nightShownDate = today;
     store.save(state);
     presentCare(TXT().ui.careNight, TXT().nightMsg);
