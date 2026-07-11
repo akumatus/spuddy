@@ -1,7 +1,7 @@
-import { Menu, Tray, app, ipcMain, nativeImage } from 'electron';
+import { Menu, Notification, Tray, app, ipcMain, nativeImage } from 'electron';
 import path from 'node:path';
 import type { Lang, LangPref } from '../../src/types';
-import { checkForUpdates, getUpdateStatus, onUpdateStatus, quitAndInstall } from './updater';
+import { checkForUpdates, getUpdateStatus, onUpdateStatus, quitAndInstall, type UpdateStatus } from './updater';
 import { getWin } from './window';
 
 let tray: Tray | null = null;
@@ -24,6 +24,11 @@ const LABELS: Record<
     downloading: (v: string) => string;
     uptodate: string;
     restart: (v: string) => string;
+    checkFailed: string;
+    notifyUptodate: (v: string) => string;
+    notifyFound: (v: string) => string;
+    notifyReady: (v: string) => string;
+    notifyFailed: string;
   }
 > = {
   en: {
@@ -36,6 +41,11 @@ const LABELS: Record<
     downloading: (v) => `Downloading ${v}…`,
     uptodate: 'Up to date',
     restart: (v) => `Restart to update (${v})`,
+    checkFailed: 'Update check failed',
+    notifyUptodate: (v) => `You're on the latest version (v${v}).`,
+    notifyFound: (v) => `Found v${v} — downloading in the background.`,
+    notifyReady: (v) => `v${v} is ready — restart from the menu bar to update.`,
+    notifyFailed: "Couldn't reach the update server. Will retry later.",
   },
   zh: {
     showHide: '显示 / 隐藏',
@@ -47,6 +57,11 @@ const LABELS: Record<
     downloading: (v) => `正在下载 ${v}…`,
     uptodate: '已是最新版本',
     restart: (v) => `重启并更新到 ${v}`,
+    checkFailed: '检查更新失败',
+    notifyUptodate: (v) => `已是最新版本（v${v}）。`,
+    notifyFound: (v) => `发现 v${v}，正在后台下载。`,
+    notifyReady: (v) => `v${v} 已就绪 — 从菜单栏重启即可完成更新。`,
+    notifyFailed: '暂时连不上更新服务器，稍后会自动重试。',
   },
 };
 
@@ -76,8 +91,34 @@ function updateItem(L: (typeof LABELS)[Lang]): Electron.MenuItemConstructorOptio
       return { label: L.restart(u.version ?? ''), click: () => quitAndInstall() };
     case 'uptodate':
       return { label: L.uptodate, enabled: false };
+    case 'error':
+      return { label: L.checkFailed, enabled: false };
     default:
-      return { label: L.checkUpdates, enabled: app.isPackaged, click: () => checkForUpdates() };
+      return { label: L.checkUpdates, enabled: app.isPackaged, click: () => checkForUpdates(true) };
+  }
+}
+
+// The GitHub check can take a long while on a slow network and the tray menu
+// closes on click, so a manual check answers via a system notification. Auto
+// checks stay silent except the one moment worth knowing: an update is staged.
+let notifiedReady: string | null = null;
+
+function maybeNotify(u: UpdateStatus): void {
+  const L = LABELS[effective];
+  let body: string | null = null;
+  if (u.state === 'ready' && u.version && notifiedReady !== u.version) {
+    notifiedReady = u.version;
+    body = L.notifyReady(u.version);
+  } else if (u.manual) {
+    if (u.state === 'uptodate') body = L.notifyUptodate(app.getVersion());
+    else if (u.state === 'downloading') body = L.notifyFound(u.version ?? '');
+    else if (u.state === 'error') body = L.notifyFailed;
+  }
+  if (!body) return;
+  try {
+    new Notification({ title: 'Spuddy', body }).show();
+  } catch (e) {
+    // notifications are a convenience — the tray menu still tells the story
   }
 }
 
@@ -86,6 +127,8 @@ function rebuildMenu(): void {
   const L = LABELS[effective];
   tray.setContextMenu(
     Menu.buildFromTemplate([
+      { label: `Spuddy v${app.getVersion()}`, enabled: false },
+      { type: 'separator' },
       {
         label: L.showHide,
         click: () => {
@@ -111,7 +154,10 @@ function rebuildMenu(): void {
 
 export function createTray(): void {
   effective = systemLang();
-  onUpdateStatus(rebuildMenu); // update entry morphs as the updater progresses
+  onUpdateStatus((u) => {
+    maybeNotify(u); // manual-check feedback + the one "update staged" nudge
+    rebuildMenu(); // update entry morphs as the updater progresses
+  });
   // renderer boot (and every language change) reports the persisted preference
   ipcMain.on('lang-changed', (_e, data: { pref?: LangPref; effective?: Lang }) => {
     if (data && (data.pref === 'auto' || data.pref === 'en' || data.pref === 'zh')) pref = data.pref;

@@ -1,48 +1,54 @@
 // Auto-update via electron-updater against the public GitHub releases.
-// Quiet by design: checks in the background, downloads silently, installs on
-// quit — the pet never nags. The tray mirrors the state (see tray.ts): a
-// manual "Check for Updates" entry, and once a download is ready it becomes
-// "Restart to update", which relaunches into the new version immediately.
+// Quiet by design: checks 30s after launch and every 6h, downloads silently,
+// installs on quit — the pet never nags. The tray mirrors the state (see
+// tray.ts): the menu shows the current version, a manual "Check for Updates"
+// entry (whose result comes back as a system notification — the GitHub check
+// can take a while from slow networks, and a closed tray menu would swallow
+// the feedback), and a "Restart to update" entry once a download is staged.
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
 
-export type UpdateState = 'idle' | 'checking' | 'downloading' | 'ready' | 'uptodate';
+export type UpdateState = 'idle' | 'checking' | 'downloading' | 'ready' | 'uptodate' | 'error';
 
 export interface UpdateStatus {
   state: UpdateState;
   version?: string; // set while downloading / ready
+  manual?: boolean; // this state came from a user-clicked check
 }
 
 let status: UpdateStatus = { state: 'idle' };
-let notify: (() => void) | null = null;
+let manualCheck = false;
+let notify: ((s: UpdateStatus) => void) | null = null;
 let revertTimer: ReturnType<typeof setTimeout> | null = null;
 
 function setStatus(next: UpdateStatus): void {
-  status = next;
+  status = { ...next, manual: manualCheck };
   if (revertTimer) {
     clearTimeout(revertTimer);
     revertTimer = null;
   }
-  // "Up to date" is only feedback for a manual check — fade it back to the
-  // plain menu entry after a minute instead of pinning a stale claim there
-  if (next.state === 'uptodate') {
+  // terminal states are feedback, not standing claims — fade the menu entry
+  // back to plain "Check for Updates" instead of pinning a stale result there
+  if (next.state === 'uptodate' || next.state === 'error') {
+    manualCheck = false;
     revertTimer = setTimeout(() => setStatus({ state: 'idle' }), 60_000);
   }
-  notify?.();
+  notify?.(status);
 }
 
 export function getUpdateStatus(): UpdateStatus {
   return status;
 }
 
-// tray.ts registers its menu rebuild here
-export function onUpdateStatus(cb: () => void): void {
+// tray.ts registers here: rebuilds its menu and surfaces notifications
+export function onUpdateStatus(cb: (s: UpdateStatus) => void): void {
   notify = cb;
 }
 
-export function checkForUpdates(): void {
+export function checkForUpdates(manual = false): void {
   if (!app.isPackaged) return;
-  autoUpdater.checkForUpdates().catch(() => setStatus({ state: 'idle' }));
+  manualCheck = manual;
+  autoUpdater.checkForUpdates().catch(() => setStatus({ state: 'error' }));
 }
 
 export function quitAndInstall(): void {
@@ -62,10 +68,11 @@ export function startUpdater(): void {
   autoUpdater.on('update-available', (info) => setStatus({ state: 'downloading', version: info.version }));
   autoUpdater.on('update-not-available', () => setStatus({ state: 'uptodate' }));
   autoUpdater.on('update-downloaded', (info) => setStatus({ state: 'ready', version: info.version }));
-  // offline / rate-limited / mid-publish — routine, retry next cycle
-  autoUpdater.on('error', () => setStatus({ state: 'idle' }));
+  // offline / rate-limited / mid-publish — routine for auto checks (retry next
+  // cycle); manual checks surface it via the tray notification
+  autoUpdater.on('error', () => setStatus({ state: 'error' }));
 
   // stay out of the boot path: the potato appears first, updates come later
   setTimeout(checkForUpdates, 30_000);
-  setInterval(checkForUpdates, CHECK_EVERY);
+  setInterval(() => checkForUpdates(), CHECK_EVERY);
 }
