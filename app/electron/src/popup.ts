@@ -27,7 +27,11 @@ export function createPopupWindow(): void {
     transparent: true,
     frame: false,
     resizable: false,
-    hasShadow: false, // the popup cards paint their own soft shadows
+    // macOS draws its native window shadow around the card's rounded shape,
+    // exactly like every other app window. (The cards' own CSS shadows are
+    // turned off in popup.html — painting them inside the window meant
+    // padding the window and still clipping the blur at its edge.)
+    hasShadow: true,
     skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -111,8 +115,12 @@ export function registerPopupIpc(): void {
   // first show (later resizes — e.g. book tab switches — keep the center)
   ipcMain.on('popup-resize', (e, w: number, h: number) => {
     if (!popup || e.sender !== popup.webContents) return;
-    const width = Math.max(120, Math.round(w));
-    const height = Math.max(80, Math.round(h));
+    // clamp to the work area — a content bug must never balloon the window
+    // past the screen
+    const anchor = getWin()?.getBounds() ?? popup.getBounds();
+    const wa = screen.getDisplayMatching(anchor).workArea;
+    const width = Math.min(Math.max(120, Math.round(w)), wa.width);
+    const height = Math.min(Math.max(80, Math.round(h)), wa.height);
     if (popup.isVisible()) {
       const b = popup.getBounds();
       popup.setBounds({
@@ -125,6 +133,11 @@ export function registerPopupIpc(): void {
       centerOnPetDisplay(width, height);
       popup.show();
     }
+    // transparent windows don't recompute the native shadow on their own
+    // when the visible silhouette changes size; once more after the card's
+    // 0.45s entrance animation settles, so no mid-animation outline sticks
+    popup.invalidateShadow();
+    setTimeout(() => popup?.invalidateShadow(), 600);
   });
 }
 

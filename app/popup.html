@@ -7,16 +7,32 @@
   <style>
     /* transparent shell — the mirrored popup card paints everything visible */
     html, body { margin: 0; background: transparent; overflow: hidden; }
+    /* the window is sized exactly to the card — macOS paints the native
+       window shadow outside these bounds, like any other app window */
     #proot {
       min-height: 100vh;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: center;
-      /* breathing room so the cards' soft drop shadows aren't clipped at the
-         window edge (the window is sized to content + this padding) */
-      padding: 40px;
     }
+    /* The window is sized to the measured content, so the content must lay
+       out at its natural size no matter what size the window happens to be
+       at render time (it still has the PREVIOUS popup's size in that
+       moment). Without this the flex shell squeezes the incoming card to
+       the old window, and the squeezed size is what gets measured — a card
+       opened after the weave stayed crushed (wrapped buttons), and the book
+       opened after a card kept a horizontal scrollbar. */
+    #proot > * { flex-shrink: 0; }
+    /* the native window shadow replaces the cards' painted ones in here —
+       a CSS shadow could only ever clip at the window edge (!important:
+       #book's own rule ties on specificity and vite orders it after us) */
+    #proot > * { box-shadow: none !important; }
+    /* viewport-relative caps are circular in a content-sized window; the
+       popup bodies are fixed-size by design, so lift them here. (#proot
+       prefix: vite hoists the bundled stylesheet below this inline block,
+       so the overrides need the higher specificity to win.) */
+    #proot #book { max-width: none; max-height: none; }
   </style>
 </head>
 <body>

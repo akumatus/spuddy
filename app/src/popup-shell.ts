@@ -73,9 +73,9 @@ function requestResize(): void {
   if (!top) return;
   // offsetWidth/Height are pure layout sizes — a bounding rect here would be
   // scaled down by the pp-cardin entrance animation's transform mid-flight,
-  // and the too-small window would then trap the card via its 100vw max-width
-  const pad = 80; // 40px shell padding on each side (see popup.html)
-  shell.resize(top.offsetWidth + pad, top.offsetHeight + pad);
+  // and the too-small window would then trap the card via its 100vw max-width.
+  // No padding: the window hugs the card, macOS shadows it natively.
+  shell.resize(top.offsetWidth, top.offsetHeight);
 }
 
 // a node's address in the mirrored markup — the child-index path the pet
