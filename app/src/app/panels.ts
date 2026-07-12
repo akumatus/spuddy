@@ -5,9 +5,13 @@ import { showBook, type BookFilter, type BookTab } from '../ui/book';
 import { showBuddies } from '../ui/buddies';
 import { closeOverlay, isOverlayOpen } from '../ui/overlay';
 import { showCareCard } from '../ui/popups';
+import * as store from '../store';
 import { clearChatQueue } from './chat';
 import { $, ctx } from './context';
 import { bubble } from './speech';
+
+// how many older transcript lines each scroll-up page pulls in from chat.jsonl
+const CHAT_PAGE = 60;
 
 let bookTab: BookTab = 'cards';
 let bookFilter: BookFilter = 'all';
@@ -80,6 +84,12 @@ function renderBook(): void {
       ctx.persist();
       renderBook();
     },
+    onOlderChat: () => {
+      const n = store.loadOlderChat(state, CHAT_PAGE);
+      if (n) renderBook();
+      return n;
+    },
+    chatHasMore: store.hasOlderChat(),
   });
 }
 

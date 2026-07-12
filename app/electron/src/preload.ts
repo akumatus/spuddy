@@ -17,6 +17,12 @@ contextBridge.exposeInMainWorld('pp', {
     load: () => ipcRenderer.sendSync('state-load') as string | null,
     save: (json: string) => ipcRenderer.send('state-save', json),
     reset: () => ipcRenderer.send('state-reset'),
+    // chat transcript (chat.jsonl) — sendSync reads are a few ms of file IO,
+    // done once at boot and per Book scroll-up page
+    chatLoad: (before: number | null, limit: number) =>
+      ipcRenderer.sendSync('chat-load', { before, limit }) as { lines: string[]; total: number },
+    chatAppend: (lines: string[]) => ipcRenderer.send('chat-append', lines),
+    chatRewrite: (lines: string[]) => ipcRenderer.send('chat-rewrite', lines),
   },
   lang: {
     report: (pref: string, effective: string) => ipcRenderer.send('lang-changed', { pref, effective }),

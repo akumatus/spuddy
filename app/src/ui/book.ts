@@ -19,7 +19,16 @@ export interface BookHandlers {
   onClearMem: () => void;
   onClearChat: () => void;
   onClearCards: () => void;
+  // scroll-up pagination: page older history into state.chat and re-render;
+  // returns how many messages arrived (0 = the beginning is already loaded)
+  onOlderChat: () => number;
+  chatHasMore: boolean; // chat.jsonl has lines above the loaded window
 }
+
+// Chat scroll position to restore after a pagination re-render, measured from
+// the BOTTOM (prepended rows only add height above, so the distance from the
+// bottom is what stays put). null ⇒ fresh open: jump to the newest message.
+let chatKeepFromBottom: number | null = null;
 
 // ── Card Book · chat + memory doodles ──
 const kindLabel = (id: MemoryKind) => TXT().kindLabels[id] || TXT().kindLabels.other;
@@ -263,4 +272,24 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
   if (cc) cc.onclick = handlers.onClearCards;
   const chc = document.getElementById('chatClear');
   if (chc) chc.onclick = handlers.onClearChat;
+
+  // Chat tab: open at the newest message; after paging, hold the reader's
+  // place. Nearing the top pulls the next page of older history in.
+  if (tab === 'chat') {
+    const log = modal().querySelector<HTMLElement>('.chatlog');
+    if (log) {
+      log.scrollTop =
+        chatKeepFromBottom == null ? log.scrollHeight : log.scrollHeight - chatKeepFromBottom;
+      chatKeepFromBottom = null;
+      if (handlers.chatHasMore) {
+        log.onscroll = () => {
+          if (log.scrollTop > 60) return;
+          chatKeepFromBottom = log.scrollHeight - log.scrollTop;
+          // a non-empty page re-renders the book (this element is replaced and
+          // the saved offset consumed there); an empty one means we're done
+          if (!handlers.onOlderChat()) chatKeepFromBottom = null;
+        };
+      }
+    }
+  }
 }

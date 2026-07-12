@@ -182,6 +182,12 @@ export interface PreloadBridge {
     load(): string | null;
     save(json: string): void;
     reset(): void;
+    // chat transcript, its own append-only chat.jsonl (one message per line):
+    // chatLoad returns raw lines [before-limit, before) — before = null means
+    // the tail — plus the file's total line count; the renderer parses.
+    chatLoad(before: number | null, limit: number): { lines: string[]; total: number };
+    chatAppend(lines: string[]): void;
+    chatRewrite(lines: string[]): void;
   };
   lang?: {
     // renderer → main: keeps the tray menu's language checkmark in sync
