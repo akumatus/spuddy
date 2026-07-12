@@ -30,10 +30,10 @@ class AppContext {
     this.scene = scene;
   }
 
-  // the animator exists as soon as the first setCharacter resolves (before
-  // main.ts hands control to any feature module)
+  // the animator is created in the PetScene constructor, so it's live before
+  // the first model finishes loading
   anim(): Animator {
-    return this.scene.animator!;
+    return this.scene.animator;
   }
 
   activeChar(): Character {

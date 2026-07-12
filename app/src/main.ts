@@ -27,7 +27,14 @@ setLangPref(state.lang); // resolve the language before any text renders
 
 const scene = new PetScene($('pet') as HTMLCanvasElement);
 ctx.init(state, scene);
-await scene.setCharacter(state.active);
+// Model load runs in the background — an await here used to hold up the whole
+// boot (interaction wiring included), so the window stayed click-through until
+// the GLB was decoded. Everything below only needs the animator, which exists
+// from the scene constructor; the greeting at the bottom gates on this promise
+// so he never speaks before he's visible.
+const modelReady = scene.setCharacter(state.active).catch((e) => {
+  console.warn('[boot] model load failed:', e instanceof Error ? e.message : e);
+});
 
 // pull today's server-generated card pool (non-blocking — draws fall back to the
 // built-in DAILY pool until it arrives), then re-poll hourly: the pet runs for
@@ -143,7 +150,11 @@ async function personalGreeting(): Promise<string | null> {
 // speaks — no built-in-then-swap flicker.
 const greetingReq = personalGreeting();
 
-setTimeout(async () => {
+// … but not before the model is actually on screen: with the load running in
+// the background, a fixed timer alone could have him wave and speak into an
+// empty stage on a slow disk / first launch
+const bootBeat = new Promise((r) => setTimeout(r, 900));
+Promise.all([modelReady, bootBeat]).then(async () => {
   ctx.anim().play(scene.hasRig() ? 'wave' : 'hop'); // time-of-day greeting
   if (state.drawn) return;
   // prefer the personalized line, but never leave him silent: fall back to the
@@ -154,4 +165,4 @@ setTimeout(async () => {
   ]);
   if (state.drawn) return;
   bubble(line || greet(state.active), { hold: 5200 });
-}, 900);
+});

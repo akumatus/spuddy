@@ -60,6 +60,15 @@ to, any rights held by the original doll creators.
 - **The modeling, rigging, animation, writing, and brand _are_ the author's** —
   those you may not lift.
 
+## Third-party fonts
+
+The app bundles the **Nunito** and **Caveat** typefaces (latin subsets) and
+the **Xiaolai (小赖体)** CJK handwriting face, all in `app/src/fonts/`. All
+three are licensed under the **SIL Open Font License 1.1** by their
+respective authors — see `OFL-nunito.txt` / `OFL-caveat.txt` there and
+`app/public/fonts/Xiaolai-LICENSE-OFL.txt`. They are not the author's work
+and are not covered by the restrictions above.
+
 ## Reservation & contact
 
 All rights in the Author's Work not expressly granted above are reserved.

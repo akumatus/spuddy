@@ -21,8 +21,43 @@ const loader = new GLTFLoader();
 const draco = new DRACOLoader();
 draco.setDecoderPath('./draco/');
 loader.setDRACOLoader(draco);
+// warm the decoder now: the wasm fetch + compile otherwise only starts on the
+// first decode, serializing it behind the GLB fetch on the startup path
+draco.preload();
 
 const cache = new Map<string, THREE.Group>();
+
+// BVH builds run off the startup path: the largest scans (332k tris) cost high
+// hundreds of ms on the main thread, which used to land inside the first
+// setCharacter and hold up boot. Until a mesh's tree exists, raycasts fall
+// back to the stock three.js path (~10ms per cast — fine for the few
+// throttled hover casts that can happen in that window).
+const bvhQueue: THREE.Mesh[] = [];
+let bvhPumping = false;
+
+function pumpBvhQueue(): void {
+  const mesh = bvhQueue.shift();
+  // clones share geometry with the cached original, so each model id pays
+  // the build once and every clone reuses the tree
+  if (mesh && !mesh.geometry.boundsTree) mesh.geometry.computeBoundsTree();
+  bvhPumping = bvhQueue.length > 0;
+  if (bvhPumping) scheduleBvhPump();
+}
+
+function scheduleBvhPump(): void {
+  // one mesh per idle slice keeps multi-mesh models from stacking their
+  // builds into a single long frame stall
+  if ('requestIdleCallback' in window) requestIdleCallback(() => pumpBvhQueue(), { timeout: 2000 });
+  else setTimeout(pumpBvhQueue, 200);
+}
+
+function queueBvhBuild(meshes: THREE.Mesh[]): void {
+  bvhQueue.push(...meshes);
+  if (!bvhPumping && bvhQueue.length) {
+    bvhPumping = true;
+    scheduleBvhPump();
+  }
+}
 
 // Only the card's center answers as functional UI (the gacha draw). Taps near
 // the rim — bare paper with no text, the part the hands grip — read as body
@@ -38,12 +73,11 @@ async function loadModel(id: string): Promise<THREE.Group> {
   if (cached) return cached.clone(true);
   const gltf = await loader.loadAsync(`./models/${id}.glb`);
   const scene = gltf.scene;
+  const meshes: THREE.Mesh[] = [];
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) {
       const mesh = o as THREE.Mesh;
-      // clones share geometry with the cached original, so each model id pays
-      // the BVH build once at load and every clone reuses the tree
-      if (!mesh.geometry.boundsTree) mesh.geometry.computeBoundsTree();
+      meshes.push(mesh);
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       // legacy single-mesh scans are a baked emissive texture (black base
@@ -53,6 +87,7 @@ async function loadModel(id: string): Promise<THREE.Group> {
       if (mat && mat.emissiveMap && !mat.map) mat.toneMapped = false;
     }
   });
+  queueBvhBuild(meshes);
   cache.set(id, scene);
   return scene.clone(true);
 }
@@ -72,7 +107,7 @@ export class PetScene {
   shadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   holder: THREE.Group;
   rootGroup: THREE.Group;
-  animator: Animator | null;
+  animator: Animator;
   cardScreen: CardScreen;
   cardsData: Promise<Record<string, CardPlacement | undefined>>;
   t0: number;
@@ -136,7 +171,10 @@ export class PetScene {
     this.rootGroup.add(this.holder);
     this.scene.add(this.rootGroup);
 
-    this.animator = null;
+    // exists from construction (not first model load) so boot can wire the
+    // brain and interactions without waiting on the GLB — clips played on the
+    // empty holder are simply invisible
+    this.animator = new Animator(this.rootGroup, 2);
     this.cardScreen = new CardScreen();
     this.cardsData = fetch('./models/cards.json').then((r) => r.json()).catch(() => ({}));
     this.t0 = performance.now();
@@ -183,7 +221,6 @@ export class PetScene {
     this.holder.add(model);
     this.applyLighting(id);
     this.cardScreen.attach(model, cardData);
-    if (!this.animator) this.animator = new Animator(this.rootGroup, 2);
     const rig = rigParts(model, this.scene);
     this.animator.attachRig(rig);
     this.cardScreen.rigDriven = !!(rig && rig.card);
@@ -205,7 +242,7 @@ export class PetScene {
   }
 
   hasRig(): boolean {
-    return !!(this.animator && this.animator.rig);
+    return !!this.animator.rig;
   }
 
   setCardContent(content: Parameters<CardScreen['setContent']>[0]): void {
@@ -255,22 +292,20 @@ export class PetScene {
   // card + paws + body); legacy scans slide the text quad + root-only 'raise'
   raiseCard(): void {
     if (this.cardScreen.rigDriven) {
-      this.animator!.play('present');
+      this.animator.play('present');
     } else {
-      this.animator!.play('raise');
+      this.animator.play('raise');
       this.cardScreen.raise();
     }
   }
 
   _tick(): void {
     const t = (performance.now() - this.t0) / 1000;
-    if (this.animator) {
-      this.animator.update();
-      const o = this.animator.out;
-      const spread = 1 + (o.y / 2) * 0.55;
-      this.shadow.scale.set(o.sx * spread, spread, 1);
-      this.shadow.material.opacity = o.ground;
-    }
+    this.animator.update();
+    const o = this.animator.out;
+    const spread = 1 + (o.y / 2) * 0.55;
+    this.shadow.scale.set(o.sx * spread, spread, 1);
+    this.shadow.material.opacity = o.ground;
     if (this.cameraSway) {
       this.camera.position.set(
         this.camBase.x + 0.12 * Math.sin((2 * Math.PI * t) / 11),
