@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Spuddy buddy studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; padding: 24px; background: #F0EAE0; font: 14px/1.4 sans-serif; color: #3E3226; }
+  #status { margin-bottom: 16px; font-weight: 700; }
+  #grid { display: flex; gap: 16px; flex-wrap: wrap; }
+  .cell { background: #FFF9EF; border: 1px solid #E4D9C3; border-radius: 16px; padding: 14px 18px; text-align: center; }
+  .cell canvas { display: block; height: 150px; width: auto; margin: 0 auto; }
+  .cell .nm { margin-top: 8px; font-weight: 800; }
+</style>
+</head>
+<body>
+<div id="status">loading buddies…</div>
+<div id="grid"></div>
+<script type="module" src="./src/buddy-studio.ts"></script>
+</body>
+</html>

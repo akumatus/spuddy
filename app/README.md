@@ -127,6 +127,24 @@ shadow) and writes:
 - `assets/trayTemplate.png` (+`@2x`) — a monochrome menu-bar template (macOS
   tints it for the light/dark bar).
 
+## Buddy portraits
+
+`public/chars/char-<id>.png` — the pictures in the Buddies panel, the unlock
+popups and the card-book avatar — are 3D renders of the shipped models holding
+their card at its resting face ("· ♥ ·" / "tap me :)"). Regenerate them after
+a model or lighting change from the same dev server as the icon:
+
+```bash
+yarn vite --port 5199        # from app/, then open
+# http://localhost:5199/buddy-studio.html
+```
+
+`buddy-studio.html` (script: `src/buddy-studio.ts`) drives the real PetScene
+for one frame per buddy — transparent background, per-buddy lighting, ground
+shadow hidden — crops each frame to its alpha bounding box, and auto-saves all
+six PNGs through the `/__char-save` dev-server middleware (see
+`vite.config.ts`).
+
 ## Project layout
 
 - `electron/src/*.ts` — the main process (bundled to `electron/main.cjs` +
