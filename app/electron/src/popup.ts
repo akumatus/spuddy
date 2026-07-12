@@ -28,11 +28,11 @@ export function createPopupWindow(): void {
     transparent: true,
     frame: false,
     resizable: false,
-    // macOS draws its native window shadow around the card's rounded shape,
-    // exactly like every other app window. (The cards' own CSS shadows are
-    // turned off in popup.html — painting them inside the window meant
-    // padding the window and still clipping the blur at its edge.)
-    hasShadow: true,
+    // No native window shadow: on a transparent, rounded, frameless window
+    // macOS traces the alpha silhouette and paints a harsh dark-edged box.
+    // The window carries transparent headroom around the card (see
+    // popup.html), so the cards paint their own soft CSS shadow instead.
+    hasShadow: false,
     skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -143,11 +143,6 @@ export function registerPopupIpc(): void {
       centerOnPetDisplay(width, height);
       popup.show();
     }
-    // transparent windows don't recompute the native shadow on their own
-    // when the visible silhouette changes size; once more after the card's
-    // 0.45s entrance animation settles, so no mid-animation outline sticks
-    popup.invalidateShadow();
-    setTimeout(() => popup?.invalidateShadow(), 600);
   });
 }
 

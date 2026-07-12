@@ -7,16 +7,17 @@
   <style>
     /* transparent shell — the mirrored popup card paints everything visible */
     html, body { margin: 0; background: transparent; overflow: hidden; }
-    /* Keep the original entrance animations inside the native window bounds.
-       The visible popup stays centered in this transparent headroom; macOS
-       paints the native window shadow around the popup itself. */
+    /* Transparent headroom around the visible popup: room for the entrance
+       animation AND for the card's soft CSS shadow to render without clipping
+       at the window edge (the shadow reaches ~90px below the card). The popup
+       stays centered in this headroom. */
     #proot {
       min-height: 100vh;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 40px;
+      padding: 90px;
     }
     /* The window is sized to the measured content, so the content must lay
        out at its natural size no matter what size the window happens to be
@@ -26,10 +27,6 @@
        opened after the weave stayed crushed (wrapped buttons), and the book
        opened after a card kept a horizontal scrollbar. */
     #proot > * { flex-shrink: 0; }
-    /* the native window shadow replaces the cards' painted ones in here —
-       a CSS shadow could only ever clip at the window edge (!important:
-       #book's own rule ties on specificity and vite orders it after us) */
-    #proot > * { box-shadow: none !important; }
     /* viewport-relative caps are circular in a content-sized window; the
        popup bodies are fixed-size by design, so lift them here. (#proot
        prefix: vite hoists the bundled stylesheet below this inline block,

@@ -89,7 +89,7 @@ function requestResize(): void {
     const drawFlow = top.hasAttribute('data-popup-envelope');
     const width = drawFlow ? Math.max(330, top.offsetWidth) : top.offsetWidth;
     const height = drawFlow ? Math.max(460, top.offsetHeight) : top.offsetHeight;
-    const pad = 80; // 40px of animation headroom on each side (see popup.html)
+    const pad = 180; // 90px of transparent headroom on each side (see popup.html)
     shell.resize(width + pad, height + pad);
   }));
 }
