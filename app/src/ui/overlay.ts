@@ -47,6 +47,13 @@ function wireOnce(): void {
     for (const i of path) n = n?.children[i];
     n?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
   });
+  // likewise a data-page-up box hitting its top (see src/popup-shell.ts) —
+  // whoever rendered the box listens for pp-pageup and pages older content in
+  window.pp?.popup?.onPageUp((path) => {
+    let n: Element | undefined = modal();
+    for (const i of path) n = n?.children[i];
+    n?.dispatchEvent(new CustomEvent('pp-pageup'));
+  });
 }
 
 export function openOverlay(html: string, { panel = true }: { panel?: boolean } = {}): void {

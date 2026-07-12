@@ -32,17 +32,21 @@ contextBridge.exposeInMainWorld('pp', {
     moveBy: (dx: number, dy: number) => ipcRenderer.invoke('move-by', dx, dy),
     panelSide: () => ipcRenderer.invoke('panel-side'),
   },
-  // pet-renderer side of the popup bridge: mirror markup out, take clicks back
+  // pet-renderer side of the popup bridge: mirror markup out, take clicks
+  // (and scroll page-up reports) back
   popup: {
     show: (html: string, panel: boolean, htmlClass: string) => ipcRenderer.send('popup-show', html, panel, htmlClass),
     hide: () => ipcRenderer.send('popup-hide'),
     onClick: (cb: (path: number[]) => void) => ipcRenderer.on('popup-click', (_e, path) => cb(path)),
+    onPageUp: (cb: (path: number[]) => void) => ipcRenderer.on('popup-pageup', (_e, path) => cb(path)),
   },
-  // popup-window side: receive markup, report clicks and the content size
+  // popup-window side: receive markup, report clicks, page-up hits and the
+  // content size
   popupShell: {
     onRender: (cb: (html: string, panel: boolean, htmlClass: string) => void) =>
       ipcRenderer.on('popup-render', (_e, html, panel, htmlClass) => cb(html, panel, htmlClass)),
     click: (path: number[]) => ipcRenderer.send('popup-click', path),
+    pageUp: (path: number[]) => ipcRenderer.send('popup-pageup', path),
     resize: (w: number, h: number) => ipcRenderer.send('popup-resize', w, h),
   },
   on: (channel: string, cb: (data: unknown) => void) => {

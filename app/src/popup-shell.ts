@@ -78,28 +78,92 @@ function requestResize(): void {
   shell.resize(top.offsetWidth + pad, top.offsetHeight + pad);
 }
 
+// a node's address in the mirrored markup — the child-index path the pet
+// renderer walks to find the staging twin (clicks and page-up reports alike)
+function pathOf(el: Element): number[] | null {
+  const path: number[] = [];
+  let n: Element | null = el;
+  while (n && n !== root) {
+    const parent: Element | null = n.parentElement;
+    if (!parent) return null;
+    path.unshift([...parent.children].indexOf(n));
+    n = parent;
+  }
+  return path;
+}
+
+// ── scroll intent ──
+// The staging tree never has layout, so scroll behavior is declared in the
+// markup and executed here, on the live DOM. A box with data-scroll="end"
+// opens pinned to its end and keeps the reader's distance-from-bottom across
+// morphs — history prepended above (paging) and lines appended below (a new
+// reply) both leave what's on screen where it is, and a reader sitting at the
+// bottom stays pinned there. data-page-up boxes additionally report the
+// reader nearing the top — sent back as a child-index path, like clicks — so
+// the pet renderer can page older content into the markup.
+let pageUpSent = false;
+
+// wired-ness lives outside the DOM: morphAttrs would strip a marker attribute
+// (it isn't in the staging markup), and elements persist across morphs
+const pageWired = new WeakSet<Element>();
+
+function wirePageUp(box: Element): void {
+  if (pageWired.has(box)) return;
+  pageWired.add(box);
+  box.addEventListener('scroll', () => {
+    if (box.scrollTop > 200) pageUpSent = false; // re-arm once clear of the top
+    if (box.scrollTop >= 80 || pageUpSent || !box.hasAttribute('data-page-up')) return;
+    pageUpSent = true;
+    const path = pathOf(box);
+    if (path) shell.pageUp(path);
+  });
+}
+
+function anchorScroll(prev: { el: Element; fromBottom: number } | null): void {
+  const box = root.querySelector('[data-scroll="end"]');
+  if (!box) return;
+  // same box morphed in place → hold the reader's offset; a fresh box (open,
+  // tab switch back) → jump to the end
+  box.scrollTop = prev && prev.el === box ? box.scrollHeight - prev.fromBottom : box.scrollHeight;
+  wirePageUp(box);
+}
+
+// Closing a popup hides this window but leaves its DOM in place (the mirror
+// only streams while a popup is up), so "same element" alone can't tell a
+// mid-reading re-render from a fresh reopen. A hidden spell ends the reading
+// session: the next render opens fresh — pinned to the end — instead of
+// holding the stale offset.
+let stale = false;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') stale = true;
+});
+
 shell.onRender((html, _panel, htmlClass) => {
   // language-dependent CSS (html.zh …) follows the pet window's root class
   document.documentElement.className = htmlClass;
+  const prevBox = stale ? null : root.querySelector('[data-scroll="end"]');
+  const prev = prevBox ? { el: prevBox, fromBottom: prevBox.scrollHeight - prevBox.scrollTop } : null;
+  stale = false;
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
   morphChildren(root, tpl.content as unknown as Element);
   applyDragRegions();
   requestResize();
-  // content-sized cards (text on webfonts) settle once the fonts are in
-  void document.fonts.ready.then(requestResize);
+  pageUpSent = false;
+  anchorScroll(prev);
+  // content-sized cards (text on webfonts) settle once the fonts are in;
+  // row heights settle with them, so a reader pinned at the end stays there
+  void document.fonts.ready.then(() => {
+    requestResize();
+    const box = root.querySelector('[data-scroll="end"]');
+    if (box && box.scrollHeight - box.scrollTop - box.clientHeight < 60) box.scrollTop = box.scrollHeight;
+  });
 });
 
 // clicks travel back as a child-index path into the mirrored markup
 root.addEventListener('click', (e) => {
-  let n = e.target as Element | null;
+  const n = e.target as Element | null;
   if (!n || !root.contains(n)) return;
-  const path: number[] = [];
-  while (n && n !== root) {
-    const parent: Element | null = n.parentElement;
-    if (!parent) return;
-    path.unshift([...parent.children].indexOf(n));
-    n = parent;
-  }
-  shell.click(path);
+  const path = pathOf(n);
+  if (path) shell.click(path);
 });

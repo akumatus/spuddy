@@ -9,6 +9,7 @@
 // re-dispatches on its hidden staging tree, so every existing handler keeps
 // working unchanged.
 import { BrowserWindow, ipcMain, screen } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { getWin } from './window';
 
@@ -36,6 +37,36 @@ export function createPopupWindow(): void {
   });
   popup.loadFile(path.join(__dirname, '..', 'dist', 'popup.html'));
   popup.on('closed', () => { popup = null; });
+
+  popup.webContents.on('console-message', (_e, level, message) => {
+    if (level >= 2) console.log(`[popup:${level}]`, message);
+  });
+  // popup-window twins of the PP_UITEST / PP_SNAPSHOT hooks in window.ts —
+  // live layout and scroll positions exist only in this window, so automated
+  // checks need their own probe here. Timed after the pet-side PP_UITEST (5s)
+  // so a scripted book-open has landed before the popup is inspected.
+  if (process.env.PP_UITEST_POPUP) {
+    const t = process.env.PP_UITEST_POPUP;
+    const code = t.startsWith('js:')
+      ? t.slice(3)
+      : `document.getElementById(${JSON.stringify(t)}).click()`;
+    setTimeout(() => {
+      popup?.webContents.executeJavaScript(code)
+        .catch((e) => console.log('[uitest-popup] failed', e.message));
+    }, 6500);
+  }
+  if (process.env.PP_SNAPSHOT_POPUP) {
+    setTimeout(async () => {
+      try {
+        if (!popup) return;
+        const img = await popup.webContents.capturePage();
+        fs.writeFileSync(process.env.PP_SNAPSHOT_POPUP!, img.toPNG());
+        console.log('[snapshot-popup] saved', process.env.PP_SNAPSHOT_POPUP);
+      } catch (e) {
+        console.log('[snapshot-popup] failed', (e as Error).message);
+      }
+    }, 9000);
+  }
 }
 
 // center the popup on the display the potato lives on
@@ -65,6 +96,14 @@ export function registerPopupIpc(): void {
   ipcMain.on('popup-click', (e, clickPath: number[]) => {
     if (popup && e.sender === popup.webContents) {
       getWin()?.webContents.send('popup-click', clickPath);
+    }
+  });
+
+  // popup → pet renderer: a data-page-up box scrolled to its top — the pet
+  // renderer pages older content into the markup (see src/popup-shell.ts)
+  ipcMain.on('popup-pageup', (e, boxPath: number[]) => {
+    if (popup && e.sender === popup.webContents) {
+      getWin()?.webContents.send('popup-pageup', boxPath);
     }
   });
 

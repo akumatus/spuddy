@@ -25,11 +25,6 @@ export interface BookHandlers {
   chatHasMore: boolean; // chat.jsonl has lines above the loaded window
 }
 
-// Chat scroll position to restore after a pagination re-render, measured from
-// the BOTTOM (prepended rows only add height above, so the distance from the
-// bottom is what stays put). null ⇒ fresh open: jump to the newest message.
-let chatKeepFromBottom: number | null = null;
-
 // ── Card Book · chat + memory doodles ──
 const kindLabel = (id: MemoryKind) => TXT().kindLabels[id] || TXT().kindLabels.other;
 
@@ -187,7 +182,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
     }
     body = `
       ${turns.length === 0 ? `<div class="empty">${ui.emptyChat}</div>` : ''}
-      <div class="chatlog">${rows}</div>
+      <div class="chatlog" data-scroll="end"${handlers.chatHasMore ? ' data-page-up' : ''}>${rows}</div>
       <div class="bookfoot">
         <span class="hint">${ui.hintChat}</span>
         ${spoken ? `<button class="clear" id="chatClear">${ui.clearAll}</button>` : ''}
@@ -273,23 +268,14 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
   const chc = document.getElementById('chatClear');
   if (chc) chc.onclick = handlers.onClearChat;
 
-  // Chat tab: open at the newest message; after paging, hold the reader's
-  // place. Nearing the top pulls the next page of older history in.
-  if (tab === 'chat') {
-    const log = modal().querySelector<HTMLElement>('.chatlog');
-    if (log) {
-      log.scrollTop =
-        chatKeepFromBottom == null ? log.scrollHeight : log.scrollHeight - chatKeepFromBottom;
-      chatKeepFromBottom = null;
-      if (handlers.chatHasMore) {
-        log.onscroll = () => {
-          if (log.scrollTop > 60) return;
-          chatKeepFromBottom = log.scrollHeight - log.scrollTop;
-          // a non-empty page re-renders the book (this element is replaced and
-          // the saved offset consumed there); an empty one means we're done
-          if (!handlers.onOlderChat()) chatKeepFromBottom = null;
-        };
-      }
-    }
+  // Chat scroll behavior lives in the popup shell (src/popup-shell.ts) — this
+  // staging tree never has layout, so the chatlog only carries intent:
+  // data-scroll="end" opens it pinned to the newest message and holds the
+  // reader's place across re-renders; data-page-up makes the shell report the
+  // reader nearing the top, relayed here as a pp-pageup event on the chatlog.
+  if (tab === 'chat' && handlers.chatHasMore) {
+    modal()
+      .querySelector('.chatlog')
+      ?.addEventListener('pp-pageup', () => handlers.onOlderChat());
   }
 }

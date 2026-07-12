@@ -203,16 +203,19 @@ export interface PreloadBridge {
     panelSide(): Promise<'left' | 'right'>;
   };
   // pet-renderer side of the popup-window bridge (see src/ui/overlay.ts):
-  // mirror the staging markup out, take clicks back as child-index paths
+  // mirror the staging markup out; clicks and page-up reports (a
+  // data-page-up box scrolled to its top) come back as child-index paths
   popup: {
     show(html: string, panel: boolean, htmlClass: string): void;
     hide(): void;
     onClick(cb: (path: number[]) => void): void;
+    onPageUp(cb: (path: number[]) => void): void;
   };
   // popup-window side (see src/popup-shell.ts)
   popupShell: {
     onRender(cb: (html: string, panel: boolean, htmlClass: string) => void): void;
     click(path: number[]): void;
+    pageUp(path: number[]): void;
     resize(w: number, h: number): void;
   };
   on<K extends keyof PpEventMap>(channel: K, cb: (data: PpEventMap[K]) => void): void;
