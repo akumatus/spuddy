@@ -154,6 +154,14 @@ export function registerWindowIpc(): void {
   // the window so he can still be dragged to the very top of the screen.
   ipcMain.handle('move-by', (_e, dx: number, dy: number) => {
     if (!win) return 0;
+    // While a popup holds the window fullscreen, a potato drag banks its delta
+    // into the bounds that come back at close — the renderer shifts the stage
+    // visually (see nudgeModalStage) and the window itself stays put.
+    if (savedBounds) {
+      savedBounds.x += Math.round(dx);
+      savedBounds.y += Math.round(dy);
+      return 0;
+    }
     const [x, y] = win.getPosition();
     const targetY = Math.round(y + dy);
     win.setPosition(Math.round(x + dx), targetY);
@@ -184,6 +192,11 @@ export function registerWindowIpc(): void {
       win.setResizable(true);
       win.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
       win.setResizable(false);
+      // While a popup is open the app should act like a normal window: drop
+      // the floating level so other apps' windows and dialogs can cover it,
+      // but surface it once so the popup doesn't open already buried.
+      win.setAlwaysOnTop(false);
+      win.moveTop();
       lastEdge = null; // window jumped — drop any stale edge-dock state
     } else {
       if (!savedBounds) return;
@@ -191,6 +204,8 @@ export function registerWindowIpc(): void {
       win.setBounds(savedBounds);
       win.setResizable(false);
       savedBounds = null;
+      win.setAlwaysOnTop(true, 'floating'); // the pet goes back to floating over the desktop
+      reportEdge(); // a popup-time drag may have parked him at (or off) an edge
     }
   });
 }

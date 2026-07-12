@@ -36,15 +36,29 @@ async function expandForModal(seq: number): Promise<void> {
   if (g) {
     const st = stageEl().style;
     // the stage's resting right offset is %-based (centered in the window), so
-    // measure the pixel gap before the resize and pin it as an absolute value
-    const baseRight = window.innerWidth - stageEl().getBoundingClientRect().right;
-    st.right = `${baseRight + g.dx}px`;
-    st.bottom = `${g.dy}px`;
-    await painted(); // the offset stage is on screen before the window grows
+    // measure the pixel gap before the resize and pin it as an absolute value.
+    // If a still-closing overlay left the stage pinned (release() skipped by
+    // the seq bump), those values are already right for this window — measuring
+    // again from them would double-count the offset.
+    if (!st.bottom) {
+      const baseRight = window.innerWidth - stageEl().getBoundingClientRect().right;
+      st.right = `${baseRight + g.dx}px`;
+      st.bottom = `${g.dy}px`;
+    }
+    // Transparent windows get no synchronized resize on macOS: the window
+    // server can flash the pre-resize frame stretched into the new bounds,
+    // teleporting the potato toward the screen center for a beat. Blink him
+    // out so the stale frame is potato-free, and bring him back only after
+    // the resized window has painted the new layout.
+    st.visibility = 'hidden';
+    await painted(); // the offset (hidden) stage is committed before the window grows
     if (seq !== modalSeq) return;
     window.pp!.win.setModal(true);
     await resizedOrTimeout(250); // and the popup only shows once it can center
     if (seq !== modalSeq) return;
+    await painted(); // first full-size frame is up — safe to show him again
+    if (seq !== modalSeq) return;
+    st.visibility = '';
   }
   overlay().classList.remove('hidden');
 }
@@ -120,7 +134,16 @@ export function closeOverlay(): void {
   overlay().classList.remove('panel');
   modal().innerHTML = '';
   resetModalDrag();
-  window.pp?.win?.setModal(false);
+  // Blink the potato out for the shrink, mirroring expandForModal: the
+  // window-server may briefly show the stale fullscreen frame in the restored
+  // bounds, and a hidden stage keeps that frame potato-free. The shrink is
+  // only requested once the hidden-stage frame has actually painted.
+  stageEl().style.visibility = 'hidden';
+  void (async () => {
+    await painted();
+    if (seq !== modalSeq) return; // a reopen raced in — it owns the window now
+    window.pp?.win?.setModal(false);
+  })();
   // release the stage offset only after the window is small again — resetting
   // early would flash the potato at the fullscreen corner for a frame
   const release = () => {
@@ -128,6 +151,7 @@ export function closeOverlay(): void {
     const st = stageEl().style;
     st.right = '';
     st.bottom = '';
+    st.visibility = '';
     panelEl().classList.remove('hidden'); // back to hover-gated (stays hidden until next hover)
   };
   window.addEventListener('resize', () => requestAnimationFrame(release), { once: true });
@@ -136,4 +160,15 @@ export function closeOverlay(): void {
 
 export function isOverlayOpen(): boolean {
   return !overlay().classList.contains('hidden');
+}
+
+// While a popup holds the window fullscreen a potato drag can't move the
+// window, so it shifts the pinned stage offsets instead — the matching window
+// delta is banked into the main process's saved bounds via move-by, and the
+// potato comes back at the dropped spot when the popup closes.
+export function nudgeModalStage(dx: number, dy: number): void {
+  const st = stageEl().style;
+  if (!modalUp || !st.bottom) return; // window not expanded (or stage not pinned yet)
+  st.right = `${parseFloat(st.right) - dx}px`;
+  st.bottom = `${parseFloat(st.bottom) - dy}px`;
 }

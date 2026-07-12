@@ -8,7 +8,7 @@ import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
 import * as store from '../store';
 import { heartsBurst } from '../ui/effects';
-import { isDraggingModal, isOverlayOpen } from '../ui/overlay';
+import { isDraggingModal, isOverlayOpen, nudgeModalStage } from '../ui/overlay';
 import { chatSend } from './chat';
 import { $, ctx, pp } from './context';
 import { DAILY_DRAW_LIMIT, drawToday, openCard } from './gacha';
@@ -280,8 +280,6 @@ export function wireInteractions(): void {
   }
 
   stage.addEventListener('pointerdown', (e) => {
-    if (isOverlayOpen()) return; // visible behind the modal, but hands off —
-    // dragging would move the fullscreen window and taps could stack modals
     // Only his body takes a grab. Stage air is normally click-through and never
     // reaches us, but the mouse-active state trails the cursor by a beat
     // (throttled raycast below), so a stale press could sneak in — re-check.
@@ -304,6 +302,16 @@ export function wireInteractions(): void {
     drag.y = e.screenY;
     ctx.anim().dragBy(dx * 0.5);
 
+    // Popup open: the window is already fullscreen, so the drag shifts the
+    // pinned stage offsets for the visual, and move-by banks the same delta
+    // into the saved small-window bounds — he lands where he was dropped when
+    // the popup closes. The lift dance doesn't apply to a fullscreen window.
+    if (isOverlayOpen()) {
+      nudgeModalStage(dx, dy);
+      void pp.win.moveBy(dx, dy);
+      return;
+    }
+
     // Dragging back down: spend the in-window lift before the window itself moves,
     // so he peels off the top smoothly instead of the window lurching down first.
     let winDy = dy;
@@ -324,9 +332,12 @@ export function wireInteractions(): void {
     refreshMouseRegion(e.clientX, e.clientY); // settle click-through right away —
     // the drop spot may be off his silhouette and shouldn't hold the mouse
     if (moved) {
-      void settlePanelSide(); // the drop spot decides which flank the panel takes
+      // During a popup the window never moved, so panel side and edge state
+      // are stale — both settle again on the next real (small-window) drag.
+      const overlayUp = isOverlayOpen();
+      if (!overlayUp) void settlePanelSide(); // the drop spot decides which flank the panel takes
       ctx.anim().setDragging(false); // spring-back with one overshoot
-      if (edgeSide) {
+      if (!overlayUp && edgeSide) {
         sleepAtEdge(); // landed against an edge — tuck in for a nap
       } else {
         ctx.anim().play('bigSquish');
@@ -344,7 +355,8 @@ export function wireInteractions(): void {
     const moved = drag.moved;
     drag = null;
     if (moved) {
-      void settlePanelSide(); // the window stays wherever the cancel left it
+      // same staleness note as pointerup: skip the side probe during a popup
+      if (!isOverlayOpen()) void settlePanelSide(); // the window stays wherever the cancel left it
       ctx.anim().setDragging(false); // drop the pose — no landing fanfare
     }
     lastCast = 0;
@@ -412,7 +424,7 @@ export function wireInteractions(): void {
       // raycasting the model on every high-rate mousemove would be wasteful —
       // one cast per ~40ms, the verdict holds in between
       lastCast = performance.now();
-      onPotato = !isOverlayOpen() && !!ctx.scene.pick(cx, cy);
+      onPotato = !!ctx.scene.pick(cx, cy);
     } else {
       // this sample fell inside the hold — re-cast once when it expires, so a
       // pointer that stops right after crossing his outline can't keep a stale
