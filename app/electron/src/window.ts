@@ -1,8 +1,10 @@
-// Pet window: creation, click-through, drag moves, the modal expand/restore
-// dance, and edge-dock reporting.
+// Pet window: creation, click-through, drag moves, and edge-dock reporting.
+// It floats above everything, always; popups live in their own normal-level
+// window (see popup.ts) so they stack with other apps like ordinary windows.
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { closePopupWindow, raisePopupWithPet } from './popup';
 
 // The stage (300px wide) sits at the window's horizontal center (CSS: right:
 // calc(50% - 150px)), leaving equal room on both sides of the potato so the
@@ -53,7 +55,10 @@ export function createWindow(): void {
   // Null out the reference once the native window is gone, so the cursor /
   // sedentary timers stop poking a destroyed object ("Object has been
   // destroyed" on quit).
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; closePopupWindow(); });
+
+  // clicking the potato re-activates Spuddy — surface its popup along with it
+  win.on('focus', raisePopupWithPet);
 
   win.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) console.log(`[renderer:${level}]`, message);
@@ -94,11 +99,6 @@ export function createWindow(): void {
     }, 8000);
   }
 }
-
-// ── modal mode: while an overlay is open, blow the (normally small, bottom-
-// right) window up to fill the screen so the popup can center on the whole
-// display. Restore the pet's little window when it closes. ──
-let savedBounds: Electron.Rectangle | null = null;
 
 // ── edge dock: report which screen edge the potato is pushed against ──
 // The potato renders at the horizontal center of the transparent window (CSS
@@ -154,58 +154,11 @@ export function registerWindowIpc(): void {
   // the window so he can still be dragged to the very top of the screen.
   ipcMain.handle('move-by', (_e, dx: number, dy: number) => {
     if (!win) return 0;
-    // While a popup holds the window fullscreen, a potato drag banks its delta
-    // into the bounds that come back at close — the renderer shifts the stage
-    // visually (see nudgeModalStage) and the window itself stays put.
-    if (savedBounds) {
-      savedBounds.x += Math.round(dx);
-      savedBounds.y += Math.round(dy);
-      return 0;
-    }
     const [x, y] = win.getPosition();
     const targetY = Math.round(y + dy);
     win.setPosition(Math.round(x + dx), targetY);
     reportEdge();
     const [, actualY] = win.getPosition();
     return actualY - targetY; // > 0 ⇒ clamped below where we asked (couldn't rise)
-  });
-
-  // gap between the window's right/bottom edges and the work area's — the
-  // renderer offsets the pet stage by this much while the window is expanded,
-  // so the potato holds its exact on-screen spot instead of flashing/hiding
-  ipcMain.handle('modal-geometry', () => {
-    if (!win) return null;
-    const b = savedBounds || win.getBounds();
-    const wa = screen.getDisplayMatching(b).workArea;
-    return {
-      dx: wa.x + wa.width - (b.x + b.width),
-      dy: wa.y + wa.height - (b.y + b.height),
-    };
-  });
-
-  ipcMain.on('set-modal', (_e, on: boolean) => {
-    if (!win) return;
-    if (on) {
-      if (savedBounds) return; // already expanded
-      savedBounds = win.getBounds();
-      const wa = screen.getDisplayMatching(win.getBounds()).workArea;
-      win.setResizable(true);
-      win.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
-      win.setResizable(false);
-      // While a popup is open the app should act like a normal window: drop
-      // the floating level so other apps' windows and dialogs can cover it,
-      // but surface it once so the popup doesn't open already buried.
-      win.setAlwaysOnTop(false);
-      win.moveTop();
-      lastEdge = null; // window jumped — drop any stale edge-dock state
-    } else {
-      if (!savedBounds) return;
-      win.setResizable(true);
-      win.setBounds(savedBounds);
-      win.setResizable(false);
-      savedBounds = null;
-      win.setAlwaysOnTop(true, 'floating'); // the pet goes back to floating over the desktop
-      reportEdge(); // a popup-time drag may have parked him at (or off) an edge
-    }
   });
 }

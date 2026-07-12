@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Spuddy</title>
+  <link rel="stylesheet" href="./src/style.css" />
+  <style>
+    /* transparent shell — the mirrored popup card paints everything visible */
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    #proot {
+      min-height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* breathing room so the cards' soft drop shadows aren't clipped at the
+         window edge (the window is sized to content + this padding) */
+      padding: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div id="proot"></div>
+  <script type="module" src="/src/popup-shell.ts"></script>
+</body>
+</html>

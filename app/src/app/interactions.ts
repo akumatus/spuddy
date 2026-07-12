@@ -8,7 +8,7 @@ import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
 import * as store from '../store';
 import { heartsBurst } from '../ui/effects';
-import { isDraggingModal, isOverlayOpen, nudgeModalStage } from '../ui/overlay';
+import { isOverlayOpen } from '../ui/overlay';
 import { chatSend } from './chat';
 import { $, ctx, pp } from './context';
 import { DAILY_DRAW_LIMIT, drawToday, openCard } from './gacha';
@@ -230,7 +230,7 @@ export function wireInteractions(): void {
   }
   function showPanel(): void {
     clearTimeout(hovT);
-    if (!ctx.anim().tucked && !isOverlayOpen()) panel.classList.add('show');
+    if (!ctx.anim().tucked) panel.classList.add('show');
   }
   function hidePanelSoon(): void {
     clearTimeout(hovT);
@@ -302,16 +302,6 @@ export function wireInteractions(): void {
     drag.y = e.screenY;
     ctx.anim().dragBy(dx * 0.5);
 
-    // Popup open: the window is already fullscreen, so the drag shifts the
-    // pinned stage offsets for the visual, and move-by banks the same delta
-    // into the saved small-window bounds — he lands where he was dropped when
-    // the popup closes. The lift dance doesn't apply to a fullscreen window.
-    if (isOverlayOpen()) {
-      nudgeModalStage(dx, dy);
-      void pp.win.moveBy(dx, dy);
-      return;
-    }
-
     // Dragging back down: spend the in-window lift before the window itself moves,
     // so he peels off the top smoothly instead of the window lurching down first.
     let winDy = dy;
@@ -332,12 +322,9 @@ export function wireInteractions(): void {
     refreshMouseRegion(e.clientX, e.clientY); // settle click-through right away —
     // the drop spot may be off his silhouette and shouldn't hold the mouse
     if (moved) {
-      // During a popup the window never moved, so panel side and edge state
-      // are stale — both settle again on the next real (small-window) drag.
-      const overlayUp = isOverlayOpen();
-      if (!overlayUp) void settlePanelSide(); // the drop spot decides which flank the panel takes
+      void settlePanelSide(); // the drop spot decides which flank the panel takes
       ctx.anim().setDragging(false); // spring-back with one overshoot
-      if (!overlayUp && edgeSide) {
+      if (edgeSide) {
         sleepAtEdge(); // landed against an edge — tuck in for a nap
       } else {
         ctx.anim().play('bigSquish');
@@ -355,8 +342,7 @@ export function wireInteractions(): void {
     const moved = drag.moved;
     drag = null;
     if (moved) {
-      // same staleness note as pointerup: skip the side probe during a popup
-      if (!isOverlayOpen()) void settlePanelSide(); // the window stays wherever the cancel left it
+      void settlePanelSide(); // the window stays wherever the cancel left it
       ctx.anim().setDragging(false); // drop the pose — no landing fanfare
     }
     lastCast = 0;
@@ -434,19 +420,12 @@ export function wireInteractions(): void {
     // his silhouette is also the hover-panel trigger now, not the stage box
     if (onPotato && !was) showPanel();
     else if (!onPotato && was) hidePanelSoon();
-    // In panel mode (Card Book / Buddies) the overlay backdrop is click-through,
-    // so the desktop and other apps stay usable around the floating panel. The
-    // panel content itself still carries data-interactive, so it stays clickable.
-    const onPanelBackdrop = !!(el && el.id === 'overlay' && el.classList.contains('panel'));
     const interactive =
-      // while the potato or a popup is being dragged, hold the window
-      // mouse-active even as the cursor outruns the moving target
-      isDraggingModal() || !!drag ||
+      // while the potato is being dragged, hold the window mouse-active even
+      // as the cursor outruns the moving silhouette
+      !!drag ||
       onPotato ||
-      // modal up: his whole box stays a dead zone exactly as before — a dimmed
-      // screen shouldn't leak clicks to the desktop around his silhouette
-      (onStage && isOverlayOpen()) ||
-      (!onPanelBackdrop && !!(el && el.closest('[data-interactive]')));
+      !!(el && el.closest('[data-interactive]'));
     pp.win.setIgnoreMouse(!interactive);
   }
 

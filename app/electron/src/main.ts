@@ -3,6 +3,7 @@
 // (esbuild) — package.json "main" points at the bundle.
 import { app, nativeImage } from 'electron';
 import { registerAiIpc } from './ai';
+import { createPopupWindow, registerPopupIpc } from './popup';
 import { registerStoreIpc } from './store';
 import { createTray } from './tray';
 import { startUpdater } from './updater';
@@ -19,6 +20,7 @@ app.setName('Spuddy');
 if (process.env.PP_USERDATA) app.setPath('userData', process.env.PP_USERDATA);
 
 registerWindowIpc();
+registerPopupIpc();
 registerAiIpc();
 registerStoreIpc();
 startWatchers();
@@ -46,6 +48,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     }
     createWindow();
+    createPopupWindow(); // created hidden at boot so the first popup opens instantly
     createTray();
     startUpdater();
   });

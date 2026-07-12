@@ -58,5 +58,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: 'chrome120',
+    rollupOptions: {
+      input: {
+        // pet window + the popup window's shell (see electron/src/popup.ts)
+        main: path.join(here, 'index.html'),
+        popup: path.join(here, 'popup.html'),
+      },
+    },
   },
 });

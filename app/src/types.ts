@@ -201,8 +201,19 @@ export interface PreloadBridge {
     // which flank of the potato the hover panel fits on, given where the
     // window sits on screen — queried at boot and after each drag ends
     panelSide(): Promise<'left' | 'right'>;
-    setModal(v: boolean): void;
-    modalGeometry(): Promise<{ dx: number; dy: number } | null>;
+  };
+  // pet-renderer side of the popup-window bridge (see src/ui/overlay.ts):
+  // mirror the staging markup out, take clicks back as child-index paths
+  popup: {
+    show(html: string, panel: boolean, htmlClass: string): void;
+    hide(): void;
+    onClick(cb: (path: number[]) => void): void;
+  };
+  // popup-window side (see src/popup-shell.ts)
+  popupShell: {
+    onRender(cb: (html: string, panel: boolean, htmlClass: string) => void): void;
+    click(path: number[]): void;
+    resize(w: number, h: number): void;
   };
   on<K extends keyof PpEventMap>(channel: K, cb: (data: PpEventMap[K]) => void): void;
 }

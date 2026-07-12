@@ -31,8 +31,19 @@ contextBridge.exposeInMainWorld('pp', {
     setIgnoreMouse: (v: boolean) => ipcRenderer.send('set-ignore-mouse', v),
     moveBy: (dx: number, dy: number) => ipcRenderer.invoke('move-by', dx, dy),
     panelSide: () => ipcRenderer.invoke('panel-side'),
-    setModal: (v: boolean) => ipcRenderer.send('set-modal', v),
-    modalGeometry: () => ipcRenderer.invoke('modal-geometry'),
+  },
+  // pet-renderer side of the popup bridge: mirror markup out, take clicks back
+  popup: {
+    show: (html: string, panel: boolean, htmlClass: string) => ipcRenderer.send('popup-show', html, panel, htmlClass),
+    hide: () => ipcRenderer.send('popup-hide'),
+    onClick: (cb: (path: number[]) => void) => ipcRenderer.on('popup-click', (_e, path) => cb(path)),
+  },
+  // popup-window side: receive markup, report clicks and the content size
+  popupShell: {
+    onRender: (cb: (html: string, panel: boolean, htmlClass: string) => void) =>
+      ipcRenderer.on('popup-render', (_e, html, panel, htmlClass) => cb(html, panel, htmlClass)),
+    click: (path: number[]) => ipcRenderer.send('popup-click', path),
+    resize: (w: number, h: number) => ipcRenderer.send('popup-resize', w, h),
   },
   on: (channel: string, cb: (data: unknown) => void) => {
     if (
