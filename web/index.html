@@ -54,7 +54,13 @@
     .wrap{max-width:1200px;margin:0 auto}
     .hero-grid{display:grid;grid-template-columns:1.02fr 0.98fr;gap:24px;align-items:center}
     .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-    .buddies-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+    /* minmax(0,…) lets cards shrink below their min-content (the 138px
+       vignette + 26px padding), which otherwise drags out a horizontal
+       scrollbar on narrow screens; the vignette scales along (the !important
+       overrides win over the cards' inline styles) */
+    .buddies-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+    .buddies-grid>div>div:first-child{width:min(138px,100%)!important;height:auto!important;aspect-ratio:1}
+    .buddies-grid>div>div:first-child img{width:78%!important}
     .split{display:grid;gap:56px;align-items:center}
     .split-cards{grid-template-columns:0.92fr 1.08fr}
     .split-chat{grid-template-columns:1.05fr 0.95fr}
@@ -66,10 +72,15 @@
       .split{grid-template-columns:1fr!important;gap:34px}
       .split .split-media-first{order:-1}
     }
+    @media (max-width:760px){
+      /* two feature cards need ~640px of content (136px thumb + prose each);
+         below that their min-content forces a horizontal scrollbar */
+      .feat-grid{grid-template-columns:1fr!important}
+    }
     @media (max-width:640px){
       .nav-mid{display:none!important}
-      .feat-grid{grid-template-columns:1fr!important}
-      .buddies-grid{grid-template-columns:1fr 1fr!important}
+      .buddies-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px}
+      .buddies-grid>div{padding:18px 12px!important}
       .feat-card{flex-direction:column!important;text-align:center}
       .feat-card>div:first-child{width:100%!important;height:180px!important}
       .section-pad{padding-left:22px!important;padding-right:22px!important}
