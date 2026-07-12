@@ -873,11 +873,11 @@ html, body {
 .knit {
   margin-top: 7px;
   display: inline-flex; align-items: center; gap: 6px;
-  background: #f7edcb; color: #a5842b;
-  font-size: 11px; font-weight: 800;
-  padding: 4px 12px 4px 9px; border-radius: 999px;
+  background: #faf3df; border: 1px solid #e4ce8f; color: #a8863b;
+  font-size: 10px; font-weight: 800;
+  padding: 3px 10px 3px 8px; border-radius: 999px;
 }
-.knit .yarn { width: 18px; height: 12px; flex-shrink: 0; }
+.knit .yarn { width: 14px; height: 14px; flex-shrink: 0; }
 .pav {
   width: 40px; height: 40px; flex-shrink: 0; border-radius: 999px;
   /* the char art is a tall portrait; nudge the crop up the image so the potato
@@ -895,63 +895,68 @@ html, body {
   box-shadow: 0 8px 16px -14px rgba(70, 50, 25, 0.6);
 }
 
-/* ── Memory · the quilt ── */
+/* ── Memory · the quilt (design §1c: warm patches on cream with gold dashed
+   thread, rainy ones on cooler paper with blue thread and a seam over the top
+   edge; plain everyday patches keep a quiet tan border of their own) ── */
 .memhead {
-  font-family: var(--hand); font-weight: 600; font-size: 21px;
-  color: #a58a58; text-align: center; padding: 0 12px 4px;
+  font-family: var(--hand); font-weight: 600; font-size: 20px;
+  color: #9a8768; text-align: center; padding: 0 12px 4px;
 }
 #book .memgrid {
   flex: 1; min-height: 0; overflow-y: auto;
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
   /* a whisker more breathing room so the tilted patches never clip */
-  grid-auto-rows: min-content; padding: 6px 10px 6px 4px;
+  grid-auto-rows: min-content; padding: 8px 10px 6px 4px;
 }
 .mcard {
   position: relative;
-  border: 2px dashed #d9b64a; background: #fffdf4;
-  border-radius: 16px; padding: 15px 16px;
-  display: flex; flex-direction: column; gap: 11px;
-  min-height: 132px;
+  border: 2px dashed #e0c888; background: var(--paper);
+  border-radius: 14px; padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 128px;
 }
 /* hand-placed patches — each sits a touch off square, like sewn on by hand */
-.memgrid .mcard:nth-child(4n + 1) { transform: rotate(-0.9deg); }
-.memgrid .mcard:nth-child(4n + 2) { transform: rotate(0.7deg); }
-.memgrid .mcard:nth-child(4n + 3) { transform: rotate(0.6deg); }
-.memgrid .mcard:nth-child(4n + 4) { transform: rotate(-0.7deg); }
-.mcard.rainy { border-color: #b3c0d0; background: #eef1f5; }
-.mcard.plain { border-color: #d5c5a2; background: var(--paper); }
+.memgrid .mcard:nth-child(4n + 1) { transform: rotate(-0.7deg); }
+.memgrid .mcard:nth-child(4n + 2) { transform: rotate(0.6deg); }
+.memgrid .mcard:nth-child(4n + 3) { transform: rotate(0.4deg); }
+.memgrid .mcard:nth-child(4n + 4) { transform: rotate(-0.5deg); }
+.mcard.rainy { border-color: #b9c3ce; background: #f3efe7; }
+.mcard.plain { border-color: #d5c5a2; }
+/* the blue seam over a rainy patch's top edge, sewn a little off-center —
+   right of center on odd patches, left on even, like the design's quilt */
+.mcard .stitch { position: absolute; top: -7px; width: 26px; height: 14px; }
+.memgrid .mcard:nth-child(even) .stitch { right: 22px; }
+.memgrid .mcard:nth-child(odd) .stitch { left: 26px; }
 .mtop { display: flex; align-items: flex-start; justify-content: space-between; }
-.mface { width: 48px; height: 48px; margin: -4px 0 0 -4px; }
-.mface svg { display: block; width: 48px; height: 48px; }
-.mmark { position: relative; width: 24px; height: 24px; flex-shrink: 0; }
+.mface { width: 40px; height: 40px; }
+.mface svg { display: block; width: 40px; height: 40px; }
+.mmark { position: relative; width: 22px; height: 22px; flex-shrink: 0; }
 .micon, .mcard .del { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transition: opacity 0.12s ease; }
-.micon svg { width: 20px; height: 20px; }
+.micon svg { width: 16px; height: 16px; }
 .mcard .del {
   opacity: 0; cursor: pointer;
-  border: none; background: transparent;
-  font-size: 18px; font-weight: 900; color: var(--tan); line-height: 1;
+  border: 1px solid #e3d6bc; border-radius: 999px; background: transparent;
+  font-size: 13px; font-weight: 900; color: #cbbb9d; line-height: 1;
 }
 .mcard:hover .micon { opacity: 0; }
 .mcard:hover .del { opacity: 1; }
-.mcard .del:hover { color: var(--red); }
+.mcard .del:hover { color: var(--red); border-color: var(--red); }
 .mfact {
   flex: 1;
-  font-family: var(--hand); font-weight: 600; font-size: 20px; line-height: 1.28;
-  color: #6b5636;
+  font-family: var(--hand); font-weight: 600; font-size: 19px; line-height: 1.25;
+  color: #6b5638;
 }
-.mcard.rainy .mfact { color: #5b6675; }
 .mmeta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mcard .kind { font-size: 11px; font-weight: 800; letter-spacing: 0.01em; padding: 3px 11px; border-radius: 999px; white-space: nowrap; }
-.mday { font-size: 10.5px; font-weight: 900; letter-spacing: 0.1em; color: var(--tan); white-space: nowrap; }
-.mcard.rainy .mday { color: #8695a8; }
+.mcard .kind { font-size: 10px; font-weight: 800; letter-spacing: 0.01em; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.mday { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: #c0ae8c; white-space: nowrap; }
 .kind.work { background: #e7eef6; color: #3f5a7a; }
 .kind.goal { background: #e3f1ea; color: #3c7357; }
 .kind.people { background: #f8e6e6; color: #9c4f4f; }
 .kind.pets { background: #f7e9da; color: #9a6234; }
 .kind.likes { background: #f6eddb; color: #8a6d2f; }
-.kind.milestone { background: var(--gold-bg); color: var(--gold); }
+.kind.milestone { background: #f8eed2; color: #a8863b; }
 .kind.feeling { background: #eee7f4; color: #6b5a86; }
-.kind.other { background: #f1e8d6; color: var(--tan); }
+.kind.other { background: #f1e8d6; color: #8a7455; }
 
 #book .bookfoot { display: flex; align-items: center; justify-content: center; gap: 12px; }
 #book .bookfoot .clear {

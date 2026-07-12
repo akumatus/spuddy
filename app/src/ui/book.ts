@@ -45,67 +45,76 @@ function memMood(m: MemoryFact): MemoryMood {
   return m.kind === 'feeling' ? 'rainy' : m.kind === 'milestone' ? 'sunny' : 'plain';
 }
 
-// yarn-and-needle squiggle for the "knit into Memory" chat tag
+// gold running-stitch for the "knit into Memory" chat tag (design §1a)
 const YARN =
-  '<svg class="yarn" viewBox="0 0 24 16" fill="none" aria-hidden="true"><path d="M2 12C5 4 9 4 12 10s7 2 10-6" stroke="#b8912f" stroke-width="2" stroke-linecap="round"/></svg>';
+  '<svg class="yarn" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 10 C5 4.5 8 11.5 14 5.5" stroke="#C9A227" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 2.4"/></svg>';
 
-// Little line-drawn faces for the memory quilt, doodled like the design's
-// margin sketches — the accessory grows out of the head itself: a heart perched
-// on the rim for someone they love, a pennant planted for milestones, drizzle
-// or a trail of sigh-bubbles when the patch is a rainy one.
-const INK = '#5a4a34';
-const DOODLE_RED = '#c0503c';
-const RAIN = '#6e86a8';
-const face = (inner: string) =>
-  `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="22" cy="26" r="13.5" stroke="${INK}" stroke-width="2"/>${inner}</svg>`;
-const eyeDot = (x: number, y = 23.5) => `<circle cx="${x}" cy="${y}" r="1.7" fill="${INK}"/>`;
-// a wink: one eye closed in a happy downward arc
-const eyeWink = `<path d="M14.5 24q2.3-2.7 4.6 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`;
-const smile = `<path d="M17 29.5c2.4 2.8 7.6 2.8 10 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`;
-const frown = `<path d="M17.5 31c2.4-2.6 7.3-2.6 9.7 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`;
+// Potato doodles for the memory quilt, one per category, taken verbatim from
+// the design file (claude-design/project/Card Book 重设计.dc.html, §1c quilt +
+// §1d spec). Same round potato every time; the accessory names the category —
+// a heart on the rim for people & pets, a trail of sigh-bubbles for feelings,
+// a briefcase for work, a sprout for goals, a sparkle for likes, a pennant for
+// milestones, a loose ball of yarn for everything else. Rainy patches wear the
+// frown; a rainy people-patch trades its heart for the quilt's rain cloud.
+const INK = '#3E3226';
+const SMILE = '<path d="M29.5 37 Q32 39.5 34.5 37"/>';
+const FROWN = '<path d="M29.5 38.5 Q32 37 34.5 38.5"/>';
+// stroked doodles ride inside the outline group; filled ones sit after it,
+// exactly as the design file layers them
+const potato = (stroked: string, filled = '') =>
+  `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><g stroke="${INK}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M32 12 C42 12 49 19 51 28 C53 36 49 46 43 50 C38.5 53 34.5 54 32 54 C29.5 54 25.5 53 21 50 C15 46 11 36 13 28 C15 19 22 12 32 12 Z"/>${stroked}</g><circle cx="26" cy="30" r="2.4" fill="${INK}"/><circle cx="38" cy="30" r="2.4" fill="${INK}"/>${filled}</svg>`;
 
-const FACE_SUNNY = face(eyeWink + eyeDot(27.5) + smile);
-const FACE_SUNNY_HEART = face(
-  eyeWink + eyeDot(27.5) + smile +
-  `<path transform="rotate(14 34 12)" d="M34 17.5c-4.6-3.6-4.6-7.6-2.3-7.6 1.2 0 2.3 1.5 2.3 1.5s1.1-1.5 2.3-1.5c2.3 0 2.3 4-2.3 7.6z" fill="${DOODLE_RED}"/>`
-);
-const FACE_MILESTONE = face(
-  eyeDot(17) + eyeDot(27.5) +
-  `<path d="M17.5 28.5c2.5 3.4 7.5 3.4 10 0" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>` +
-  `<path d="M29 13V4.5" stroke="${INK}" stroke-width="2" stroke-linecap="round"/><path d="M29 4.5l7.5 2-7.5 2z" fill="${DOODLE_RED}"/>`
-);
-const FACE_RAINY = face(
-  eyeDot(17, 24.5) + eyeDot(27.5, 24.5) + frown +
-  `<path d="M31.5 7.5l-2 4.5M37 10l-2 4.5" stroke="${RAIN}" stroke-width="2" stroke-linecap="round"/>`
-);
-const FACE_RAINY_SIGH = face(
-  eyeDot(17, 24.5) + eyeDot(27.5, 24.5) + frown +
-  `<circle cx="30.5" cy="12.5" r="1.4" stroke="${INK}" stroke-width="1.8"/><circle cx="35" cy="8.5" r="2" stroke="${INK}" stroke-width="1.8"/><circle cx="41" cy="4.6" r="2.6" stroke="${INK}" stroke-width="1.8"/>`
-);
-const FACE_PLAIN = face(eyeDot(17) + eyeDot(27.5) + `<path d="M17.5 29.5h9.5" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`);
+const HEART =
+  '<path d="M50 18 C47.5 15.5 44 14 44 10.8 C44 8.9 45.9 8 47.4 8.8 C48.6 9.4 49.5 10.4 50 11.2 C50.5 10.4 51.4 9.4 52.6 8.8 C54.1 8 56 8.9 56 10.8 C56 14 52.5 15.5 50 18 Z" fill="#B9543F"/>';
+const RAIN_CLOUD =
+  '<path d="M43 5 C47 3 53 3 56 6"/><path d="M46 11 V14.5"/><path d="M51 10 V13.5"/>';
+const BUBBLES =
+  '<circle cx="45" cy="14" r="2"/><circle cx="50" cy="9" r="2.8"/><circle cx="56" cy="3.5" r="3"/>';
+const BRIEFCASE = '<rect x="41" y="7" width="16" height="12" rx="2.5"/><path d="M46 7 V4.5 H52 V7"/>';
+const SPROUT =
+  '<path d="M32 12 C32 8 32 6 32 3.5"/><path d="M32 7 C28.5 7 26.5 5 25.5 2.5"/><path d="M32 7 C35.5 7 37.5 5 38.5 2.5"/>';
+const SPARKLE =
+  '<path d="M49 2 L50.8 7.2 L56 9 L50.8 10.8 L49 16 L47.2 10.8 L42 9 L47.2 7.2 Z" fill="#C9A227"/>';
+const FLAGPOLE = '<path d="M47 19 V4"/>';
+const PENNANT = '<path d="M47 4.5 L57 7.5 L47 10.5 Z" fill="#B9543F"/>';
+const YARN_BALL =
+  '<circle cx="49" cy="9" r="6"/><path d="M44.5 6.5 C47 8.5 51 8.5 53.5 11.5"/><path d="M44.5 11.5 C47 9.5 51 11.5 53.5 6.5"/>';
+
+const KIND_ART: Record<MemoryKind, { stroked?: string; filled?: string }> = {
+  people: { filled: HEART },
+  pets: { filled: HEART },
+  feeling: { stroked: BUBBLES },
+  work: { stroked: BRIEFCASE },
+  goal: { stroked: SPROUT },
+  likes: { filled: SPARKLE },
+  milestone: { stroked: FLAGPOLE, filled: PENNANT },
+  other: { stroked: YARN_BALL },
+};
 
 function memFace(mood: MemoryMood, kind: MemoryKind): string {
-  if (mood === 'rainy') return kind === 'feeling' ? FACE_RAINY_SIGH : FACE_RAINY;
-  if (mood === 'plain') return FACE_PLAIN;
-  if (kind === 'milestone') return FACE_MILESTONE;
-  return kind === 'people' || kind === 'pets' || kind === 'likes' ? FACE_SUNNY_HEART : FACE_SUNNY;
+  const rainy = mood === 'rainy';
+  if (rainy && (kind === 'people' || kind === 'pets')) return potato(FROWN + RAIN_CLOUD);
+  const art = KIND_ART[kind] || KIND_ART.other;
+  // the feelings potato frowns even on sunny days — that's its whole face
+  const mouth = rainy || kind === 'feeling' ? FROWN : SMILE;
+  return potato(mouth + (art.stroked || ''), art.filled || '');
 }
 
-// corner marks, matching the design's margin doodles: a little hand-drawn sun
-// (dot + four rays) for sunny, a blue drop for rainy, a sewn button for plain
-// everyday patches (a cross-stitch read too much like the delete × it swaps
-// with on hover)
+// tone stitches from the design: a gold sun on sunny patches, a raindrop on
+// rainy ones; plain everyday patches carry no stitch, just the hover ×
 const ICON_SUN =
-  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="2.4" fill="#c9a227"/><path d="M12 3.5v3.4M12 17.1v3.4M3.5 12h3.4M17.1 12h3.4" stroke="#c9a227" stroke-width="2" stroke-linecap="round"/></svg>';
+  '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="#C9A227"/><g stroke="#C9A227" stroke-width="1.8" stroke-linecap="round"><path d="M8 1.5 V3.4"/><path d="M8 12.6 V14.5"/><path d="M1.5 8 H3.4"/><path d="M12.6 8 H14.5"/></g></svg>';
 const ICON_DROP =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s-7 8.4-7 12.4a7 7 0 0014 0C19 11.4 12 3 12 3z" fill="#6e86a8"/></svg>';
-const ICON_BUTTON =
-  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="#c0ab7f" stroke-width="2"/><circle cx="9.4" cy="9.4" r="1.2" fill="#c0ab7f"/><circle cx="14.6" cy="9.4" r="1.2" fill="#c0ab7f"/><circle cx="9.4" cy="14.6" r="1.2" fill="#c0ab7f"/><circle cx="14.6" cy="14.6" r="1.2" fill="#c0ab7f"/></svg>';
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 C10.8 5.4 12 7.9 10.5 10.4 C9.4 12.3 6.6 12.3 5.5 10.4 C4 7.9 5.2 5.4 8 1.5 Z" fill="#8FA3B8"/></svg>';
 function memIcon(mood: MemoryMood): string {
   if (mood === 'rainy') return ICON_DROP;
-  if (mood === 'plain') return ICON_BUTTON;
+  if (mood === 'plain') return '';
   return ICON_SUN;
 }
+
+// short blue seam sewn over the top edge of a rainy patch (design §1c)
+const STITCH =
+  '<svg class="stitch" viewBox="0 0 26 14" aria-hidden="true"><path d="M2 7 H24" stroke="#8FA3B8" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="4 3"/></svg>';
 
 export function showBook(state: AppState, tab: BookTab, filter: BookFilter, handlers: BookHandlers): void {
   const ui = TXT().ui;
@@ -187,6 +196,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
         const kind = m.kind || 'other';
         return `
           <div class="mcard ${mood}">
+            ${mood === 'rainy' ? STITCH : ''}
             <div class="mtop">
               <div class="mface">${memFace(mood, kind)}</div>
               <div class="mmark">
