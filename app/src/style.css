@@ -151,7 +151,11 @@ html, body {
 
 #bubble {
   position: absolute;
-  bottom: 62%;
+  /* Gap-from-head tracks pet size: the pet's feet are planted ~78px above the
+     stage bottom and he grows upward by --pet-scale, so the bubble's rise above
+     that base (170px at md ≈ the old 62% of the 400px stage) scales with him —
+     bigger pet, bubble floats higher; smaller pet, it tucks down closer. */
+  bottom: calc(78px + 170px * var(--pet-scale, 1));
   /* center with auto margins, not translateX(-50%): the pp-bubble keyframe
      overwrites `transform`, which would drop the centering mid-animation and
      make the bubble pop in at the right before snapping to center */
@@ -192,7 +196,8 @@ html, body {
 /* mutter — dashed thought bubble, Caveat hand-writing (7a) */
 #mutter {
   position: absolute;
-  bottom: 64%;
+  /* same gap-from-head scaling as #bubble (178px at md ≈ the old 64%) */
+  bottom: calc(78px + 178px * var(--pet-scale, 1));
   left: 55%;
   transform: translateX(-50%);
   max-width: 240px;
@@ -258,8 +263,10 @@ html, body {
   /* tucked in close to the potato's left edge: the stage is centered (its left
      edge sits at 50% - 150px) and the panel's right edge reaches 46px past it.
      Nudge the 104 up to move nearer, down to back off — keep the overlap ≲ his
-     silhouette so the chat box doesn't paint over him. */
-  right: calc(50% + 104px);
+     silhouette so the chat box doesn't paint over him. The offset rides
+     --pet-scale so the gap tracks his width: a bigger pet pushes the panel out,
+     a smaller one lets it tuck in closer. */
+  right: calc(50% + 104px * var(--pet-scale, 1));
   /* the chat box (panel's bottom edge) sits level with the pet's base — his
      model bottom renders ~78px above the window bottom (fixed for every buddy) */
   bottom: 78px;
@@ -277,7 +284,7 @@ html, body {
    where the default left-side panel would clip offscreen */
 #hoverpanel.flip {
   right: auto;
-  left: calc(50% + 104px);
+  left: calc(50% + 104px * var(--pet-scale, 1));
   align-items: flex-start;
   transform: translateX(-10px);
 }

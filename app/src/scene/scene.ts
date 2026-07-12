@@ -241,9 +241,14 @@ export class PetScene {
   // (which drives rootGroup) untouched, so the squash still composes on top;
   // holder.scale survives setCharacter's holder.clear(), so a buddy switch keeps
   // the chosen size. The contact shadow reads sizeScale in _tick to match.
+  // Publish the factor as the --pet-scale CSS var so the DOM overlays (speech
+  // bubble, thought bubble, hover chat panel) scale their gap-from-the-pet with
+  // him instead of drifting — see style.css. Feet stay planted, so only the
+  // above-the-base offsets scale, never the base anchor.
   setPetSize(size: PetSize): void {
     this.sizeScale = PET_SIZE_SCALE[size] ?? 1;
     this.holder.scale.setScalar(this.sizeScale);
+    document.documentElement.style.setProperty('--pet-scale', String(this.sizeScale));
   }
 
   // merge LIGHT_BASE with the character's LIGHT_TWEAKS entry and apply
