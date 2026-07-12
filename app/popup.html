@@ -7,14 +7,16 @@
   <style>
     /* transparent shell — the mirrored popup card paints everything visible */
     html, body { margin: 0; background: transparent; overflow: hidden; }
-    /* the window is sized exactly to the card — macOS paints the native
-       window shadow outside these bounds, like any other app window */
+    /* Keep the original entrance animations inside the native window bounds.
+       The visible popup stays centered in this transparent headroom; macOS
+       paints the native window shadow around the popup itself. */
     #proot {
       min-height: 100vh;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 40px;
     }
     /* The window is sized to the measured content, so the content must lay
        out at its natural size no matter what size the window happens to be

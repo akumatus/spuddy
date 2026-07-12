@@ -37,7 +37,7 @@ export function showCard(state: AppState, view: CardView, { onKeep, onLater }: C
   const gold = view.rare;
   const keepLabel = view.keptToday ? ui.openTheBook : ui.keepIt;
   openOverlay(`
-    <div class="cardbox ${gold ? 'gold' : ''}">
+    <div class="cardbox ${gold ? 'gold' : ''}" data-popup-envelope="draw">
       ${gold ? `
         <span class="sparkle" style="top:6px;left:14px;font-size:18px;">✦</span>
         <span class="sparkle" style="top:22px;right:20px;font-size:13px;animation-delay:.5s;">✦</span>
@@ -74,7 +74,7 @@ export function showCareCard(state: AppState, tag: string, msg: string, onClose:
 
 export function showDrawAnim(): void {
   openOverlay(`
-    <div class="drawback">
+    <div class="drawback" data-popup-envelope="draw">
       <div class="inner">
         <div class="ring">♥</div>
         <div class="label">${TXT().ui.drawLabel}</div>
@@ -85,7 +85,7 @@ export function showDrawAnim(): void {
 
 export function showWeave(line: string): void {
   openOverlay(`
-    <div class="weavebox">
+    <div class="weavebox" data-popup-envelope="draw">
       <div class="inner">
         <div class="spinner"><span class="orbit"></span><span class="ball"></span></div>
         <div class="line" id="weaveLine">${esc(line)}</div>

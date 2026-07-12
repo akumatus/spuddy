@@ -214,6 +214,9 @@ export interface PreloadBridge {
   // popup-window side (see src/popup-shell.ts)
   popupShell: {
     onRender(cb: (html: string, panel: boolean, htmlClass: string) => void): void;
+    // the window was hidden (popup closed) — the Page Visibility API can't
+    // report this itself while backgroundThrottling is off
+    onHidden(cb: () => void): void;
     click(path: number[]): void;
     pageUp(path: number[]): void;
     resize(w: number, h: number): void;

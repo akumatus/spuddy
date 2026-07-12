@@ -68,14 +68,30 @@ function applyDragRegions(): void {
   });
 }
 
+let resizeQueued = false;
 function requestResize(): void {
-  const top = root.firstElementChild as HTMLElement | null;
-  if (!top) return;
-  // offsetWidth/Height are pure layout sizes — a bounding rect here would be
-  // scaled down by the pp-cardin entrance animation's transform mid-flight,
-  // and the too-small window would then trap the card via its 100vw max-width.
-  // No padding: the window hugs the card, macOS shadows it natively.
-  shell.resize(top.offsetWidth, top.offsetHeight);
+  if (resizeQueued) return;
+  resizeQueued = true;
+  // Two frames from now the freshly morphed content has actually painted
+  // (backgroundThrottling is off, so frames land even while hidden) — only
+  // then resize/show the window. Showing before the paint flashed the
+  // PREVIOUS popup's stale frame (chat blinking before memory).
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    resizeQueued = false;
+    const top = root.firstElementChild as HTMLElement | null;
+    if (!top) return;
+    // offsetWidth/Height are pure layout sizes — a bounding rect here would
+    // be scaled down by the entrance animation's transform mid-flight, and
+    // the too-small window would then trap the card via its 100vw max-width.
+    // The draw ceremony keeps one transparent window footprint while its
+    // original 230px back, compact weave, and natural-height card swap in
+    // place. Only the window gets the envelope; the artwork keeps its design.
+    const drawFlow = top.hasAttribute('data-popup-envelope');
+    const width = drawFlow ? Math.max(330, top.offsetWidth) : top.offsetWidth;
+    const height = drawFlow ? Math.max(460, top.offsetHeight) : top.offsetHeight;
+    const pad = 80; // 40px of animation headroom on each side (see popup.html)
+    shell.resize(width + pad, height + pad);
+  }));
 }
 
 // a node's address in the mirrored markup — the child-index path the pet
@@ -132,11 +148,10 @@ function anchorScroll(prev: { el: Element; fromBottom: number } | null): void {
 // only streams while a popup is up), so "same element" alone can't tell a
 // mid-reading re-render from a fresh reopen. A hidden spell ends the reading
 // session: the next render opens fresh — pinned to the end — instead of
-// holding the stale offset.
+// holding the stale offset. (Explicit IPC, not visibilitychange: with
+// backgroundThrottling off the page always reports itself visible.)
 let stale = false;
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') stale = true;
-});
+shell.onHidden(() => { stale = true; });
 
 shell.onRender((html, _panel, htmlClass) => {
   // language-dependent CSS (html.zh …) follows the pet window's root class

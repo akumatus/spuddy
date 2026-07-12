@@ -14,6 +14,7 @@ import path from 'node:path';
 import { getWin } from './window';
 
 let popup: BrowserWindow | null = null;
+let popupRequested = false;
 
 export function getPopup(): BrowserWindow | null {
   return popup;
@@ -37,10 +38,17 @@ export function createPopupWindow(): void {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       sandbox: true,
+      // keep rendering while hidden: the shell repaints the next popup's
+      // content BEFORE the window shows, so show() can't flash the previous
+      // popup's stale frame (chat blinking before memory)
+      backgroundThrottling: false,
     },
   });
   popup.loadFile(path.join(__dirname, '..', 'dist', 'popup.html'));
   popup.on('closed', () => { popup = null; });
+  // with throttling off the Page Visibility API always reads "visible", so
+  // the shell gets told about hides explicitly (it resets reading state)
+  popup.on('hide', () => popup?.webContents.send('popup-hidden'));
 
   popup.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) console.log(`[popup:${level}]`, message);
@@ -89,10 +97,12 @@ function centerOnPetDisplay(w: number, h: number): void {
 export function registerPopupIpc(): void {
   // pet renderer → popup: full markup mirror (initial open and every re-render)
   ipcMain.on('popup-show', (_e, html: string, panel: boolean, htmlClass: string) => {
+    popupRequested = true;
     popup?.webContents.send('popup-render', html, panel, htmlClass);
   });
 
   ipcMain.on('popup-hide', () => {
+    popupRequested = false;
     popup?.hide();
   });
 
@@ -114,7 +124,7 @@ export function registerPopupIpc(): void {
   // popup shell measured its content: size the window to fit, center it on
   // first show (later resizes — e.g. book tab switches — keep the center)
   ipcMain.on('popup-resize', (e, w: number, h: number) => {
-    if (!popup || e.sender !== popup.webContents) return;
+    if (!popup || e.sender !== popup.webContents || !popupRequested) return;
     // clamp to the work area — a content bug must never balloon the window
     // past the screen
     const anchor = getWin()?.getBounds() ?? popup.getBounds();

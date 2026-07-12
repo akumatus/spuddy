@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('pp', {
   popupShell: {
     onRender: (cb: (html: string, panel: boolean, htmlClass: string) => void) =>
       ipcRenderer.on('popup-render', (_e, html, panel, htmlClass) => cb(html, panel, htmlClass)),
+    onHidden: (cb: () => void) => ipcRenderer.on('popup-hidden', () => cb()),
     click: (path: number[]) => ipcRenderer.send('popup-click', path),
     pageUp: (path: number[]) => ipcRenderer.send('popup-pageup', path),
     resize: (w: number, h: number) => ipcRenderer.send('popup-resize', w, h),
