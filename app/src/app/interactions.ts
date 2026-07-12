@@ -145,14 +145,11 @@ export function wakeFromEdge(): void {
   sfx.boing();
 }
 
-// The static chrome that carries language: the chat placeholder and the hover
-// panel's button tooltips. Called at boot and again on every language switch.
+// The static chrome that carries language: the chat placeholder. (The icon
+// buttons deliberately have no hover tooltips.) Called at boot and on switch.
 export function applyLangChrome(): void {
   const ui = TXT().ui;
   ($('chatInput') as HTMLInputElement).placeholder = ui.placeholder(ctx.activeChar().name);
-  $('bookBtn').title = ui.titleBook;
-  $('buddiesBtn').title = ui.titleBuddies;
-  $('settingsBtn').title = ui.titleSettings;
 }
 
 // ── ⚙ settings panel (design: Hover 图标重设计 §2) ──

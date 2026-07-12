@@ -80,9 +80,6 @@ export interface UiText {
   knitFresh: string;
   landing: string;
   unlocked(names: string): string;
-  titleBook: string;
-  titleBuddies: string;
-  titleSettings: string;
   // settings panel (⚙ popover)
   settingsTitle: string;
   langLabel: string;

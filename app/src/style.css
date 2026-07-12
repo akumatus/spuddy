@@ -317,13 +317,13 @@ html, body {
 #icons button {
   cursor: pointer;
   position: relative;
-  width: 39px;
-  height: 36px;
+  width: 32px;
+  height: 30px;
   background: var(--paper);
   border: none;
-  border-radius: 10px;
+  border-radius: 9px;
   box-shadow: 0 7px 16px -9px rgba(70, 50, 25, 0.55), 0 1.5px 0 rgba(70, 50, 25, 0.12);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--red);
   font-family: 'Nunito', sans-serif;
 }
@@ -366,10 +366,10 @@ html, body {
 #buddiesBtn .peekhead {
   position: absolute;
   left: 50%;
-  bottom: -11px;
-  width: 22px;
-  height: 22px;
-  margin-left: -11px;
+  bottom: -10px;
+  width: 19px;
+  height: 19px;
+  margin-left: -9.5px;
   border-radius: 999px;
   background: radial-gradient(circle at 38% 30%, #d9ae72, #b98a54);
 }
@@ -377,8 +377,8 @@ html, body {
 #icons { position: relative; }
 #settingsBtn { display: flex; align-items: center; justify-content: center; transition: background 0.15s ease; }
 #settingsBtn .gear {
-  width: 22px;
-  height: 22px;
+  width: 19px;
+  height: 19px;
   display: block;
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -430,9 +430,9 @@ html, body {
 }
 #hoverpanel.flip #spanel::after {
   right: auto;
-  /* gear center from the icon row's left edge (2×39px buttons + 2×8px gaps
-     + 19.5px to mid-gear) minus half the 12px tail ≈ 107px */
-  left: 107px;
+  /* gear center from the icon row's left edge (2×32px buttons + 2×8px gaps
+     + 16px to mid-gear) minus half the 12px tail ≈ 90px */
+  left: 90px;
 }
 #spanel .sp-head { display: flex; align-items: center; justify-content: space-between; }
 #spanel .sp-title { font-weight: 900; font-size: 13px; letter-spacing: 0.04em; color: var(--ink2, #3e3226); }
