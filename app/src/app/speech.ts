@@ -3,6 +3,7 @@
 // Both cards are pointer-events:none — they float over other apps' windows, so
 // they must never eat the desktop's clicks (which also retired the old
 // hover-to-freeze-auto-hide behavior).
+import { hasHan } from '../locale';
 import { isOverlayOpen } from '../ui/overlay';
 import { $, ctx } from './context';
 
@@ -36,6 +37,28 @@ function clampOverhead(el: HTMLElement, xAnchor: number): void {
   el.style.setProperty('--shift', `${shiftX}px`);
 }
 
+// Both cards are width:max-content clamped by max-width, so once the text
+// wraps, the box sticks at the clamp while the last break may land well short
+// of it — CJK kinsoku (。can't open a line) pulls breaks a full hanzi or two
+// early, leaving a blank strip against the right border. Re-measure the laid
+// out line boxes and hug the widest one. Must run while the pop-in animation
+// is suppressed: Range rects are viewport-space, and the keyframes scale the
+// element mid-flight.
+function hugText(el: HTMLElement): void {
+  el.style.width = ''; // measure at the natural clamp, not last message's hug
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const lines = Array.from(range.getClientRects());
+  if (lines.length < 2) return; // a single line already hugs
+  const text = Math.max(...lines.map((r) => r.width));
+  const cs = getComputedStyle(el);
+  const chrome =
+    parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) +
+    parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+  // +1 so subpixel rounding can't re-wrap the widest line (width is border-box)
+  el.style.width = `${Math.ceil(text + chrome) + 1}px`;
+}
+
 export interface BubbleOpts {
   hold?: number;
   type?: boolean; // typewriter reveal
@@ -49,7 +72,11 @@ export function bubble(text: string, { hold = 2600, type = false }: BubbleOpts =
   const el = $('bubble');
   el.classList.remove('hidden');
   el.textContent = text; // even for typewriter: the clamp measures the final size
+  el.style.animation = 'none'; // freeze the pop-in while hugText reads rects
+  hugText(el);
   clampOverhead(el, 0); // auto-margin centering is plain layout — no transform share
+  void el.offsetWidth; // restart the pop-in
+  el.style.animation = '';
   // reading dwell scales with length so long replies stay up long enough to
   // read; hold is the floor for short lines. Start the countdown only once the
   // typewriter finishes, so the reveal never eats into the reading window.
@@ -86,9 +113,11 @@ export function showMutter(text: string): void {
   const el = $('mutter');
   clearTimeout(mutterTimer);
   el.textContent = text;
+  el.classList.toggle('zh', hasHan(text)); // mutter pools are per-language; size by the line itself
   el.classList.remove('hidden');
+  el.style.animation = 'none'; // freeze the pop-in while hugText reads rects
+  hugText(el);
   clampOverhead(el, 0.5); // centered by translateX(-50%), invisible to offsetLeft
-  el.style.animation = 'none';
   void el.offsetWidth; // restart the pop-in
   el.style.animation = '';
   mutterTimer = window.setTimeout(() => el.classList.add('hidden'), 2800 + text.length * 75);

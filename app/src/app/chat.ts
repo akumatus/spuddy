@@ -1,6 +1,6 @@
 // ── chat (heart-to-heart): send/reply loop, gesture acting, distilled memory ──
 import { MEMORY_KIND_IDS, PERS, chatFallback, limitReply } from '../content';
-import { lang } from '../locale';
+import { hasHan, lang } from '../locale';
 import { sfx, type SfxName } from '../sfx';
 import * as store from '../store';
 import type { MemoryKind, MemoryMood } from '../types';
@@ -72,8 +72,10 @@ export function chatSend(): void {
   sfx.pop();
   ctx.brain.interrupt();
   input.value = '';
+  input.classList.remove('zh', 'latin'); // programmatic clear fires no input event
   const saidEl = $('said');
   saidEl.textContent = `“${note}”`;
+  saidEl.classList.toggle('zh', hasHan(note)); // the quote is whatever you typed, any language
   saidEl.classList.remove('hidden');
   hideBubble();
 

@@ -1,6 +1,7 @@
 // Card Book — the three-tab popup: kept cards, the day-grouped chat
 // transcript, and the memory quilt with its doodled faces.
 import { TXT } from '../content';
+import { zhClass } from '../locale';
 import type { AppState, MemoryFact, MemoryKind, MemoryMood } from '../types';
 import { esc, modal, openOverlay } from './overlay';
 
@@ -131,7 +132,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
               <button class="fav ${c.fav ? 'on' : ''}" data-fav="${c.i}">♥</button>
               <button class="del" data-del="${c.i}">×</button>
             </div>
-            <div class="m">${esc(c.m)}</div>
+            <div class="m ${zhClass(c.m)}">${esc(c.m)}</div>
             <div class="foot"><span>${ui.cardFoot(c.day, esc(c.by))}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
           </div>`
           )
@@ -161,9 +162,9 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
         const knit = m.mem
           ? `<div class="knit">${YARN} ${ui.knitTag(esc(kindLabel(m.mem)))}</div>`
           : '';
-        rows += `<div class="crow user"><div class="ubub">${esc(m.text)}</div>${knit}</div>`;
+        rows += `<div class="crow user"><div class="ubub ${zhClass(m.text)}">${esc(m.text)}</div>${knit}</div>`;
       } else {
-        rows += `<div class="crow pet"><div class="pav" style="background-image:url('${avatar}')"></div><div class="pbub">${esc(m.text)}</div></div>`;
+        rows += `<div class="crow pet"><div class="pav" style="background-image:url('${avatar}')"></div><div class="pbub ${zhClass(m.text)}">${esc(m.text)}</div></div>`;
       }
     }
     body = `
@@ -193,7 +194,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
                 <button class="del" data-delmem="${m.i}" title="${ui.unpickTitle}">×</button>
               </div>
             </div>
-            <div class="mfact">${esc(m.fact)}</div>
+            <div class="mfact ${zhClass(m.fact)}">${esc(m.fact)}</div>
             <div class="mmeta">
               <span class="kind ${kind}">${esc(kindLabel(kind))}</span>
               <span class="mday">${ui.memDay(m.day)}</span>

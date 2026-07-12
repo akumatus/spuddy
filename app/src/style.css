@@ -14,33 +14,51 @@
   --red: #b9543f;
   --heart: #d96a6a;
   /* Handwriting stack: Caveat covers Latin only, so CJK characters fall through
-     to a system handwriting face (macOS 翩翩体/手札体/行楷, then generic) — keeps
-     Chinese looking hand-written like the English instead of a flat sans. Those
-     CJK faces render visually heavier than Caveat at the same px, so every
-     handwriting element below carries an html.zh override to size Chinese down. */
-  --hand: 'Caveat', 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive;
+     to Xiaolai (小赖体, bundled below; SIL OFL), then macOS system handwriting
+     faces while it loads — keeps Chinese looking hand-written like the English
+     instead of a flat sans. CJK faces render visually heavier than Caveat at
+     the same px, so every handwriting element below carries an html.zh override
+     to size Chinese down. */
+  --hand: 'Caveat', 'Xiaolai', 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive;
 }
 
-/* Chinese handwriting sizing — the system CJK faces render ~20% heavier than
-   Caveat at the same px, so every --hand element gets a smaller size when the
-   root is in Chinese (locale.ts toggles html.zh). Hanzi also fill their em box
-   where Caveat leaves air, so the base leading (tuned for Latin, 1.08–1.32)
-   glues Chinese lines together — multi-line elements get looser leading too.
-   English keeps its own sizes. Symbol-only handwriting (#zz, #emotes .em ♪♥Z,
-   .zzlabel) is left alone. The popup card message is JS-sized inline — see
-   cardFont() in ui/popups.ts; the 3D card canvas mirrors this in cardscreen.ts. */
-html.zh #mutter { font-size: 16px; line-height: 1.45; }
-html.zh #said { font-size: 15px; line-height: 1.4; }
+/* Xiaolai (小赖体) — bundled CJK handwriting face, license in public/fonts. */
+@font-face {
+  font-family: 'Xiaolai';
+  src: url('./fonts/Xiaolai-Regular.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+/* Chinese handwriting sizing — CJK faces render ~20% heavier than Caveat at
+   the same px, so hanzi get a smaller size; they also fill their em box where
+   Caveat leaves air, so the base leading (tuned for Latin, 1–1.32) glues
+   Chinese lines together — multi-line elements get looser leading too.
+   Two hooks, by what decides the text's language (see locale.ts):
+   · UI copy follows the locale → keyed off html.zh (locale.ts toggles it).
+   · Content (cards, chat, memory, the live quote/mutter) can be either
+     language regardless of locale — stored text survives a locale switch and
+     the user types whatever they like — so those elements carry their own .zh,
+     stamped from the text itself (zhClass()/hasHan() at each render site).
+   Symbol-only handwriting (#zz, #emotes .em ♪♥Z, .zzlabel) is left alone. The
+   popup card message is JS-sized inline — see cardFont() in ui/popups.ts; the
+   3D card canvas mirrors this in cardscreen.ts. */
 html.zh #chatrow input { font-size: 13px; }
+/* …but the input's VALUE is content: interactions.ts stamps zh/latin from
+   what's typed (either wins over the locale default above); the empty field
+   falls back to the locale rule, which owns the placeholder. */
+#chatrow input.zh { font-size: 13px; }
+html.zh #chatrow input.latin { font-size: 15px; }
 html.zh .drawback .label { font-size: 19px; }
 html.zh .weavebox .line { font-size: 21px; }
 html.zh #book .empty { font-size: 19px; line-height: 1.4; }
-html.zh .cardbox .msg { line-height: 1.5; }
-html.zh .ccard .m { font-size: 14px; line-height: 1.48; }
-html.zh .pbub { font-size: 15px; line-height: 1.6; }
-html.zh .ubub { line-height: 1.55; }
 html.zh .memhead { font-size: 17px; }
-html.zh .mfact { font-size: 16px; line-height: 1.5; }
+#mutter.zh { font-size: 16px; line-height: 1.45; }
+#said.zh { font-size: 15px; line-height: 1.4; }
+.cardbox .msg.zh { line-height: 1.5; }
+.pbub.zh { font-size: 15px; line-height: 1.6; }
+.ubub.zh { line-height: 1.55; }
+.mfact.zh { font-size: 16px; line-height: 1.5; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -737,7 +755,10 @@ html, body {
 .ccard .acts .fav.on { color: var(--heart); }
 .ccard .acts .del { color: var(--tan); font-weight: 900; }
 .ccard .acts .del:hover { color: var(--red); }
-.ccard .m { font-family: var(--hand); font-weight: 700; font-size: 17px; line-height: 1.08; padding-right: 46px; }
+.ccard .m { font-family: var(--hand); font-size: 19px; line-height: 1; padding-right: 46px; }
+/* Book cards mix languages regardless of UI locale, so the message sizes by its
+   own content — book.ts stamps .zh on CJK cards (not the html.zh locale hook). */
+.ccard .m.zh { font-size: 14px; line-height: 1.5; }
 .ccard .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 10.5px; font-weight: 800; color: var(--tan); }
 .ccard .foot .star { color: var(--gold); }
 

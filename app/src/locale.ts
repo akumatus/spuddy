@@ -28,3 +28,16 @@ export function langPref(): LangPref {
 export function lang(): Lang {
   return pref === 'auto' ? systemLang() : pref;
 }
+
+// Content-language check for the CJK handwriting trims. Stored text (cards,
+// chat, memory) survives locale switches and the live reply follows whatever
+// language the user typed, so anything that RENDERS such content sizes by the
+// text itself — stamp zhClass() on the element — while pure UI copy keys off
+// the root html.zh hook set above.
+export function hasHan(s: string): boolean {
+  return /[㐀-鿿]/.test(s);
+}
+
+export function zhClass(s: string): string {
+  return hasHan(s) ? 'zh' : '';
+}

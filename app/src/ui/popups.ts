@@ -1,6 +1,7 @@
 // The small one-shot popups: daily / golden card, care cards, the draw
 // animation and the golden-weave spinner.
 import { CHARS, TXT } from '../content';
+import { hasHan, zhClass } from '../locale';
 import type { AppState } from '../types';
 import { esc, openOverlay } from './overlay';
 
@@ -12,7 +13,7 @@ function cardFont(msg: string): number {
   // CJK handwriting renders heavier than Caveat, so size Chinese a notch below
   // the Latin sizes (matches the html.zh trims elsewhere); the card box always
   // fits it since smaller only helps.
-  if (/[㐀-鿿]/.test(s)) return n < 30 ? 26 : n < 48 ? 22 : 18;
+  if (hasHan(s)) return n < 30 ? 26 : n < 48 ? 22 : 18;
   return n < 70 ? 31 : n < 110 ? 26 : 22;
 }
 
@@ -44,7 +45,7 @@ export function showCard(state: AppState, view: CardView, { onKeep, onLater }: C
       <div class="inner">
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
         <div class="tag">${gold ? ui.goldenTag : ui.todaysCardTag}</div>
-        <div class="msg" style="font-size:${cardFont(view.msg)}px">${esc(view.msg)}</div>
+        <div class="msg ${zhClass(view.msg)}" style="font-size:${cardFont(view.msg)}px">${esc(view.msg)}</div>
         <div class="sign">${ui.signDay(ch.name, state.day)}</div>
         <div class="row">
           <button class="btn ${view.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>
@@ -64,7 +65,7 @@ export function showCareCard(state: AppState, tag: string, msg: string, onClose:
       <div class="inner">
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
         <div class="tag">${esc(tag)}</div>
-        <div class="msg" style="font-size:${cardFont(msg)}px">${esc(msg)}</div>
+        <div class="msg ${zhClass(msg)}" style="font-size:${cardFont(msg)}px">${esc(msg)}</div>
         <button class="btn dark" id="mThanks">${TXT().ui.thanks(ch.name)}</button>
       </div>
     </div>`);

@@ -105,6 +105,9 @@ export class CardScreen {
     this.content = { top: '· ♥ ·', main: 'tap me :)', footL: '', footR: '' };
 
     document.fonts.ready.then(() => this.redraw());
+    // Canvas fillText never triggers @font-face loading, so pull Xiaolai in
+    // explicitly — without this, CJK cards keep the system fallback face.
+    document.fonts.load('700 32px Xiaolai', '你好').then(() => this.redraw());
   }
 
   // A resized canvas must get a fresh GPU texture: re-uploading through the
@@ -261,8 +264,8 @@ export class CardScreen {
 
     // main text: auto-fit handwriting, wrapped — sized to fill the card so it
     // stays legible at desktop-pet scale (hands may clip the edges of long ones).
-    // CJK falls through Caveat to a system handwriting face, mirroring --hand.
-    const HAND = `Caveat, 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive`;
+    // CJK falls through Caveat to Xiaolai (bundled), mirroring --hand.
+    const HAND = `Caveat, 'Xiaolai', 'HanziPen SC', 'Hannotate SC', 'Xingkai SC', 'STXingkai', cursive`;
     // hanzi fill the em box where Caveat leaves air: Latin's tight 1.08 leading
     // glues Chinese lines together, so CJK cards start a notch smaller and
     // breathe more between lines (mirrors the html.zh trims in style.css).

@@ -2,7 +2,7 @@
 // cursor tracking, and the click-through choreography ──
 import { routineMs } from '../brain';
 import { TXT } from '../content';
-import { lang } from '../locale';
+import { hasHan, lang } from '../locale';
 import { CLIPS, WOBBLE } from '../scene/motions';
 import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
@@ -357,6 +357,15 @@ export function wireInteractions(): void {
     // clears the field and the IME re-commits its text into it, so it never empties.
     if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) chatSend();
     if (e.key === 'Escape') chatInput.blur();
+  });
+  // Typed text is content, any language regardless of locale — stamp its
+  // sizing from the value (the empty field falls back to the html.zh locale
+  // default, which owns the placeholder). chatSend's programmatic clear fires
+  // no input event, so chat.ts drops the stamps itself.
+  chatInput.addEventListener('input', () => {
+    const v = chatInput.value;
+    chatInput.classList.toggle('zh', !!v && hasHan(v));
+    chatInput.classList.toggle('latin', !!v && !hasHan(v));
   });
   chatInput.addEventListener('focus', () => { ctx.brain.interrupt(); ctx.anim().setMode('lean'); }); // 04 · Listen Lean
   chatInput.addEventListener('blur', () => {
