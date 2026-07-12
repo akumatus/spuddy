@@ -89,6 +89,10 @@ export interface UiText {
   soundLabel: string;
   soundOn: string;
   soundOff: string;
+  sizeLabel: string;
+  sizeSmall: string;
+  sizeMed: string;
+  sizeLarge: string;
 }
 
 // One language's complete built-in copy. Both packs must cover every key —

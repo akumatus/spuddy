@@ -25,6 +25,10 @@ export type MutterMood = 'watch' | 'alone' | 'lonely';
 
 export type Daypart = 'morning' | 'afternoon' | 'evening' | 'night';
 
+// User "pet size" setting — how large the character draws inside the fixed
+// stage. Mapped to a world-space scale by PET_SIZE_SCALE in scene/scene.ts.
+export type PetSize = 'sm' | 'md' | 'lg';
+
 // ── persisted state (store.ts) ──
 
 export interface KeptCard {
@@ -87,6 +91,7 @@ export interface AppState {
   unlockedIds: CharId[];
   buddyNew: boolean;
   sound: boolean;
+  petSize: PetSize; // character render size within the stage (settings ⚙)
   lang: LangPref; // UI/content language — 'auto' follows the system locale
   nightShownDate: string | null;
   personality: PersonalitySliders;

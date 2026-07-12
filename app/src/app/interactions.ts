@@ -6,6 +6,7 @@ import { hasHan, lang } from '../locale';
 import { CLIPS, WOBBLE } from '../scene/motions';
 import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
+import type { PetSize } from '../types';
 import * as store from '../store';
 import { heartsBurst } from '../ui/effects';
 import { isOverlayOpen } from '../ui/overlay';
@@ -168,6 +169,7 @@ function renderSettingsPanel(): void {
   const ui = TXT().ui;
   const zh = lang() === 'zh';
   const on = ctx.state.sound;
+  const sz = ctx.state.petSize;
   sp.classList.toggle('zh', zh);
   sp.innerHTML = `
     <div class="sp-head">
@@ -180,6 +182,12 @@ function renderSettingsPanel(): void {
       <div class="sp-pill ${zh ? 'on' : ''}" id="spZh">中文</div>
       <div class="sp-pill ${zh ? '' : 'on'}" id="spEn">English</div>
     </div>
+    <div class="sp-lbl sp-sub">${ui.sizeLabel}</div>
+    <div class="sp-pills">
+      <div class="sp-pill ${sz === 'sm' ? 'on' : ''}" id="spSizeS">${ui.sizeSmall}</div>
+      <div class="sp-pill ${sz === 'md' ? 'on' : ''}" id="spSizeM">${ui.sizeMed}</div>
+      <div class="sp-pill ${sz === 'lg' ? 'on' : ''}" id="spSizeL">${ui.sizeLarge}</div>
+    </div>
     <div class="sp-row">
       <span class="sp-lbl">${ui.soundLabel}</span>
       <div class="sp-snd">
@@ -190,6 +198,17 @@ function renderSettingsPanel(): void {
   $('spClose').onclick = () => closeSettings();
   $('spZh').onclick = () => { applyLangPref('zh'); sfx.pop(); };
   $('spEn').onclick = () => { applyLangPref('en'); sfx.pop(); };
+  const setSize = (s: PetSize) => {
+    if (ctx.state.petSize === s) return;
+    ctx.state.petSize = s;
+    ctx.scene.setPetSize(s); // live rescale — no model reload, animation keeps playing
+    store.save(ctx.state);
+    sfx.pop();
+    renderSettingsPanel();
+  };
+  $('spSizeS').onclick = () => setSize('sm');
+  $('spSizeM').onclick = () => setSize('md');
+  $('spSizeL').onclick = () => setSize('lg');
   $('spTgl').onclick = () => {
     ctx.state.sound = !ctx.state.sound;
     setSoundEnabled(ctx.state.sound);

@@ -449,6 +449,8 @@ html, body {
 #spanel .sp-div { border-top: 1.5px dashed #e3d6bc; margin: 10px 0 11px; }
 #spanel .sp-lbl { font-weight: 900; font-size: 10.5px; letter-spacing: 0.12em; color: #a8773f; text-transform: uppercase; }
 #spanel.zh .sp-lbl { font-size: 12px; letter-spacing: 0.24em; }
+/* a standalone label+pills group below another (e.g. size under language) */
+#spanel .sp-sub { margin-top: 14px; }
 #spanel .sp-pills { display: flex; gap: 6px; margin-top: 7px; }
 #spanel .sp-pill {
   flex: 1;

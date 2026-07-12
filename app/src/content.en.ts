@@ -535,5 +535,9 @@ export const EN: TextPack = {
     soundLabel: 'sound',
     soundOn: 'on',
     soundOff: 'off',
+    sizeLabel: 'size',
+    sizeSmall: 'small',
+    sizeMed: 'medium',
+    sizeLarge: 'large',
   },
 };

@@ -518,5 +518,9 @@ export const ZH: TextPack = {
     soundLabel: '音效',
     soundOn: '开',
     soundOff: '关',
+    sizeLabel: '大小',
+    sizeSmall: '小',
+    sizeMed: '中',
+    sizeLarge: '大',
   },
 };

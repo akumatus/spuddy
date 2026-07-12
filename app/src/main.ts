@@ -27,6 +27,7 @@ setLangPref(state.lang); // resolve the language before any text renders
 
 const scene = new PetScene($('pet') as HTMLCanvasElement);
 ctx.init(state, scene);
+scene.setPetSize(state.petSize); // apply the saved size before the model lands
 // Model load runs in the background — an await here used to hold up the whole
 // boot (interaction wiring included), so the window stayed click-through until
 // the GLB was decoded. Everything below only needs the animator, which exists

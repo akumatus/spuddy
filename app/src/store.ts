@@ -98,6 +98,7 @@ export function defaultState(): AppState {
     unlockedIds: ['spud'],
     buddyNew: false,
     sound: true,
+    petSize: 'md', // character render size; tweakable in the ⚙ settings panel
     lang: 'en', // default to English; the tray menu offers Auto/中文 to switch
     nightShownDate: null,
     // personality engine (7a) — 0..100, design Tweaks defaults
@@ -142,6 +143,7 @@ export function load(): AppState {
   if (typeof s.draws !== 'number') s.draws = s.drawn ? 1 : 0; // migrate old saves
   if (typeof s.pity !== 'number') s.pity = 0; // golden pity counter persists across days, not reset on day rollover
   if (s.lang !== 'en' && s.lang !== 'zh') s.lang = 'auto'; // pre-i18n saves + bad values
+  if (s.petSize !== 'sm' && s.petSize !== 'md' && s.petSize !== 'lg') s.petSize = 'md'; // absent in older saves / bad values
 
   // swap the raw chat array for a window onto chat.jsonl (see block up top)
   const fs = fileStore();

@@ -6,7 +6,7 @@ import { Animator } from './motions';
 import { CardScreen, type CardPlacement } from './cardscreen';
 import { rigParts } from './rig';
 import { LIGHT_BASE, LIGHT_TWEAKS, makeShadowTexture, makeStudioEnvScene, type LightRig } from './lighting';
-import type { CharId } from '../types';
+import type { CharId, PetSize } from '../types';
 
 // BVH-accelerated raycasting: the scan models run 125k–332k triangles and a
 // naive cast costs ~10ms — pick() now fires on hover (interactions.ts hit
@@ -65,6 +65,14 @@ function queueBvhBuild(meshes: THREE.Mesh[]): void {
 // UV half-extent from center (0.5, 0.5); 0.3 ⇒ a central 60%×60% draw zone.
 const CARD_DRAW_ZONE = 0.3;
 
+// User-facing "pet size" setting → world-space scale on the normalized model.
+// Applied to the holder group (the animator drives rootGroup, so this rides on
+// top of the squash rather than fighting it) with the contact shadow tracking
+// it in _tick. The pet's feet stay planted at y=0 and it grows upward inside
+// the fixed canvas, so the range stays modest — 'lg' must not push the head up
+// into the speech bubble (see TARGET_H note in setCharacter).
+export const PET_SIZE_SCALE: Record<PetSize, number> = { sm: 0.82, md: 1, lg: 1.2 };
+
 // what the pointer landed on — see PetScene.pick
 export type PickTarget = 'card' | 'body' | null;
 
@@ -114,6 +122,9 @@ export class PetScene {
   private _charGen = 0;
   private _raycaster?: THREE.Raycaster;
   private _ndc?: THREE.Vector2;
+  // user "pet size" as a world-space scale (see PET_SIZE_SCALE); lives on the
+  // holder so it composes with the animator's squash, which drives rootGroup
+  sizeScale = 1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -226,6 +237,15 @@ export class PetScene {
     this.cardScreen.rigDriven = !!(rig && rig.card);
   }
 
+  // Apply the user's pet-size setting. Scaling the holder leaves the animator
+  // (which drives rootGroup) untouched, so the squash still composes on top;
+  // holder.scale survives setCharacter's holder.clear(), so a buddy switch keeps
+  // the chosen size. The contact shadow reads sizeScale in _tick to match.
+  setPetSize(size: PetSize): void {
+    this.sizeScale = PET_SIZE_SCALE[size] ?? 1;
+    this.holder.scale.setScalar(this.sizeScale);
+  }
+
   // merge LIGHT_BASE with the character's LIGHT_TWEAKS entry and apply
   applyLighting(id: CharId): void {
     const L: LightRig = { ...LIGHT_BASE, ...(LIGHT_TWEAKS[id] || {}) };
@@ -304,7 +324,7 @@ export class PetScene {
     this.animator.update();
     const o = this.animator.out;
     const spread = 1 + (o.y / 2) * 0.55;
-    this.shadow.scale.set(o.sx * spread, spread, 1);
+    this.shadow.scale.set(o.sx * spread * this.sizeScale, spread * this.sizeScale, 1);
     this.shadow.material.opacity = o.ground;
     if (this.cameraSway) {
       this.camera.position.set(
