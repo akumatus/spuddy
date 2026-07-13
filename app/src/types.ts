@@ -89,6 +89,7 @@ export interface AppState {
   cards: KeptCard[];
   usedCards: UsedPool; // server normal-pool lines drawn this batch (no-replacement gacha)
   usedQuotes: string[]; // famous-quote lines drawn (golden source) — static pool, persists until it laps
+  usedMemory: UsedPool; // memory facts fed to a golden weave today (rotation, no same-day repeat); date = calendar day
   memory: MemoryFact[]; // durable facts he's distilled about the human
   chat: ChatMessage[];
   active: CharId;

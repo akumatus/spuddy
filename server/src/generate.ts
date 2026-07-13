@@ -87,36 +87,30 @@ async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
 }
 
 async function generateMuttersForChar(env: Env, id: string, opts: GenOpts): Promise<{ mutters: Record<MutterMood, string[]> }> {
-  // Same small-runs strategy as the cards: fresh seeds per run, merge + dedupe.
-  const per = Math.ceil(opts.nMutters / opts.runs);
-  const runOnce = async (): Promise<Record<MutterMood, string[]> | null> => {
-    const prompt = buildMutterPrompt(PERSONAS[id], per, opts.lang); // fresh seeds per run
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const { text } = await callLLMChain(env, opts.genChain, {
-          system: '',
-          messages: [{ role: 'user', content: prompt }],
-          maxTokens: 1500, // ~24 short lines of JSON per run — headroom against truncation
-          temperature: 0.95, // a notch below the cards: the mutter prompt already asks for absurdity, higher tips it into word salad
-          timeoutMs: 240000, // same relaxed budget as the cards
-          json: true,
-          models: opts.models,
-        });
-        const parsed = extractJson(text);
-        const out = {} as Record<MutterMood, string[]>;
-        for (const k of MOODS) out[k] = sanitizeList(parsed?.[k], per);
-        if (MOODS.some((k) => out[k].length)) return out;
-      } catch (e) {
-        // transient — fall through to retry
-      }
+  // Mutters are short idle-monologue lines, so ONE call per persona is plenty —
+  // no need for the cards' multi-run variety strategy (the prompt already seeds
+  // its own inspiration). A single request generates the full per-mood count,
+  // with one retry. This keeps the daily batch cheap: 6 mutter calls, not 6×runs.
+  const prompt = buildMutterPrompt(PERSONAS[id], opts.nMutters, opts.lang);
+  const mutters = { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]>;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { text } = await callLLMChain(env, opts.genChain, {
+        system: '',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 3500, // ~48 short lines of JSON (nMutters × 3 moods) — headroom against truncation
+        temperature: 0.95, // the mutter prompt already asks for absurdity; higher tips it into word salad
+        timeoutMs: 240000,
+        json: true,
+        models: opts.models,
+      });
+      const parsed = extractJson(text);
+      for (const k of MOODS) mutters[k] = dedupeLines(sanitizeList(parsed?.[k], opts.nMutters));
+      if (MOODS.some((k) => mutters[k].length)) return { mutters };
+    } catch (e) {
+      // transient — fall through to retry
     }
-    return null;
-  };
-  const results = (await Promise.all(Array.from({ length: opts.runs }, runOnce))).filter(
-    (r): r is Record<MutterMood, string[]> => r !== null
-  );
-  const mutters = {} as Record<MutterMood, string[]>;
-  for (const k of MOODS) mutters[k] = dedupeLines(results.flatMap((r) => r[k])).slice(0, opts.nMutters);
+  }
   return { mutters };
 }
 
@@ -202,14 +196,13 @@ export async function putForLang(env: Env, lang: Lang, body: unknown): Promise<C
 }
 
 // ONE language per invocation — hard requirement, not a preference. A single
-// batch is a couple dozen LLM fetches (normal runs + 6 personas × mutter runs;
+// batch is ~10 LLM fetches (GEN_RUNS normal runs + one mutter call per persona;
 // goldens no longer generated) and the free plan caps an invocation at ~50
-// subrequests. Generating both languages in one
-// invocation spends the whole budget on en + the head of zh, and every later zh
-// call dies instantly at the exact same spot — which is how the zh pools ended
-// up with only the shared normal pool and the first persona filled. Callers
-// (the per-language cron firings and POST /admin/generate?lang=) give each
-// language its own invocation and therefore its own budget.
+// subrequests. Two languages in one invocation would still risk starving the zh
+// tail under retries — which is how the zh pools once ended up with only the
+// shared normal pool and the first persona filled. Callers (the per-language
+// cron firings and POST /admin/generate?lang=) give each language its own
+// invocation and therefore its own budget.
 export async function generateForLang(env: Env, lang: Lang): Promise<CardsBatch> {
   const cfg = await loadConfig(env);
   return generateBatch(env, {

@@ -5,10 +5,17 @@ import { sfx, type SfxName } from '../sfx';
 import * as store from '../store';
 import type { MemoryKind, MemoryMood } from '../types';
 import { $, ctx, pp } from './context';
+import { nextMemories } from './memory';
 import { bubble, hideBubble } from './speech';
 
 // notes fired while he's mid-reply — answered next, never dropped
 const chatPending: string[] = [];
+
+// How many distilled facts a chat reply is given. Rotated (see nextMemories),
+// not the latest N, so he doesn't circle the same memory all day — but wide
+// enough to keep decent context. Tunable: lower = more variety, higher = more
+// context per reply.
+const CHAT_MEMORY_FEED = 6;
 
 // the Book's "clear chat" wipes the queue along with the transcript
 export function clearChatQueue(): void {
@@ -138,7 +145,7 @@ export async function runChat(): Promise<void> {
       charName: ch.name,
       voice: PERS[ch.id].voice,
       day: state.day,
-      memory: state.memory.slice(-10),
+      memory: nextMemories(CHAT_MEMORY_FEED), // rotate, don't fixate on the latest facts
       messages: state.chat.slice(-12),
       lang: lang(), // picks the matching daily-batch musings server-side
     }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy

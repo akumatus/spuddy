@@ -26,8 +26,8 @@ import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type Env, t
 import { CORS, clean, json, today } from './util';
 
 // The zh cron expression — must match the second entry in wrangler.toml's
-// [triggers]; any other firing (the 16:00 one) generates the English batch.
-const CRON_ZH = '20 16 * * *';
+// [triggers]; any other firing (the 14:00 one) generates the English batch.
+const CRON_ZH = '20 14 * * *';
 
 // Optional soft gate: baking a shared token into the app deters casual abuse of
 // your key. It is not real auth (extractable from the build) — the per-device
@@ -284,10 +284,21 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    // One language per firing (see generateForLang): the en cron and the zh
-    // cron are separate invocations, each with its own subrequest budget.
-    // Keep the expressions in sync with [triggers] in wrangler.toml.
+    // Fallback generator. The membership routine normally POSTs today's batch in
+    // the morning (server/scripts/generate-pools.md); this evening cron then
+    // does nothing when today's batch is already there — so it only spends API
+    // tokens on days the routine didn't run. One language per firing (see
+    // generateForLang): the en and zh crons are separate invocations, each with
+    // its own subrequest budget. Keep the expressions in sync with [triggers].
     const lang = event.cron === CRON_ZH ? 'zh' : 'en';
-    ctx.waitUntil(generateForLang(env, lang));
+    ctx.waitUntil((async () => {
+      const raw = await env.KV.get(batchKey(lang));
+      if (raw) {
+        try {
+          if ((JSON.parse(raw) as CardsBatch).date === today()) return; // routine already ran today → skip
+        } catch {}
+      }
+      await generateForLang(env, lang);
+    })());
   },
 } satisfies ExportedHandler<Env>;

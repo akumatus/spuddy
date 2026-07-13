@@ -90,6 +90,7 @@ export function defaultState(): AppState {
     cards: [], // {m, rare, day, by, src, fav}
     usedCards: { date: null, used: [] }, // server normal-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
     usedQuotes: [], // famous-quote lines drawn (golden source) — static pool, so this persists until it laps
+    usedMemory: { date: null, used: [] }, // memory facts fed to a golden weave today — rotation, resets each calendar day
     memory: [], // {day, fact, kind, mood} — durable facts he's distilled about the human
     // The transcript starts empty — his daily hello lives in a spoken bubble, not
     // the record (see main.js). It fills as you actually talk.

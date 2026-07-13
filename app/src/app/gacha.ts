@@ -7,6 +7,7 @@ import { sfx } from '../sfx';
 import { closeOverlay } from '../ui/overlay';
 import { showCard, showDrawAnim, showWeave, setWeaveLine } from '../ui/popups';
 import { ctx, pp } from './context';
+import { nextMemories } from './memory';
 import { openBook } from './panels';
 import { bubble } from './speech';
 import type { Quote } from '../types';
@@ -36,6 +37,12 @@ const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 // miss: offline, over budget) take a famous quote. The quote pool is bundled
 // with the app, so a golden always lands even fully offline.
 const GOLDEN_LIVE_CHANCE = 0.3;
+
+// How many memory facts a single live weave is fed. Kept small on purpose: the
+// weave references one concrete memory, so feeding the whole set every time
+// makes consecutive goldens circle the same fact and read alike. We rotate
+// instead — a few unused facts per weave (see pickMemories).
+const GOLDEN_MEMORY_FEED = 2;
 
 const pickOf = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
@@ -130,13 +137,15 @@ export async function weaveGolden(): Promise<void> {
   }, 2400);
 
   const ch = ctx.activeChar();
-  const memory = ctx.state.memory.slice(-6);
   // The live weave only earns its token when there's memory to personalize it —
   // with nothing remembered yet it degrades to a generic "keep it universal"
   // line, which a curated famous quote beats for free. So gate the call on BOTH
   // having memory and a GOLDEN_LIVE_CHANCE roll; otherwise skip straight to the
-  // quote. .catch → null so a dropped connection can't leave the weave spinning.
-  const tryLive = memory.length > 0 && Math.random() < GOLDEN_LIVE_CHANCE;
+  // quote. When it does fire, feed a ROTATING slice of memory (not the same
+  // recent facts every time) so consecutive goldens don't read alike.
+  // .catch → null so a dropped connection can't leave the weave spinning.
+  const tryLive = ctx.state.memory.length > 0 && Math.random() < GOLDEN_LIVE_CHANCE;
+  const memory = tryLive ? nextMemories(GOLDEN_MEMORY_FEED) : [];
   const [aiMsg] = await Promise.all([
     tryLive
       ? pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory, lang: lang() }).catch(() => null)

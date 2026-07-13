@@ -48,7 +48,7 @@ export function showCard(state: AppState, view: CardView, { onKeep, onLater }: C
         <div class="tag">${gold ? ui.goldenTag : ui.todaysCardTag}</div>
         <div class="msg ${zhClass(view.msg)}" style="font-size:${cardFont(view.msg)}px">${esc(view.msg)}</div>
         ${view.src ? `<div class="src ${zhClass(view.src)}">— ${esc(view.src)}</div>` : ''}
-        <div class="sign">${ui.signDay(ch.name, state.day)}</div>
+        <div class="sign">${view.src ? ui.dayShort(state.day) : ui.signDay(ch.name, state.day)}</div>
         <div class="row">
           <button class="btn ${view.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>
           <button class="btn ghost" id="mLater">${ui.later}</button>
