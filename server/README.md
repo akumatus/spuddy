@@ -7,7 +7,7 @@ A single Cloudflare Worker that acts as the potato's model gateway:
   mutter pools, and stores them in KV. The app pulls `GET /cards` and draws from
   it locally, so ordinary gacha draws never hit an LLM (instant + offline-safe).
 - **Real-time endpoints** — `POST /chat` and `POST /golden` run through an ordered
-  provider fallback chain (`openai → gemini → deepseek → anthropic`; a backend with
+  provider fallback chain (`anthropic → openai → gemini → deepseek`; a backend with
   no key is skipped) and are metered against a per-device daily budget so nobody
   can run up your API bill.
 
@@ -98,9 +98,9 @@ key) — so dev builds keep working without the server.
   ```bash
   # read current
   curl https://<worker>/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>'
-  # switch chat primary to Claude, keep cron on OpenAI
+  # switch cron generation to OpenAI, keep chat on the Claude default
   curl -XPOST https://<worker>/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>' \
-    -d '{"chat":"anthropic","gen":"openai","models":{"anthropic":"claude-haiku-4-5"}}'
+    -d '{"gen":"openai","models":{"anthropic":"claude-haiku-4-5"}}'
   ```
 
   Keys: `chat`, `gen` (primary provider per path) + optional `models` (per-provider

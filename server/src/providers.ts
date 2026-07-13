@@ -43,14 +43,14 @@ export async function loadConfig(env: Env): Promise<RuntimeConfig> {
   }
 }
 
-// No geo routing — every request uses the same ordered fallback chain. GPT leads
-// (steadiest multilingual output); on any failure the call walks down this list.
-export const PROVIDER_FALLBACK: string[] = ['openai', 'gemini', 'deepseek', 'anthropic'];
+// No geo routing — every request uses the same ordered fallback chain. Claude
+// leads (best voice + multilingual); on any failure the call walks down this list.
+export const PROVIDER_FALLBACK: string[] = ['anthropic', 'openai', 'gemini', 'deepseek'];
 
 // primary first, then the default fallback with the primary removed (never tried
 // twice). Accepts the friendly "claude" alias for anthropic.
 function chainFrom(primary: string | undefined): string[] {
-  primary = (primary || 'openai').toLowerCase();
+  primary = (primary || 'anthropic').toLowerCase();
   if (primary === 'claude') primary = 'anthropic';
   return [primary, ...PROVIDER_FALLBACK.filter((p) => p !== primary)];
 }
@@ -58,12 +58,12 @@ function chainFrom(primary: string | undefined): string[] {
 // Real-time chat/greet/golden chain. Runtime KV config (cfg.chat) or the [vars]
 // default (CHAT_PROVIDER) picks the primary; the rest of the chain backs it up.
 export function chatProviderChain(env: Env, cfg: RuntimeConfig = {}): string[] {
-  return chainFrom(cfg.chat || env.CHAT_PROVIDER || 'openai');
+  return chainFrom(cfg.chat || env.CHAT_PROVIDER || 'anthropic');
 }
 
 // Cron card/mutter generator chain — same fallback idea, its own primary.
 export function genProviderChain(env: Env, cfg: RuntimeConfig = {}): string[] {
-  return chainFrom(cfg.gen || env.GEN_PROVIDER || 'openai');
+  return chainFrom(cfg.gen || env.GEN_PROVIDER || 'anthropic');
 }
 
 // models: optional { provider: modelId } runtime overrides from KV config; each
@@ -84,13 +84,13 @@ function providerConfig(env: Env, name: string, models: Record<string, string> =
         kind: 'openai',
         base: 'https://api.openai.com/v1',
         key: env.OPENAI_API_KEY,
-        model: model(env.OPENAI_MODEL || 'gpt-4o-mini'),
+        model: model(env.OPENAI_MODEL || 'gpt-5.4-mini'),
       };
     case 'gemini':
       return {
         kind: 'gemini',
         key: env.GEMINI_API_KEY,
-        model: model(env.GEMINI_MODEL || 'gemini-2.5-flash-lite'),
+        model: model(env.GEMINI_MODEL || 'gemini-3.1-flash-lite'),
       };
     case 'anthropic':
       return {
@@ -147,7 +147,14 @@ export async function callLLMChain(
 // DeepSeek + OpenAI share the /chat/completions shape.
 async function callOpenAICompat(cfg: ProviderCfg, { system, messages, maxTokens, temperature, json, timeoutMs }: CallArgs): Promise<string> {
   const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
-  const body: Record<string, unknown> = { model: cfg.model, max_tokens: maxTokens, temperature, messages: msgs };
+  // GPT-5-family reasoning models reject max_tokens (want max_completion_tokens)
+  // and any non-default temperature. Reasoning tokens bill out of the same
+  // completion budget, so add headroom and cap effort — otherwise a 300-token
+  // chat budget gets eaten by reasoning and content comes back empty.
+  const gpt5 = cfg.model.startsWith('gpt-5');
+  const body: Record<string, unknown> = gpt5
+    ? { model: cfg.model, max_completion_tokens: maxTokens + 1024, reasoning_effort: 'low', messages: msgs }
+    : { model: cfg.model, max_tokens: maxTokens, temperature, messages: msgs };
   if (json) body.response_format = { type: 'json_object' }; // force valid JSON
   const res = await fetch(`${cfg.base}/chat/completions`, {
     method: 'POST',

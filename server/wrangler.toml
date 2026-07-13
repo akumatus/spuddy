@@ -35,22 +35,19 @@ id = "276e01a434db4d07a1576578862a45fe"
 # Provider values: "openai" | "gemini" | "deepseek" | "anthropic" (alias "claude").
 #
 # No geo routing — every request uses the same ordered fallback chain
-# (openai -> gemini -> deepseek -> anthropic, see PROVIDER_FALLBACK in providers.ts).
+# (anthropic -> openai -> gemini -> deepseek, see PROVIDER_FALLBACK in providers.ts).
 # These two just pick the PRIMARY each chain starts from; on failure the call
 # walks down the rest of the chain automatically.
 #
 # Primary provider for real-time chat / greeting / golden card.
-CHAT_PROVIDER = "openai"
+CHAT_PROVIDER = "anthropic"
 # Primary provider the daily cron uses to knit card pools.
-GEN_PROVIDER = "openai"
+GEN_PROVIDER = "anthropic"
 # Model ids per provider — override here, or per-request via config:current.models.
-# deepseek-v4-flash: the explicit id the "deepseek-chat" alias retires into on
-# 2026-07-24; gemini-2.5-flash-lite: replaces gemini-2.0-flash (shut down
-# 2026-06-01), same $0.10/$0.40 price.
-DEEPSEEK_MODEL = "deepseek-v4-flash"
-OPENAI_MODEL = "gpt-4o-mini"
-GEMINI_MODEL = "gemini-2.5-flash-lite"
 ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+OPENAI_MODEL = "gpt-5.4-mini"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
+DEEPSEEK_MODEL = "deepseek-v4-flash"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
 CHAT_DAILY_LIMIT = "100"
 # Pool sizes. CARDS_PER_DAY is the SHARED normal pool (voice-neutral — every
@@ -70,10 +67,10 @@ MUTTERS_PER_DAY = "16"
 GEN_RUNS = "4"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:
-#   OPENAI_API_KEY     (primary — chat + cron generation default to openai)
-#   GEMINI_API_KEY     (fallback #2 in the chain)
-#   DEEPSEEK_API_KEY   (fallback #3 in the chain)
-#   ANTHROPIC_API_KEY  (fallback #4 in the chain, alias "claude")
+#   ANTHROPIC_API_KEY  (primary — chat + cron generation default to anthropic, alias "claude")
+#   OPENAI_API_KEY     (fallback #2 in the chain)
+#   GEMINI_API_KEY     (fallback #3 in the chain)
+#   DEEPSEEK_API_KEY   (fallback #4 in the chain)
 #   APP_TOKEN          (shared token the app sends as x-pp-app; optional soft gate)
 #   ADMIN_TOKEN        (protects POST /admin/generate; falls back to APP_TOKEN)
 # A backend with no key set is skipped automatically — the chain falls through to
