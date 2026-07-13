@@ -1,9 +1,8 @@
 // ── app config + server gateway ──
-// ~/.config/spuddy/config.json — { serverUrl, appToken, deviceId, apiKey }
-//   serverUrl : the Cloudflare Worker — when set, all AI goes through it
+// ~/.config/spuddy/config.json — { serverUrl, appToken, deviceId }
+//   serverUrl : the Cloudflare Worker — all AI goes through it
 //   appToken  : optional shared token sent as x-pp-app
 //   deviceId  : stable anonymous id the server meters a daily budget against
-//   apiKey    : local DeepSeek key, used only when no serverUrl is set (dev)
 // serverUrl/appToken may also come from env (PP_SERVER_URL / PP_APP_TOKEN).
 import { app } from 'electron';
 import crypto from 'node:crypto';
@@ -15,7 +14,6 @@ export interface UserConfig {
   serverUrl?: string;
   appToken?: string;
   deviceId?: string;
-  apiKey?: string;
 }
 
 const CONFIG_DIR = path.join(app.getPath('home'), '.config', 'spuddy');
