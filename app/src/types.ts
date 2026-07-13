@@ -47,6 +47,9 @@ export interface ChatMessage {
   // category of the durable fact this (user) line revealed — shows the
   // "knit into Memory" tag in the Card Book transcript
   mem?: MemoryKind;
+  // which buddy spoke this (pet) line — the transcript shows that buddy's face
+  // beside it, not whoever happens to be active now. Absent on legacy lines.
+  char?: CharId;
 }
 
 export interface MemoryFact {

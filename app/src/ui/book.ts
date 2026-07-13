@@ -162,7 +162,8 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
     // a stitch was made. Dividers break the flow wherever the day rolls over.
     const turns = state.chat || [];
     const spoken = turns.filter((m) => m.who === 'user').length;
-    const avatar = `./chars/char-${state.active || 'spud'}.png`;
+    // each pet line wears the face of the buddy who actually said it; legacy
+    // lines without a stamp fall back to whoever's active now
     let rows = '';
     let lastDay: number | null = null;
     for (const m of turns) {
@@ -177,6 +178,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
           : '';
         rows += `<div class="crow user"><div class="ubub ${zhClass(m.text)}">${esc(m.text)}</div>${knit}</div>`;
       } else {
+        const avatar = `./chars/char-${m.char || state.active || 'spud'}.png`;
         rows += `<div class="crow pet"><div class="pav" style="background-image:url('${avatar}')"></div><div class="pbub ${zhClass(m.text)}">${esc(m.text)}</div></div>`;
       }
     }

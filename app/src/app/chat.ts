@@ -159,7 +159,7 @@ export async function runChat(): Promise<void> {
     // "sing me a song" still lands even offline / over budget
     if (!gesture) gesture = detectGesture(covered.join(' '));
     reactToReply(tag, gesture);
-    state.chat.push({ who: 'pet', text: reply, day: state.day, date: store.todayStr() });
+    state.chat.push({ who: 'pet', text: reply, day: state.day, date: store.todayStr(), char: ch.id });
     if (res && res.remember && res.remember.fact) {
       const kind = rememberFact(res.remember.fact, res.remember.kind, res.remember.mood, tag);
       // mark the human's line that revealed it, so the transcript shows the stitch
