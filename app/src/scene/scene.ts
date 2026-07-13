@@ -71,7 +71,7 @@ const CARD_DRAW_ZONE = 0.3;
 // it in _tick. The pet's feet stay planted at y=0 and it grows upward inside
 // the fixed canvas, so the range stays modest — 'lg' must not push the head up
 // into the speech bubble (see TARGET_H note in setCharacter).
-export const PET_SIZE_SCALE: Record<PetSize, number> = { sm: 0.82, md: 1, lg: 1.2 };
+export const PET_SIZE_SCALE: Record<PetSize, number> = { sm: 0.67, md: 0.82, lg: 1 };
 
 // what the pointer landed on — see PetScene.pick
 export type PickTarget = 'card' | 'body' | null;
