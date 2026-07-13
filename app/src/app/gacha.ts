@@ -68,7 +68,11 @@ function pickQuote(pool: Quote[]): Quote {
 export function drawToday(): void {
   const state = ctx.state;
   state.draws++;
-  if (Math.random() < GOLDEN_BASE + GOLDEN_RAMP * state.pity) {
+  // The first draw of each calendar day is a guaranteed golden — a daily
+  // welcome-back reward (state.draws resets to 0 on day rollover, so draws===1
+  // is the day's first). Every later draw still rolls on the pity curve below,
+  // so this is a floor on the first draw, not a return to one-card-a-day.
+  if (state.draws === 1 || Math.random() < GOLDEN_BASE + GOLDEN_RAMP * state.pity) {
     state.pity = 0;
     weaveGolden();
     return;
