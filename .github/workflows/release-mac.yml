@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # electron-builder needs this to create/upload the Release
+  contents: write # needed by `gh release create` to publish the Release
 
 jobs:
   build-mac:
@@ -42,17 +42,20 @@ jobs:
         # white window. (Mirrors the local `dist:mac` script's `vite build` step.)
         run: yarn build
 
-      - name: Build and publish DMG
+      - name: Build DMG
         # Signed with Developer ID and notarized by Apple, so the dmg opens without
         # the "damaged / unidentified developer" Gatekeeper prompt.
         # CSC_LINK / CSC_KEY_PASSWORD: electron-builder imports the .p12 into a
         # throwaway keychain. APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
         # activate the notarization step (an app-specific password, not the Apple
         # account password).
-        # --publish always uploads the dmg to a draft GitHub Release for this tag.
-        run: yarn electron-builder --mac --publish always
+        # `--publish never`: only build the artifacts here. The Release is created and
+        # uploaded by the "Publish GitHub Release" step below — its single atomic
+        # `gh release create` avoids the double-draft race that electron-builder's
+        # parallel per-artifact uploads used to trigger (each upload missed the
+        # freshly created, eventually-consistent draft and spawned a second one).
+        run: yarn electron-builder --mac --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -71,6 +74,25 @@ jobs:
           spctl --assess --type execute -vv "$APP" 2>&1 | tee /tmp/spctl.txt
           grep -q "source=Notarized Developer ID" /tmp/spctl.txt \
             || { echo "::error::app is not notarized"; exit 1; }
+
+      - name: Publish GitHub Release
+        # Only for tag pushes — a manual workflow_dispatch just builds and verifies.
+        # One `gh release create` call uploads every distributable at once, so there
+        # is no race and no second draft. No `--draft` flag, so the release goes
+        # straight to public and `--latest` marks it Latest. `latest-mac.yml` +
+        # blockmaps are what electron auto-update reads, so they ship too.
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            release/*.dmg \
+            release/*.zip \
+            release/*.blockmap \
+            release/latest-mac.yml \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build artifact
         # Keeps the dmg on the workflow run too (handy for manual/dispatch runs).
