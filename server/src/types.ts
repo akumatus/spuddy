@@ -21,8 +21,8 @@ export interface Env {
   ANTHROPIC_MODEL?: string;
   CHAT_DAILY_LIMIT?: string;
   CARDS_PER_DAY?: string;
-  GOLDEN_PER_DAY?: string;
   MUTTERS_PER_DAY?: string;
+  QUOTES_LIB_MAX?: string; // cap on the persistent quote library; oldest drop off past it
   GEN_RUNS?: string;
 }
 
@@ -67,12 +67,22 @@ export const MOODS = ['watch', 'alone', 'lonely'] as const;
 export type MutterMood = (typeof MOODS)[number];
 
 export interface CharBatch {
-  golden: string[];
   normal?: string[]; // pre-split batches kept normals per persona
   mutters: Record<MutterMood, string[]>;
 }
 
-// the daily batch stored in KV (cards:current) and served by GET /cards
+// A curated famous line (film / series / book / speech / internet). Lives in a
+// persistent, growing KV library (quotes:<lang>, see quotes-store.ts) that the
+// daily membership routine APPENDS to; GET /cards serves the whole library
+// alongside the batch. The app also bundles a static pool as offline fallback.
+export interface Quote {
+  q: string; // the line itself
+  s?: string; // attribution shown on the card; omitted for internet-era lines
+}
+
+// the daily batch stored in KV (cards:current) and served by GET /cards.
+// Quotes are NOT part of the stored batch — they're a separate KV library the
+// /cards handler merges into the response.
 export interface CardsBatch {
   date: string;
   normal: string[]; // the shared voice-neutral pool every persona draws from

@@ -51,19 +51,20 @@ DEEPSEEK_MODEL = "deepseek-v4-flash"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
 CHAT_DAILY_LIMIT = "100"
 # Pool sizes. CARDS_PER_DAY is the SHARED normal pool (voice-neutral — every
-# persona draws from it); GOLDEN_PER_DAY is per persona. Sized for the app's
-# no-replacement gacha: heavy users burn through the whole pool in a day.
+# persona draws from it). Sized for the app's no-replacement gacha: heavy users
+# burn through the whole pool in a day. (Goldens are no longer generated here —
+# the app draws them live or from the curated famous-quote pool.)
 CARDS_PER_DAY = "72"
-# Goldens land often (~37% of draws) and half of those skip the live weave, so
-# the pool needs depth — the app also draws it without replacement now.
-GOLDEN_PER_DAY = "28"
 # Mutters (private inner-monologue) per mood (watch/alone/lonely) per persona.
 MUTTERS_PER_DAY = "16"
+# Cap on the persistent famous-quote library (quotes:<lang>). The daily routine
+# appends new lines via /admin/quotes; past this many, the oldest drop off so KV
+# and the /cards payload stay bounded while the pool keeps refreshing.
+QUOTES_LIB_MAX = "1000"
 # Small generation calls per pool per day — several small batches, each with
 # its own random inspiration seeds, beat one long call that templates out.
 # Scales with CARDS_PER_DAY: ~18 normal lines per call keeps quality up
-# (long single batches template out toward the tail). Golden pools are small
-# and use half this many runs.
+# (long single batches template out toward the tail).
 GEN_RUNS = "4"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:

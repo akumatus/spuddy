@@ -85,11 +85,11 @@ export function defaultState(): AppState {
     pity: 0, // draws since last golden, used for golden pity/smoothing; persists across days, see main.js drawToday
     rare: false,
     msg: '',
+    msgSrc: '', // attribution of the held card when it's a famous quote
     keptToday: false,
-    cards: [], // {m, rare, day, by, fav}
-    usedCards: { date: null, used: [] }, // server-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
-    usedGolden: { date: null, used: [] }, // golden-pool lines drawn this batch — same no-replacement bookkeeping
-    usedBuiltins: [], // built-in DAILY lines ever drawn — each retires permanently once seen
+    cards: [], // {m, rare, day, by, src, fav}
+    usedCards: { date: null, used: [] }, // server normal-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
+    usedQuotes: [], // famous-quote lines drawn (golden source) — static pool, so this persists until it laps
     memory: [], // {day, fact, kind, mood} — durable facts he's distilled about the human
     // The transcript starts empty — his daily hello lives in a spoken bubble, not
     // the record (see main.js). It fills as you actually talk.
@@ -139,6 +139,7 @@ export function load(): AppState {
   s.drawn = false;
   s.rare = false;
   s.msg = '';
+  s.msgSrc = '';
   s.keptToday = false;
   if (typeof s.draws !== 'number') s.draws = s.drawn ? 1 : 0; // migrate old saves
   if (typeof s.pity !== 'number') s.pity = 0; // golden pity counter persists across days, not reset on day rollover

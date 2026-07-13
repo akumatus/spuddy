@@ -3,7 +3,7 @@
 // isn't configured or is unreachable, the pools stay null and callers fall back
 // to the built-in offline content in the language packs.
 import { lang } from './locale';
-import type { CardsBatch, CharId, Lang, MutterMood } from './types';
+import type { CardsBatch, CharId, Lang, MutterMood, Quote } from './types';
 
 const pp = window.pp;
 
@@ -69,10 +69,11 @@ export function normalPool(charId: CharId): string[] | null {
   return poolOf(charId, 'normal');
 }
 
-// Today's golden-tier lines, used as the fallback when the personalized weave
-// can't reach the LLM (offline or over the daily budget).
-export function goldenPool(charId: CharId): string[] | null {
-  return poolOf(charId, 'golden');
+// The server's famous-quote library from today's batch, or null → the caller
+// falls back to the app's bundled static pool (see quotes.ts).
+export function serverQuotes(): Quote[] | null {
+  const q = BATCH && BATCH.quotes;
+  return Array.isArray(q) && q.length ? q : null;
 }
 
 // Today's fresh mutter pool for a mood (watch/alone/lonely), or null → the brain

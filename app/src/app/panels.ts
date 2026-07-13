@@ -36,6 +36,7 @@ function renderBook(): void {
       // hold this card in his hands — persists until the next daily draw,
       // and survives chat / switching buddies (updateCardScreen reads state.msg)
       state.msg = c.m;
+      state.msgSrc = c.src || '';
       state.rare = !!c.rare;
       state.drawn = true;
       ctx.persist();

@@ -4,17 +4,22 @@
 //   POST /chat           real-time chat reply (geo-routed, per-device quota)
 //   POST /golden         real-time personalized golden card (same quota)
 //   POST /greet          real-time personalized open-the-app greeting (same quota)
-//   POST /admin/generate?lang=en|zh  manual batch regen (protected) — one
-//                        language per call; run once per language after deploy
+//   POST /admin/generate?lang=en|zh  Worker-side batch regen via LLM (protected) —
+//                        one language per call; run once per language after deploy
+//   POST /admin/put?lang=en|zh  store a batch generated OUTSIDE the Worker
+//                        (protected) — the free, membership-generated path
+//   POST /admin/quotes?lang=en|zh  append fresh famous quotes to the growing
+//                        library (protected) — golden-card source
 //   GET  /health         liveness
 //
-// Daily pools are knit by the cron trigger (scheduled handler in generate.ts)
-// and served from KV so ordinary draws never hit an LLM: one SHARED normal pool
-// (voice-neutral, every persona draws from it) plus per-persona golden and
-// mutter pools. Real-time endpoints are metered against a per-device daily
-// budget.
+// Daily pools (shared normal pool + per-persona mutters) reach KV two ways: the
+// cron trigger generates them via LLM (generate.ts), OR a scheduled Claude Code
+// routine on the maintainer's membership POSTs a ready-made batch to /admin/put
+// (no API cost). Ordinary draws read KV and never hit an LLM. Real-time
+// endpoints (/chat, /golden, /greet) are metered against a per-device budget.
 
-import { generateForLang } from './generate';
+import { generateForLang, putForLang } from './generate';
+import { appendQuotes, readQuotes } from './quotes-store';
 import { PERSONAS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
 import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type Env, type Lang } from './types';
@@ -73,6 +78,19 @@ async function bumpQuota(env: Env, q: QuotaState): Promise<void> {
   await env.KV.put(q.key, String(q.used + 1), { expirationTtl: 172800 });
 }
 
+// Per-language batch summary for the admin responses (/admin/generate, /admin/put).
+function batchCounts(batch: CardsBatch): Record<string, unknown> {
+  return {
+    normal: batch.normal.length,
+    ...Object.fromEntries(
+      Object.entries(batch.cards).map(([k, v]) => [
+        k,
+        { mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0 },
+      ])
+    ),
+  };
+}
+
 // A few of today's cron-baked mutters, fed into the chat prompt as the pet's
 // inner life — conversational material the daily batch already paid for.
 // Best-effort: any KV miss or shape change just means no musings this turn.
@@ -100,15 +118,19 @@ export default {
 
       if (url.pathname === '/cards' && request.method === 'GET') {
         const lang = asLang(url.searchParams.get('lang'));
+        // the growing famous-quote library rides on every answer — it's stored
+        // separately from the daily batch (quotes-store.ts) and is the golden
+        // card's source, so it comes along even when the batch is missing/stale
+        const quotes = await readQuotes(env, lang);
         // no en fallback for a missing zh batch (possible until the first cron
         // after deploy): the app treats an empty answer as "use built-ins",
         // which keeps a Chinese user on Chinese cards instead of English ones
         const raw = await env.KV.get(batchKey(lang));
-        if (!raw) return json({ stale: true, date: null, normal: [], cards: {} });
+        if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes });
         const data = JSON.parse(raw) as CardsBatch;
         const char = url.searchParams.get('char');
-        if (char) return json({ date: data.date, normal: data.normal || [], cards: { [char]: data.cards[char] || null } });
-        return json(data);
+        if (char) return json({ date: data.date, normal: data.normal || [], cards: { [char]: data.cards[char] || null }, quotes });
+        return json({ ...data, quotes });
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -217,19 +239,42 @@ export default {
         if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
         const lang = asLang(langParam);
         const batch = await generateForLang(env, lang);
-        const counts = {
-          normal: batch.normal.length,
-          ...Object.fromEntries(
-            Object.entries(batch.cards).map(([k, v]) => [
-              k,
-              {
-                golden: v.golden.length,
-                mutters: v.mutters ? MOODS.reduce((s, m) => s + (v.mutters[m]?.length || 0), 0) : 0,
-              },
-            ])
-          ),
-        };
-        return json({ ok: true, lang, date: batch.date, counts });
+        return json({ ok: true, lang, date: batch.date, counts: batchCounts(batch) });
+      }
+
+      // Accept a batch generated OUTSIDE the Worker (e.g. a scheduled Claude
+      // Code routine on the maintainer's membership) and store it. No LLM work
+      // here, so this path is free against the API budget — the routine is the
+      // generator, the Worker is just the inbox. Same admin gate + one language
+      // per call as /admin/generate. Body: { normal: [...], cards: { id: { mutters: {...} } } }.
+      if (url.pathname === '/admin/put' && request.method === 'POST') {
+        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
+        const langParam = url.searchParams.get('lang');
+        if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
+        const lang = asLang(langParam);
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
+        const batch = await putForLang(env, lang, body);
+        return json({ ok: true, lang, date: batch.date, counts: batchCounts(batch) });
+      }
+
+      // Append fresh famous quotes to the persistent library (the golden-card
+      // source). The daily membership routine POSTs a few new lines here; the
+      // Worker dedupes against the existing library and keeps the newest
+      // QUOTES_LIB_MAX. No LLM work — same free path as /admin/put.
+      // Body: { quotes: [{ q: "…", s?: "…" }, …] }.
+      if (url.pathname === '/admin/quotes' && request.method === 'POST') {
+        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
+        const langParam = url.searchParams.get('lang');
+        if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
+        const lang = asLang(langParam);
+        const body = (await request.json().catch(() => null)) as { quotes?: unknown } | null;
+        if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
+        const max = parseInt(env.QUOTES_LIB_MAX || '1000', 10);
+        const { added, total } = await appendQuotes(env, lang, body.quotes, max);
+        return json({ ok: true, lang, added, total });
       }
 
       return json({ error: 'not found' }, 404);

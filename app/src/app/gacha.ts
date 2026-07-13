@@ -1,6 +1,7 @@
 // ── daily card: the gacha draw, the golden weave, and the card offer ──
-import { PERS, TXT, goldenFallback } from '../content';
+import { PERS, TXT } from '../content';
 import { lang } from '../locale';
+import { quotesPool } from '../quotes';
 import * as remote from '../remote';
 import { sfx } from '../sfx';
 import { closeOverlay } from '../ui/overlay';
@@ -8,6 +9,7 @@ import { showCard, showDrawAnim, showWeave, setWeaveLine } from '../ui/popups';
 import { ctx, pp } from './context';
 import { openBook } from './panels';
 import { bubble } from './speech';
+import type { Quote } from '../types';
 
 // Daily draw limit. Left uncapped for now; to throttle, set a concrete number
 // (e.g. 3 = the first 3 draws a day give new cards, after that tapping the
@@ -26,46 +28,41 @@ export const DAILY_DRAW_LIMIT = Infinity;
 const GOLDEN_BASE = 0.20; // starting chance right after a golden
 const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 
-// Where a golden card's text comes from. The live personalized weave (LLM +
-// his memories of you) is a treat, not the default: it rolls in at this
-// chance, otherwise the draw takes a line from today's cron-baked
-// per-character golden pool. A live roll that misses (offline, over budget)
-// also falls to the pool; the hand-written voiced built-ins are the last net
-// when the pool is out of reach too (no server, no cached batch).
-const GOLDEN_LIVE_CHANCE = 0.5;
-
-// How often a draw dips into the hand-written built-in DAILY pool when the
-// server pool is available. Kept rare: built-ins never refresh, so they'd wear
-// out fast — and each one retires permanently once drawn (state.usedBuiltins).
-const BUILTIN_CARD_CHANCE = 0.08;
+// Where a golden card's text comes from. A golden is either the live
+// personalized weave (LLM + his memories of you) or a curated famous quote —
+// both high quality, so we lean on the quotes and keep the live call a treat:
+// once there's memory to personalize it, GOLDEN_LIVE_CHANCE of goldens attempt
+// the weave; the rest (and every golden before any memory exists, and any live
+// miss: offline, over budget) take a famous quote. The quote pool is bundled
+// with the app, so a golden always lands even fully offline.
+const GOLDEN_LIVE_CHANCE = 0.3;
 
 const pickOf = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-// No-replacement bookkeeping: the per-batch used lists reset when a fresh
-// daily pool lands (its date stamp changes — including the first fetch).
+// No-replacement bookkeeping: the normal server pool's used-list resets when a
+// fresh daily pool lands (its date stamp changes — including the first fetch).
 function syncUsedCards(): void {
   const state = ctx.state;
   const d = remote.batchDate();
   if (!state.usedCards || state.usedCards.date !== d) state.usedCards = { date: d, used: [] };
-  if (!state.usedGolden || state.usedGolden.date !== d) state.usedGolden = { date: d, used: [] };
 }
 
-// Golden-pool gacha without replacement — mirrors the normal pool's
-// bookkeeping so pool draws don't repeat until today's goldens are exhausted.
-function pickGoldenFromPool(pool: string[]): string {
+// Famous-quote gacha without replacement — the golden card's non-live source.
+// The pool is static (not daily), so its used-list persists across batches and
+// only clears once the whole pool has been seen.
+function pickQuote(pool: Quote[]): Quote {
   const state = ctx.state;
-  syncUsedCards();
-  const unseen = pool.filter((m) => !state.usedGolden.used.includes(m) && m !== state.msg);
-  let msg: string;
+  const unseen = pool.filter((x) => !state.usedQuotes.includes(x.q) && x.q !== state.msg);
+  let pick: Quote;
   if (unseen.length) {
-    msg = pickOf(unseen);
+    pick = pickOf(unseen);
   } else {
-    state.usedGolden.used = [];
-    const lap = pool.filter((m) => m !== state.msg);
-    msg = pickOf(lap.length ? lap : pool);
+    state.usedQuotes = [];
+    const lap = pool.filter((x) => x.q !== state.msg);
+    pick = pickOf(lap.length ? lap : pool);
   }
-  state.usedGolden.used.push(msg);
-  return msg;
+  state.usedQuotes.push(pick.q);
+  return pick;
 }
 
 export function drawToday(): void {
@@ -77,46 +74,36 @@ export function drawToday(): void {
     return;
   }
   state.pity++;
-  // Gacha without replacement: every drawn line is marked and sits out until
-  // the day's pool is exhausted (then the marks clear and the pool laps).
-  // Built-ins are a rare seasoning and never come back once seen; offline the
-  // built-in DAILY pool carries alone.
+  // Normal cards are the everyday LLM pool, drawn without replacement: each
+  // line is marked and sits out until the pool is exhausted (then the marks
+  // clear and the pool laps). Famous quotes are reserved for goldens. The
+  // built-in DAILY pool is a pure offline fallback — only when no server pool
+  // is reachable — and it draws freely (no retirement, just no instant repeat).
   syncUsedCards();
-  const DAILY = TXT().daily;
   const serverPool = remote.normalPool(ctx.activeChar().id);
-  const freshBuiltins = DAILY.map((d) => d.m).filter((m) => !state.usedBuiltins.includes(m));
   let msg: string;
-  let fromBuiltin = false;
   if (serverPool) {
     const unseen = serverPool.filter((m) => !state.usedCards.used.includes(m) && m !== state.msg);
-    if (freshBuiltins.length && Math.random() < BUILTIN_CARD_CHANCE) {
-      msg = pickOf(freshBuiltins);
-      fromBuiltin = true;
-    } else if (unseen.length) {
+    if (unseen.length) {
       msg = pickOf(unseen);
     } else {
       state.usedCards.used = [];
       const lap = serverPool.filter((m) => m !== state.msg);
       msg = pickOf(lap.length ? lap : serverPool);
     }
-  } else if (freshBuiltins.length) {
-    const noRepeat = freshBuiltins.filter((m) => m !== state.msg);
-    msg = pickOf(noRepeat.length ? noRepeat : freshBuiltins);
-    fromBuiltin = true;
+    state.usedCards.used.push(msg);
   } else {
-    // offline with every built-in retired — reruns beat showing nothing
-    const all = DAILY.map((d) => d.m).filter((m) => m !== state.msg);
-    msg = pickOf(all.length ? all : DAILY.map((d) => d.m));
+    const DAILY = TXT().daily.map((d) => d.m);
+    const noRepeat = DAILY.filter((m) => m !== state.msg);
+    msg = pickOf(noRepeat.length ? noRepeat : DAILY);
   }
-  if (fromBuiltin) state.usedBuiltins.push(msg);
-  else if (serverPool) state.usedCards.used.push(msg);
   ctx.persist(); // save the gacha bookkeeping (draws/pity/used) even before he keeps it
   sfx.draw();
   showDrawAnim();
   setTimeout(() => {
     // Don't put the card in his hands yet — the draw only offers it. It lands
     // on the potato in openCard's onKeep; "Later" leaves his hands untouched.
-    openCard({ msg, rare: false });
+    openCard({ msg, rare: false }); // normal cards carry no attribution
     const lines = TXT().drawLines;
     bubble(lines[Math.floor(Math.random() * lines.length)]);
   }, 1250);
@@ -140,11 +127,14 @@ export async function weaveGolden(): Promise<void> {
 
   const ch = ctx.activeChar();
   const memory = ctx.state.memory.slice(-6);
+  // The live weave only earns its token when there's memory to personalize it —
+  // with nothing remembered yet it degrades to a generic "keep it universal"
+  // line, which a curated famous quote beats for free. So gate the call on BOTH
+  // having memory and a GOLDEN_LIVE_CHANCE roll; otherwise skip straight to the
+  // quote. .catch → null so a dropped connection can't leave the weave spinning.
+  const tryLive = memory.length > 0 && Math.random() < GOLDEN_LIVE_CHANCE;
   const [aiMsg] = await Promise.all([
-    // live weave only on a GOLDEN_LIVE_CHANCE roll — skipping the call entirely
-    // saves the shared daily budget for chat. .catch → null so a dropped
-    // connection can't leave the weave stuck spinning.
-    Math.random() < GOLDEN_LIVE_CHANCE
+    tryLive
       ? pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, memory, lang: lang() }).catch(() => null)
       : Promise.resolve(null),
     new Promise((r) => setTimeout(r, 1800)),
@@ -154,27 +144,33 @@ export async function weaveGolden(): Promise<void> {
   ctx.anim().setMode('idle');
   ctx.scene.setCardPulse(false);
   sfx.chime();
-  // live weave when it rolled and landed; else today's cron golden pool
-  // (no-replacement); the hand-written built-ins only when the pool is
-  // unreachable
-  const gPool = remote.goldenPool(ch.id);
-  const gMsg = aiMsg || (gPool ? pickGoldenFromPool(gPool) : goldenFallback(ch.id));
+  // live weave when it rolled and landed; otherwise a curated famous quote.
+  // The quote pool is bundled with the app, so it's always there — even offline.
+  let gMsg: string;
+  let gSrc = '';
+  if (aiMsg) {
+    gMsg = aiMsg; // personalized weave — his own words, no attribution
+  } else {
+    const pick = pickQuote(quotesPool());
+    gMsg = pick.q;
+    gSrc = pick.s || '';
+  }
   ctx.persist(); // save the golden bookkeeping (draws/pity, used-list) before he keeps it
   // Offer it in the overlay; it only lands on the potato if he keeps it.
-  openCard({ msg: gMsg, rare: true });
+  openCard({ msg: gMsg, src: gSrc, rare: true });
   bubble(TXT().ui.knitFresh);
 }
 
 // openCard(card) offers a freshly drawn card in the overlay without touching
-// the potato's hands. card = { msg, rare } for a new draw; omit it to reopen
-// whatever he's already holding (state.msg) — e.g. when the draw budget is used
-// up. Only "Keep it" commits the card to his hands and the Book.
-export function openCard(card?: { msg: string; rare: boolean }): void {
+// the potato's hands. card = { msg, src?, rare } for a new draw; omit it to
+// reopen whatever he's already holding (state.msg) — e.g. when the draw budget
+// is used up. Only "Keep it" commits the card to his hands and the Book.
+export function openCard(card?: { msg: string; src?: string; rare: boolean }): void {
   const state = ctx.state;
   const fresh = !!card;
   const view = card
-    ? { msg: card.msg, rare: card.rare, keptToday: false }
-    : { msg: state.msg, rare: state.rare, keptToday: state.keptToday };
+    ? { msg: card.msg, src: card.src || '', rare: card.rare, keptToday: false }
+    : { msg: state.msg, src: state.msgSrc, rare: state.rare, keptToday: state.keptToday };
   if (!fresh) ctx.scene.raiseCard(); // reopening the held card — present it now
   showCard(state, view, {
     onKeep: () => {
@@ -189,10 +185,17 @@ export function openCard(card?: { msg: string; rare: boolean }): void {
         state.drawn = true;
         state.rare = card.rare;
         state.msg = card.msg;
+        state.msgSrc = card.src || '';
         ctx.updateCardScreen();
         ctx.scene.raiseCard(); // rig models play 'present', legacy 'raise' + quad slide
       }
-      state.cards.push({ m: state.msg, rare: state.rare, day: state.day, by: ctx.activeChar().name });
+      state.cards.push({
+        m: state.msg,
+        rare: state.rare,
+        day: state.day,
+        by: ctx.activeChar().name,
+        src: state.msgSrc || undefined, // only famous quotes carry an attribution
+      });
       state.keptToday = true;
       ctx.persist();
       closeOverlay();

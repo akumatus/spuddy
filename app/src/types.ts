@@ -36,6 +36,7 @@ export interface KeptCard {
   rare: boolean;
   day: number;
   by: string;
+  src?: string; // famous-quote attribution (e.g. Gone with the Wind); absent on written cards
   fav?: boolean;
 }
 
@@ -83,11 +84,11 @@ export interface AppState {
   pity: number; // draws since last golden, used for golden pity/smoothing; persists across days
   rare: boolean;
   msg: string;
+  msgSrc: string; // attribution of the held card when it's a famous quote; '' otherwise
   keptToday: boolean;
   cards: KeptCard[];
-  usedCards: UsedPool; // server-pool lines drawn this batch (no-replacement gacha)
-  usedGolden: UsedPool; // golden-pool lines drawn this batch — same bookkeeping
-  usedBuiltins: string[]; // built-in DAILY lines ever drawn — each retires permanently once seen
+  usedCards: UsedPool; // server normal-pool lines drawn this batch (no-replacement gacha)
+  usedQuotes: string[]; // famous-quote lines drawn (golden source) — static pool, persists until it laps
   memory: MemoryFact[]; // durable facts he's distilled about the human
   chat: ChatMessage[];
   active: CharId;
@@ -98,6 +99,14 @@ export interface AppState {
   lang: LangPref; // UI/content language — 'auto' follows the system locale
   nightShownDate: string | null;
   personality: PersonalitySliders;
+}
+
+// A curated famous line (film / series / book / speech / internet). The server
+// keeps a growing library and sends it in the /cards response; the app also
+// bundles a static pool as its offline fallback (see quotes.en.ts / quotes.zh.ts).
+export interface Quote {
+  q: string; // the line itself
+  s?: string; // attribution shown on the card; omitted for internet-era lines
 }
 
 // ── server card batch (remote.ts / cards-today IPC) ──
@@ -112,6 +121,7 @@ export interface CardsBatch {
   date: string;
   normal?: string[]; // the shared voice-neutral pool every persona draws from
   cards: Record<string, CharBatch | null | undefined>;
+  quotes?: Quote[]; // today's famous-quote library from the server (golden source)
 }
 
 // ── AI requests / replies over the preload bridge ──

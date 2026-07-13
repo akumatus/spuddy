@@ -96,8 +96,6 @@ export interface UiText {
 // the type keeps them from drifting apart.
 export interface TextPack {
   daily: DailyLine[];
-  rare: string[];
-  golden: Partial<Record<CharId, string[]>>;
   poke: string[];
   retap: string[];
   drawLines: string[];
@@ -213,14 +211,6 @@ export function greet(id: CharId, d = new Date()): string {
 }
 
 const pickOne = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
-
-// Golden card text for when the LLM is unavailable: the active buddy's voiced
-// pool if there is one, otherwise the generic rare lines.
-export function goldenFallback(charId: CharId): string {
-  const t = TXT();
-  const pool = t.golden[charId];
-  return pickOne(pool && pool.length ? pool : t.rare);
-}
 
 // Chat reply for when the LLM is unavailable: the active buddy's voiced pool if
 // there is one, otherwise the generic fallback line.

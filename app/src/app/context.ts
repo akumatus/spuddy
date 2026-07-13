@@ -60,7 +60,8 @@ class AppContext {
         gold: this.state.rare,
         main: this.state.msg,
         footL: TXT().ui.dayShort(this.state.day),
-        footR: `— ${this.activeChar().name}`,
+        // a famous quote is signed by its source, not the buddy holding it
+        footR: `— ${this.state.msgSrc || this.activeChar().name}`,
       });
     } else {
       this.scene.setCardContent({ top: '· ♥ ·', main: TXT().ui.tapMe });

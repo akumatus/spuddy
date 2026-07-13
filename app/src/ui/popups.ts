@@ -21,6 +21,7 @@ function cardFont(msg: string): number {
 // draw can be declined without touching it
 export interface CardView {
   msg: string;
+  src?: string; // famous-quote attribution — shown as a small citation line
   rare: boolean;
   keptToday: boolean;
 }
@@ -46,6 +47,7 @@ export function showCard(state: AppState, view: CardView, { onKeep, onLater }: C
         <img class="avatar" src="./chars/char-${ch.id}.png" alt="" />
         <div class="tag">${gold ? ui.goldenTag : ui.todaysCardTag}</div>
         <div class="msg ${zhClass(view.msg)}" style="font-size:${cardFont(view.msg)}px">${esc(view.msg)}</div>
+        ${view.src ? `<div class="src ${zhClass(view.src)}">— ${esc(view.src)}</div>` : ''}
         <div class="sign">${ui.signDay(ch.name, state.day)}</div>
         <div class="row">
           <button class="btn ${view.keptToday ? 'golddash' : 'dark'}" id="mKeep">${keepLabel}</button>

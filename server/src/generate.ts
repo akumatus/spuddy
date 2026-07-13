@@ -1,8 +1,9 @@
 // Daily batch generation — run by the cron trigger and POST /admin/generate.
-// Knits the shared normal pool, per-persona golden pools and mutter pools —
-// once per language — then stores each batch in KV (cards:current for
-// English, cards:current:zh for Chinese).
-import { CHAT_IDS, PERSONAS, buildGoldenBatchPrompt, buildMutterPrompt, buildNormalBatchPrompt } from './personas';
+// Knits the shared normal pool and per-persona mutter pools — once per
+// language — then stores each batch in KV (cards:current for English,
+// cards:current:zh for Chinese). Golden cards are not baked here: the app
+// draws them live or from the curated famous-quote pool (quotes-*.ts).
+import { CHAT_IDS, PERSONAS, buildMutterPrompt, buildNormalBatchPrompt } from './personas';
 import { callLLMChain, genProviderChain, loadConfig } from './providers';
 import { MOODS, batchKey, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood } from './types';
 import { clean, today } from './util';
@@ -12,7 +13,6 @@ interface GenOpts {
   models?: Record<string, string>;
   lang: Lang;
   nNormal: number;
-  nGolden: number;
   nMutters: number;
   runs: number;
 }
@@ -86,37 +86,6 @@ async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
   return dedupeLines(results.flat()).slice(0, opts.nNormal);
 }
 
-// Per-persona golden pool — fewer, braver lines in the character's own voice,
-// anchored on the hand-written golden examples so the register stays direct.
-// The pool is small, so half the runs of the normal batch is plenty.
-async function generateGoldenForChar(env: Env, id: string, opts: GenOpts): Promise<string[]> {
-  const runs = Math.max(1, Math.round(opts.runs / 2));
-  const per = Math.ceil(opts.nGolden / runs);
-  const runOnce = async (): Promise<string[]> => {
-    const prompt = buildGoldenBatchPrompt(PERSONAS[id], per, opts.lang);
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const { text } = await callLLMChain(env, opts.genChain, {
-          system: '',
-          messages: [{ role: 'user', content: prompt }],
-          maxTokens: 1500, // ~10 lines of JSON per run — headroom against truncation
-          temperature: 1.0,
-          timeoutMs: 240000,
-          json: true,
-          models: opts.models,
-        });
-        const golden = sanitizeList(extractJson(text)?.golden, per);
-        if (golden.length) return golden;
-      } catch (e) {
-        // transient — fall through to retry
-      }
-    }
-    return [];
-  };
-  const results = await Promise.all(Array.from({ length: runs }, runOnce));
-  return dedupeLines(results.flat()).slice(0, opts.nGolden);
-}
-
 async function generateMuttersForChar(env: Env, id: string, opts: GenOpts): Promise<{ mutters: Record<MutterMood, string[]> }> {
   // Same small-runs strategy as the cards: fresh seeds per run, merge + dedupe.
   const per = Math.ceil(opts.nMutters / opts.runs);
@@ -151,32 +120,41 @@ async function generateMuttersForChar(env: Env, id: string, opts: GenOpts): Prom
   return { mutters };
 }
 
-// One language's full batch: shared normal pool + per-persona golden/mutters.
+// One language's full batch: shared normal pool + per-persona mutters. Golden
+// cards are no longer baked here — the app draws goldens from the live weave or
+// the curated famous-quote pool (server/src/quotes-*.ts) instead.
 async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
-  // Generate the shared pool and every persona CONCURRENTLY (golden + mutters).
+  // Generate the shared pool and every persona's mutters CONCURRENTLY.
   // Sequential calls accumulate wall time and the later ones get throttled/cut;
   // concurrent keeps total time ~= one call.
   const [normalRaw, results] = await Promise.all([
     generateNormalPool(env, opts).catch(() => [] as string[]),
     Promise.all(
-      CHAT_IDS.map(async (id): Promise<CharBatch> => {
-        const [golden, m] = await Promise.all([
-          generateGoldenForChar(env, id, opts).catch(() => [] as string[]),
-          generateMuttersForChar(env, id, opts).catch(() => ({
-            mutters: { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]>,
-          })),
-        ]);
-        return { golden, ...m };
-      })
+      CHAT_IDS.map((id): Promise<CharBatch> =>
+        generateMuttersForChar(env, id, opts).catch(() => ({
+          mutters: { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]>,
+        }))
+      )
     ),
   ]);
-  let normal = normalRaw;
   const cards: Record<string, CharBatch> = {};
   CHAT_IDS.forEach((id, i) => { cards[id] = results[i]; });
+  return storeBatch(env, opts.lang, normalRaw, cards);
+}
 
-  // Never clobber good content with empties — if a field hiccups this run, keep
-  // whatever it had last time so no character is ever left with nothing.
-  const key = batchKey(opts.lang);
+// Merge a freshly-built batch into KV and return it. Never clobbers good
+// content with empties: if a field came back empty this run, whatever it held
+// last time is kept, so no character is ever left with nothing. Shared by the
+// cron/API generator (generateBatch) and the externally-generated POST
+// /admin/put path (putForLang) so both get the same safety net.
+export async function storeBatch(
+  env: Env,
+  lang: Lang,
+  normalRaw: string[],
+  cards: Record<string, CharBatch>
+): Promise<CardsBatch> {
+  let normal = normalRaw;
+  const key = batchKey(lang);
   const prevRaw = await env.KV.get(key);
   if (prevRaw) {
     try {
@@ -191,7 +169,6 @@ async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
       for (const id of CHAT_IDS) {
         const p = prevCards[id];
         if (!p) continue;
-        if (!cards[id].golden.length && p.golden?.length) cards[id].golden = p.golden;
         if (p.mutters) for (const k of MOODS) {
           if (!cards[id].mutters[k]?.length && p.mutters[k]?.length) cards[id].mutters[k] = p.mutters[k];
         }
@@ -204,9 +181,30 @@ async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
   return data;
 }
 
+// Store a batch generated OUTSIDE the Worker (e.g. a scheduled Claude Code
+// routine running on the maintainer's own membership, POSTed to /admin/put).
+// The Worker does no LLM work here — it only sanitizes and stores, so this path
+// costs nothing against the API budget. Body shape mirrors what the app reads:
+//   { normal: string[], cards: { <charId>: { mutters: { watch, alone, lonely } } } }
+export async function putForLang(env: Env, lang: Lang, body: unknown): Promise<CardsBatch> {
+  const b = (body || {}) as { normal?: unknown; cards?: Record<string, { mutters?: Record<string, unknown> }> };
+  const nNormal = parseInt(env.CARDS_PER_DAY || '24', 10);
+  const nMutters = parseInt(env.MUTTERS_PER_DAY || '12', 10);
+  const normal = dedupeLines(sanitizeList(b.normal, nNormal));
+  const cards: Record<string, CharBatch> = {};
+  for (const id of CHAT_IDS) {
+    const src = b.cards?.[id]?.mutters || {};
+    const mutters = {} as Record<MutterMood, string[]>;
+    for (const k of MOODS) mutters[k] = dedupeLines(sanitizeList(src[k], nMutters));
+    cards[id] = { mutters };
+  }
+  return storeBatch(env, lang, normal, cards);
+}
+
 // ONE language per invocation — hard requirement, not a preference. A single
-// batch is ~40 LLM fetches (4 normal runs + 6 personas × 6 runs) and the free
-// plan caps an invocation at ~50 subrequests. Generating both languages in one
+// batch is a couple dozen LLM fetches (normal runs + 6 personas × mutter runs;
+// goldens no longer generated) and the free plan caps an invocation at ~50
+// subrequests. Generating both languages in one
 // invocation spends the whole budget on en + the head of zh, and every later zh
 // call dies instantly at the exact same spot — which is how the zh pools ended
 // up with only the shared normal pool and the first persona filled. Callers
@@ -219,7 +217,6 @@ export async function generateForLang(env: Env, lang: Lang): Promise<CardsBatch>
     models: cfg.models,
     lang,
     nNormal: parseInt(env.CARDS_PER_DAY || '24', 10),
-    nGolden: parseInt(env.GOLDEN_PER_DAY || '10', 10),
     nMutters: parseInt(env.MUTTERS_PER_DAY || '12', 10),
     runs: Math.max(1, parseInt(env.GEN_RUNS || '2', 10)),
   });

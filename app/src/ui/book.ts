@@ -146,7 +146,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
               <button class="del" data-del="${c.i}">×</button>
             </div>
             <div class="m ${zhClass(c.m)}">${esc(c.m)}</div>
-            <div class="foot"><span>${ui.cardFoot(c.day, esc(c.by))}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
+            <div class="foot"><span>${ui.cardFoot(c.day, esc(c.src || c.by))}</span><span class="star">${c.rare ? '✦' : ''}</span></div>
           </div>`
           )
           .join('')}
