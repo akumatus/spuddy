@@ -11,10 +11,10 @@ import { bubble, hideBubble } from './speech';
 // notes fired while he's mid-reply — answered next, never dropped
 const chatPending: string[] = [];
 
-// How many distilled facts a chat reply is given. Rotated (see nextMemories),
-// not the latest N, so he doesn't circle the same memory all day — but wide
-// enough to keep decent context. Tunable: lower = more variety, higher = more
-// context per reply.
+// How many facts are flagged as fresh "bring one up" candidates per reply.
+// The model always sees the FULL memory list (dedupe + a consistent picture of
+// who the human is); this rotated subset (see nextMemories) only nudges which
+// facts he references, so he doesn't circle the same one all day.
 const CHAT_MEMORY_FEED = 6;
 
 // the Book's "clear chat" wipes the queue along with the transcript
@@ -97,8 +97,8 @@ export function chatSend(): void {
 // chat: the reply carries an optional `remember` — a durable fact he chose to
 // keep about the human, tagged with a category. Store it once, skipping
 // near-duplicates: models re-surface the same fact across a conversation,
-// often re-told with extra detail, so dedupe is by containment (store.normFact)
-// rather than equality.
+// often re-told with extra detail or reworded, so dedupe is by store.factTwin
+// (containment + bigram paraphrase match) rather than equality.
 
 // Stores the fact and returns the category it was filed under (or null when
 // skipped as too-short / a near-duplicate), so the caller can tag the message
@@ -110,18 +110,17 @@ function rememberFact(fact: string, kind: string | undefined, mood: MemoryMood |
   const state = ctx.state;
   const f = (fact || '').trim();
   if (f.length < 4) return null;
-  const n = store.normFact(f);
-  // an existing fact already says this (in equal or richer detail) → skip
-  if (state.memory.some((m) => store.normFact(m.fact).includes(n))) return null;
   const k: MemoryKind = MEMORY_KIND_IDS.includes(kind as MemoryKind) ? (kind as MemoryKind) : 'other';
   const md = mood || (tag === 'comfort' ? 'rainy' : tag === 'cheer' || tag === 'proud' ? 'sunny' : 'plain');
-  // a re-telling that adds detail upgrades the old card instead of adding a
-  // twin; day stays — that's when he first learned it
-  const prior = state.memory.find((m) => n.includes(store.normFact(m.fact)));
-  if (prior) {
-    prior.fact = f;
-    prior.kind = k;
-    prior.mood = md;
+  const twin = state.memory.find((m) => store.factTwin(m.fact, f));
+  if (twin) {
+    // the old telling already says this (in equal or richer detail) → skip
+    if (store.normFact(f).length <= store.normFact(twin.fact).length) return null;
+    // a re-telling that adds detail upgrades the old card instead of adding a
+    // twin; day stays — that's when he first learned it
+    twin.fact = f;
+    twin.kind = k;
+    twin.mood = md;
     return k;
   }
   state.memory.push({ day: state.day, fact: f, kind: k, mood: md });
@@ -145,7 +144,8 @@ export async function runChat(): Promise<void> {
       charName: ch.name,
       voice: PERS[ch.id].voice,
       day: state.day,
-      memory: nextMemories(CHAT_MEMORY_FEED), // rotate, don't fixate on the latest facts
+      memory: state.memory, // the FULL list — dedupe + a consistent picture of them
+      fresh: nextMemories(CHAT_MEMORY_FEED).map((m) => m.fact), // rotated "bring one up" candidates
       messages: state.chat.slice(-12),
       lang: lang(), // picks the matching daily-batch musings server-side
     }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy

@@ -53,7 +53,8 @@ export interface ChatPayload {
   day?: number;
   daypart?: string;
   lang?: string; // 'zh' → zh prompts + zh daily-batch musings
-  memory?: MemoryItem[];
+  memory?: MemoryItem[]; // chat sends the FULL fact list (dedupe + consistency); golden/greet a rotated slice
+  fresh?: string[]; // chat only: rotated memory facts to prefer bringing up this turn
   messages?: { who?: string; text?: string }[];
 }
 

@@ -53,17 +53,65 @@ export function normFact(f: string): string {
   return f.toLowerCase().replace(/[\p{P}\p{S}]+/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Collapse facts that contain one another: the richer telling keeps the card,
-// the earliest day stays (when he first learned it). Runs on load to heal
-// saves that collected twins before containment-aware dedupe existed.
+// Character bigrams with spaces stripped — works for both CJK (no word
+// boundaries to lean on) and Latin text, at the cost of junction bigrams
+// across former word breaks (symmetric on both sides, so harmless).
+function bigrams(s: string): Set<string> {
+  const t = s.replace(/\s+/g, '');
+  const out = new Set<string>();
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
+}
+
+// How many bigrams a fuzzy match needs before it's trusted. Short facts carry
+// too little signal — "喜欢喝咖啡" vs "喜欢喝茶" score high on any char metric —
+// so below this floor only exact containment can merge (precision over recall:
+// a false merge silently destroys a memory, a miss just leaves a twin card).
+const TWIN_MIN_BIGRAMS = 12;
+// Fraction of the shorter fact's bigrams that must appear in the longer one.
+// Calibrated on real twin cards: paraphrased re-tellings land ≈0.75+, facts
+// that merely share an entity ("女儿叫芋圆" vs "女儿会走路了") stay ≤0.5.
+const TWIN_BIGRAM_SCORE = 0.72;
+// Latin-only second gate: swapping one word ("cat"→"dog") barely dents char
+// bigrams, so the shorter fact's words must (nearly) all appear in the longer.
+const TWIN_WORD_SCORE = 0.82;
+
+// Are these two tellings of the same fact? True on containment (one normalized
+// string inside the other) or on high bigram overlap for longer paraphrases —
+// re-orderings and reworded twins that containment can't see.
+export function factTwin(a: string, b: string): boolean {
+  const na = normFact(a);
+  const nb = normFact(b);
+  if (!na || !nb) return false;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const ga = bigrams(na);
+  const gb = bigrams(nb);
+  const [small, big] = ga.size <= gb.size ? [ga, gb] : [gb, ga];
+  if (small.size < TWIN_MIN_BIGRAMS) return false;
+  let hit = 0;
+  for (const g of small) if (big.has(g)) hit++;
+  if (hit / small.size < TWIN_BIGRAM_SCORE) return false;
+  const latin = (na.match(/[a-z]/g) || []).length > na.length / 2;
+  if (latin) {
+    const wa = new Set(na.split(' '));
+    const wb = new Set(nb.split(' '));
+    const [ws, wl] = wa.size <= wb.size ? [wa, wb] : [wb, wa];
+    let whit = 0;
+    for (const w of ws) if (wl.has(w)) whit++;
+    if (whit / ws.size < TWIN_WORD_SCORE) return false;
+  }
+  return true;
+}
+
+// Collapse twin tellings of one fact: the richer telling keeps the card, the
+// earliest day stays (when he first learned it). Runs on load to heal saves
+// that collected twins before dedupe learned each trick (containment first,
+// bigram paraphrases later).
 export function dedupeMemory(mem: MemoryFact[]): MemoryFact[] {
   const kept: MemoryFact[] = [];
   for (const m of mem) {
     const n = normFact(m.fact);
-    const twin = n && kept.find((k) => {
-      const kn = normFact(k.fact);
-      return kn.includes(n) || n.includes(kn);
-    });
+    const twin = n && kept.find((k) => factTwin(k.fact, m.fact));
     if (!twin) { kept.push({ ...m }); continue; }
     if (n.length > normFact(twin.fact).length) {
       twin.fact = m.fact;

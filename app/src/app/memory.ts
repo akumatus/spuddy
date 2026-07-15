@@ -2,6 +2,8 @@
 // keep referencing the same (usually newest) fact all day. Both draw from ONE
 // "used today" set: a memory brought up anywhere sits out until the day's
 // rotation laps, then it can come round again. Resets each calendar day.
+// Chat now always sends the FULL fact list too (dedupe + consistency); this
+// rotation only picks which facts to flag as "bring one up" candidates.
 import { ctx } from './context';
 import type { MemoryFact } from '../types';
 
