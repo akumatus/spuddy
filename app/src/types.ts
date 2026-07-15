@@ -167,7 +167,8 @@ export interface AiReplyRequest {
   charName: string;
   voice: string;
   day: number;
-  memory: MemoryFact[];
+  memory: MemoryFact[]; // the FULL fact list — the model needs it all to dedupe and stay consistent
+  fresh?: string[]; // rotated subset of memory facts to prefer bringing up this turn
   messages: ChatMessage[];
   lang?: Lang; // picks the matching daily-batch musings server-side
 }

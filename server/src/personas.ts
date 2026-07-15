@@ -150,11 +150,12 @@ function zhLine(lang: string | undefined, charLimit: number): string {
 // Language rider for the [[remember:]] fact. The Memory quilt renders facts in
 // the app language, not the conversation language — without this, the English
 // examples pull models toward English facts even in a Chinese app. Category and
-// mood words must stay English: the parser matches them literally. Mirrors
-// zhRememberRider in electron/src/ai.ts — keep the wording in sync.
+// mood words must stay English: the parser matches them literally. The Chinese
+// kinship line exists because zh kinship terms encode viewpoint (爷爷 vs 外公)
+// and models re-anchor them wrong — see the English discipline rule it mirrors.
 function zhRememberLine(lang: string | undefined): string {
   return lang === 'zh'
-    ? ` Write the <fact> itself in natural Simplified Chinese whatever language the conversation is in — only the category and mood words stay English, e.g. [[remember: work | plain | 在做一款叫 spuddy 的桌宠应用]].`
+    ? ` Write the <fact> itself in natural Simplified Chinese whatever language the conversation is in — only the category and mood words stay English, e.g. [[remember: work | plain | 在做一款叫 spuddy 的桌宠应用]]. 中文事实尽量省略主语,性别不明时不写"他/她";亲属称谓保持对方原话的视角——对方说"我爸"就记"爸爸",绝不换算成"爷爷""外公"这类别人视角的称谓。`
     : '';
 }
 
@@ -225,7 +226,13 @@ export function parseRemember(body: string): { remember: RememberNote | null; bo
 // of its own to bring up instead of only reflecting the human's words back.
 export function buildChatSystem(persona: Persona, p: ChatPayload, musings: string[] = []): string {
   const mem = (p.memory || [])
-    .map((m) => `- ${m.fact || ''} (day ${m.day})`)
+    .map((m) => `- ${m.fact || ''} (learned on day ${m.day})`)
+    .join('\n');
+  // rotated "bring one up" candidates from the app; capped defensively
+  const fresh = (p.fresh || [])
+    .filter((s) => typeof s === 'string' && s.trim())
+    .slice(0, 8)
+    .map((s) => `- ${s}`)
     .join('\n');
   const shots = (persona.examples || [])
     .map(([them, you]) => `Them: ${them}\nYou: ${you}`)
@@ -247,11 +254,13 @@ export function buildChatSystem(persona: Persona, p: ChatPayload, musings: strin
     `You are not a therapist: if they seem in real distress, drop the playfulness, stay warm and sincere, and gently suggest also talking to a human they trust. ` +
     `Begin your reply with exactly one emotion tag in square brackets — [comfort] if they seem down, [cheer] if celebrating with them, [proud] if they did something good, [calm] otherwise — then the message itself.` +
     ` When their message calls for a physical action — they ask you to sing, dance, hug, wave, spin, jump, stretch, hide, peek, sneeze, sulk, or show your card, or acting one out would clearly land the moment — add ONE gesture tag immediately AFTER the emotion tag, chosen from EXACTLY this list: [wave] [hug] [dance] [spin] [cheer] [hop] [sing] [stretch] [shy] [peek] [sulk] [sneeze] [present]. Use it only when it truly fits; most replies have no gesture tag. Never invent gesture words outside that list. Example: "[cheer][dance] you got it — watch this."` +
-    ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information). Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost her mother years ago]] · [[remember: milestone | sunny | just ran her first 10k]].` +
+    ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they achieved or a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information). Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost their mother years ago]] · [[remember: milestone | sunny | just ran their first 10k]].` +
+    ` Distill with discipline: keep ONLY what they actually said — never guess or infer a gender, an age, or a family role they didn't state. Use they/their when gender is unknown. Keep relatives anchored to THEIR point of view: their "my dad" stays "their dad" — never re-anchor to another family member's viewpoint (e.g. never turn their dad into "grandpa"). When unsure about a detail, drop the detail — or record nothing.` +
     zhRememberLine(p.lang) +
-    ` Most replies reveal nothing new — then add nothing. Never restate something already in your long-term memory below, never record passing moods or small talk, and at most one per reply.` +
+    ` Most replies reveal nothing new — then add nothing. Never restate or re-remember something already in your long-term memory below, never record passing moods or small talk, and at most one per reply.` +
     (muse ? `\nLittle thoughts already drifting through your head today — bring one up in passing only when it genuinely fits:\n${muse}` : '') +
-    (mem ? `\nLong-term memory of them (already known — don't re-remember these):\n${mem}` : '')
+    (mem ? `\nLong-term memory of them — the complete list, all already known ("learned on day N" = which day of your friendship you learned it, NEVER anyone's age):\n${mem}` : '') +
+    (fresh ? `\nOf these, ones you haven't brought up lately — when referencing memory this turn, prefer one of:\n${fresh}` : '')
   );
 }
 
@@ -259,13 +268,15 @@ export function buildChatSystem(persona: Persona, p: ChatPayload, musings: strin
 export function buildGoldenPrompt(persona: Persona, p: ChatPayload): string {
   const j = p.memory || [];
   const ctx = j.length
-    ? j.map((m) => `- ${m.fact || ''} (day ${m.day})`).join('\n')
+    ? j.map((m) => `- ${m.fact || ''} (learned on day ${m.day})`).join('\n')
     : '(nothing remembered yet — keep it universal)';
   return (
     `You are ${persona.name}, a tiny hand-crocheted spuddy desk companion. ` +
     persona.voice +
     ` Write ONE short encouragement card for your human. What you know about them:\n${ctx}\n` +
+    (j.length ? `"learned on day N" is which day of your friendship you learned that fact — it is NEVER anyone's age. ` : '') +
     `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing you know about them if any, ` +
+    `never state ages or details beyond the facts above, ` +
     `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.` +
     zhLine(p.lang, 40)
   );
@@ -278,14 +289,14 @@ export function buildGoldenPrompt(persona: Persona, p: ChatPayload): string {
 export function buildGreetPrompt(persona: Persona, p: ChatPayload): string {
   const when = ['morning', 'afternoon', 'evening', 'night'].includes(p.daypart || '') ? p.daypart : 'day';
   const j = p.memory || [];
-  const ctx = j.length ? j.map((m) => `- ${m.fact || ''} (day ${m.day})`).join('\n') : '';
+  const ctx = j.length ? j.map((m) => `- ${m.fact || ''} (learned on day ${m.day})`).join('\n') : '';
   return (
     `You are ${persona.name}, a tiny hand-crocheted spuddy desktop pet who lives on your human's desk holding a little card. ` +
     persona.voice +
     ` It is ${when} where they are, day ${p.day || 1} together. They just opened you on their desk. ` +
     `Greet them: ONE short spoken hello in your voice, fit to the ${when}, and gently nudge them to tap you for today's card. ` +
     (ctx
-      ? `What you know about them:\n${ctx}\nLightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `
+      ? `What you know about them ("learned on day N" = which day of your friendship you learned it, never anyone's age):\n${ctx}\nLightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `
       : 'Keep it warm and general. ') +
     `Rules: HARD LIMIT 20 words; sound spontaneous and a little different every time; plain text, ` +
     `no emojis, no quotation marks, no emotion tag, no preamble. Output only the greeting.` +
