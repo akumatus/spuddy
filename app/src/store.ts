@@ -46,7 +46,7 @@ function daysBetween(a: string, b: string): number {
 
 // ── memory dedupe ──
 // The model re-surfaces the same fact across conversations, often re-told with
-// extra detail ("has a daughter named 芋圆" → "…芋圆, six months old"). Flatten
+// extra detail ("has a cat named Mochi" → "…Mochi, adopted last spring"). Flatten
 // case, punctuation and spacing so a re-telling that only adds a clause reads
 // as containment of the shorter fact, not as a brand-new one.
 export function normFact(f: string): string {
@@ -69,8 +69,8 @@ function bigrams(s: string): Set<string> {
 // a false merge silently destroys a memory, a miss just leaves a twin card).
 const TWIN_MIN_BIGRAMS = 12;
 // Fraction of the shorter fact's bigrams that must appear in the longer one.
-// Calibrated on real twin cards: paraphrased re-tellings land ≈0.75+, facts
-// that merely share an entity ("女儿叫芋圆" vs "女儿会走路了") stay ≤0.5.
+// Calibrated on observed twin cards: paraphrased re-tellings land ≈0.75+, facts
+// that merely share an entity ("猫叫年糕" vs "猫会开门了") stay ≤0.5.
 const TWIN_BIGRAM_SCORE = 0.72;
 // Latin-only second gate: swapping one word ("cat"→"dog") barely dents char
 // bigrams, so the shorter fact's words must (nearly) all appear in the longer.
