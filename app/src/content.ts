@@ -43,6 +43,7 @@ export interface UiText {
   signDay(name: string, day: number): string;
   drawLabel: string;
   weaveBrand: string;
+  anon: string; // attribution for a source-less famous quote — keeps it distinct from the buddy's own weave (which carries no src)
   bookTitle: string;
   tabCards: string;
   tabChat: string;

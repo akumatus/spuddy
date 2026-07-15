@@ -58,10 +58,12 @@ the curated static pools at
 - attribution by common usage, not scholarship — charm over citation accuracy
 
 **Avoid repeats.** First `GET $PP_SERVER_URL/cards?lang=<lang>` and read its
-`quotes` array — that's the current library. Generate **~30 NEW lines per
+`quotes` array — that's the current library. Generate **~60 NEW lines per
 language** that are NOT already in it (the server also dedupes, but don't waste
 the effort). Spread across categories (film / series / book / speech / internet)
-and eras so the library stays varied as it grows.
+and eras so the library stays varied as it grows. Genuinely-famous lines are a
+finite well: if a run struggles to find that many that are both real and new,
+add fewer rather than inventing or stretching — quality bar over hitting 60.
 
 ## Assemble & POST — two calls per language
 

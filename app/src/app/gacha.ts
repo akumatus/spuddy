@@ -36,7 +36,7 @@ const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 // the weave; the rest (and every golden before any memory exists, and any live
 // miss: offline, over budget) take a famous quote. The quote pool is bundled
 // with the app, so a golden always lands even fully offline.
-const GOLDEN_LIVE_CHANCE = 0.3;
+const GOLDEN_LIVE_CHANCE = 0.2;
 
 // How many memory facts a single live weave is fed. Kept small on purpose: the
 // weave references one concrete memory, so feeding the whole set every time
@@ -166,7 +166,11 @@ export async function weaveGolden(): Promise<void> {
   } else {
     const pick = pickQuote(quotesPool());
     gMsg = pick.q;
-    gSrc = pick.s || '';
+    // A curated line with no known author (a genuinely anonymous internet quote)
+    // still gets an attribution — the localized "Anonymous" — so it reads as a
+    // QUOTE, not the buddy's own weave. Weaves leave gSrc empty and fall through
+    // to the buddy name; a source-less quote must not look identical to them.
+    gSrc = pick.s || TXT().ui.anon;
   }
   ctx.persist(); // save the golden bookkeeping (draws/pity, used-list) before he keeps it
   // Offer it in the overlay; it only lands on the potato if he keeps it.

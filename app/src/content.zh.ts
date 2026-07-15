@@ -380,6 +380,7 @@ export const ZH: TextPack = {
     signDay: (name, day) => `— ${name} · 第 ${day} 天`,
     drawLabel: '今日卡片',
     weaveBrand: '金线编织中',
+    anon: '佚名',
     bookTitle: '卡册',
     tabCards: '卡片',
     tabChat: '聊天',

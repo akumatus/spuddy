@@ -392,6 +392,7 @@ export const EN: TextPack = {
     signDay: (name, day) => `— ${name} · day ${day}`,
     drawLabel: "today's card",
     weaveBrand: 'GOLDEN STITCH IN PROGRESS',
+    anon: 'Anonymous',
     bookTitle: 'Card Book',
     tabCards: 'Cards',
     tabChat: 'Chat',
