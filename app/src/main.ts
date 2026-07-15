@@ -2,7 +2,7 @@
 // the feature modules together. All feature logic lives under src/app/;
 // rendering under src/scene/; popup markup under src/ui/.
 import { SpudBrain } from './brain';
-import { CHARS, PERS, TXT, daypart, greet } from './content';
+import { CHARS, PERS, TXT, daypart, greet, pool } from './content';
 import { lang, setLangPref } from './locale';
 import * as remote from './remote';
 import { PetScene } from './scene/scene';
@@ -114,12 +114,16 @@ setInterval(() => {
   if (crossedIntoNight && ranThrough && state.nightShownDate !== today) {
     state.nightShownDate = today;
     store.save(state);
-    presentCare(TXT().ui.careNight, TXT().nightMsg);
+    const nm = pool('nightMsg');
+    presentCare(TXT().ui.careNight, nm[Math.floor(Math.random() * nm.length)]);
   }
 }, 60000);
 
 // sedentary reminder from the main process (90 min continuous activity)
-pp.on('sedentary', () => presentCare(TXT().ui.careStretch, TXT().sedentary));
+pp.on('sedentary', () => {
+  const sd = pool('sedentary');
+  presentCare(TXT().ui.careStretch, sd[Math.floor(Math.random() * sd.length)]);
+});
 
 // ── boot ──
 $('buddiesDot').classList.toggle('hidden', !state.buddyNew);

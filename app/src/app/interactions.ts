@@ -1,7 +1,7 @@
 // ── input wiring: taps/pokes, window drag, hover panel, edge-dock naps,
 // cursor tracking, and the click-through choreography ──
 import { routineMs } from '../brain';
-import { TXT } from '../content';
+import { TXT, pool } from '../content';
 import { hasHan, lang } from '../locale';
 import { CLIPS, WOBBLE } from '../scene/motions';
 import type { PickTarget } from '../scene/scene';
@@ -108,13 +108,16 @@ export function tapPet(target: PickTarget): void {
   if (name[0] === '@') return; // the show brings its own lines and sfx
   sfx.boing();
   heartsBurst();
-  const t = TXT();
+  const cardHints = pool('cardHint');
+  const pokes = pool('poke');
+  const rndPoke = (): string => pokes[Math.floor(Math.random() * pokes.length)];
   if (!ctx.state.drawn) {
-    bubble(Math.random() < 0.5 ? t.cardHint : t.poke[Math.floor(Math.random() * t.poke.length)]);
+    bubble(Math.random() < 0.5 && cardHints.length ? cardHints[Math.floor(Math.random() * cardHints.length)] : rndPoke());
   } else if (Math.random() < 0.5) {
-    bubble(t.poke[Math.floor(Math.random() * t.poke.length)]);
+    bubble(rndPoke());
   } else {
-    bubble(t.retap[retapIdx % t.retap.length]);
+    const rp = pool('retap');
+    bubble(rp[retapIdx % rp.length]);
     retapIdx++;
   }
 }

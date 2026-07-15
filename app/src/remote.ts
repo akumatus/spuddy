@@ -83,3 +83,17 @@ export function mutterPool(charId: CharId, mood: MutterMood): string[] | null {
   const m = c && c.mutters && c.mutters[mood];
   return Array.isArray(m) && m.length ? m : null;
 }
+
+// A shared daily bubble/greeting pool from today's batch, or null → the caller
+// falls back to the app's built-in content pack (see content.ts `pool`). `group`
+// is a Bubbles field; `key` indexes the nested groups (mutter/speak/routines/hi)
+// and is omitted for the flat line pools (poke/retap/drawLines/weaveLines/
+// cardHint/sedentary/nightMsg). Returns the batch's own array so its identity
+// stays stable across draws — the brain's no-replacement bookkeeping keys on it.
+export function bubble(group: string, key?: string): string[] | null {
+  const b = BATCH && BATCH.bubbles;
+  if (!b) return null;
+  const g = (b as Record<string, unknown>)[group];
+  const arr = key ? g && (g as Record<string, unknown>)[key] : g;
+  return Array.isArray(arr) && arr.length ? (arr as string[]) : null;
+}

@@ -121,9 +121,30 @@ export interface CharBatch {
   mutters?: Partial<Record<MutterMood, string[]>>;
 }
 
+// Shared, daily-refreshed bubble/greeting pools — one voice-neutral set every
+// persona draws from (mirrors the shared `normal` card pool). Everything the
+// potato says in a bubble lives here so it changes day to day; the built-in
+// content packs (content.*.ts) are only the offline fallback. Loosely typed
+// because it rides in as JSON: nested groups are keyed by MutterPool / speak
+// kind / RoutineLineKey / Daypart; the flat ones are plain line pools.
+export interface Bubbles {
+  mutter?: Record<string, string[]>; // watch/alone/lonely/sleepy/ignored/wake
+  speak?: Record<string, string[]>; // greet/knock/delight
+  routines?: Record<string, string[]>; // chaseStart … sneezeEnd
+  hi?: Record<string, string[]>; // daypart greetings: morning/afternoon/evening/night
+  poke?: string[];
+  retap?: string[];
+  drawLines?: string[];
+  weaveLines?: string[];
+  cardHint?: string[];
+  sedentary?: string[];
+  nightMsg?: string[];
+}
+
 export interface CardsBatch {
   date: string;
   normal?: string[]; // the shared voice-neutral pool every persona draws from
+  bubbles?: Bubbles; // shared daily bubble/greeting pools (absent on pre-Phase-B batches)
   cards: Record<string, CharBatch | null | undefined>;
   quotes?: Quote[]; // today's famous-quote library from the server (golden source)
 }

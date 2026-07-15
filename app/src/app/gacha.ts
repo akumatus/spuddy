@@ -1,5 +1,5 @@
 // ── daily card: the gacha draw, the golden weave, and the card offer ──
-import { PERS, TXT } from '../content';
+import { PERS, TXT, pool } from '../content';
 import { lang } from '../locale';
 import { quotesPool } from '../quotes';
 import * as remote from '../remote';
@@ -115,7 +115,7 @@ export function drawToday(): void {
     // Don't put the card in his hands yet — the draw only offers it. It lands
     // on the potato in openCard's onKeep; "Later" leaves his hands untouched.
     openCard({ msg, rare: false }); // normal cards carry no attribution
-    const lines = TXT().drawLines;
+    const lines = pool('drawLines');
     bubble(lines[Math.floor(Math.random() * lines.length)]);
   }, 1250);
 }
@@ -128,7 +128,7 @@ export async function weaveGolden(): Promise<void> {
   ctx.anim().play('bigSquish');
   ctx.anim().setMode('rock');
   ctx.scene.setCardPulse(true);
-  const weaveLines = TXT().weaveLines;
+  const weaveLines = pool('weaveLines');
   showWeave(weaveLines[0]);
   let li = 0;
   const weaveInt = setInterval(() => {

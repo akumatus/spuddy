@@ -7,6 +7,7 @@
 import { EN } from './content.en';
 import { ZH } from './content.zh';
 import { lang } from './locale';
+import * as remote from './remote';
 import type { CharId, Daypart, MemoryKind, MutterMood } from './types';
 
 export interface DailyLine {
@@ -206,14 +207,38 @@ export function daypart(d = new Date()): Daypart {
   return 'night';
 }
 
-// The active buddy's greeting for the current time of day.
-export function greet(id: CharId, d = new Date()): string {
-  const pers = TXT().pers;
-  const hi = (pers[id] || pers.spud).hi;
-  return hi[daypart(d)] || hi.morning;
+const pickOne = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+
+// Effective pool for a bubble/greeting slot: today's shared server pool when the
+// batch carries one, else the built-in content-pack lines (offline fallback).
+// `group` is a Bubbles field; `key` indexes the nested groups (mutter/speak/
+// routines/hi) and is omitted for the flat pools. `charId` only matters for
+// 'hi', whose built-in fallback is the active buddy's single daypart line.
+export function pool(group: string, key?: string, charId?: CharId): string[] {
+  const srv = remote.bubble(group, key);
+  if (srv && srv.length) return srv;
+  if (group === 'hi') {
+    const hi = (TXT().pers[charId || 'spud'] || TXT().pers.spud).hi;
+    const s = key ? hi[key as Daypart] : undefined;
+    return s ? [s] : [];
+  }
+  const g = (TXT() as unknown as Record<string, unknown>)[group];
+  if (key) {
+    const v = g && (g as Record<string, unknown>)[key];
+    return Array.isArray(v) ? (v as string[]) : [];
+  }
+  if (Array.isArray(g)) return g as string[];
+  return typeof g === 'string' ? [g] : []; // single-line built-ins (cardHint/sedentary/nightMsg)
 }
 
-const pickOne = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+// The active buddy's greeting for the current time of day — drawn from today's
+// fresh daypart pool when the server has one, else the built-in daypart line.
+export function greet(id: CharId, d = new Date()): string {
+  const p = pool('hi', daypart(d), id);
+  if (p.length) return pickOne(p);
+  const hi = (TXT().pers[id] || TXT().pers.spud).hi;
+  return hi[daypart(d)] || hi.morning;
+}
 
 // Chat reply for when the LLM is unavailable: the active buddy's voiced pool if
 // there is one, otherwise the generic fallback line.

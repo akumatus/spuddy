@@ -17,7 +17,7 @@
 //     browsing the Book, or he's tucked away
 //   - routine step mutter/speak lines are variant pools (arrays picked at
 //     random), not the prototype's single fixed strings
-import { TXT, type MutterPool } from './content';
+import { pool, type MutterPool } from './content';
 import type { AnimMode, Animator } from './scene/motions';
 import type { MutterMood } from './types';
 
@@ -77,10 +77,10 @@ const ROUTINES: Record<RoutineKey, Routine> = {
   chase: {
     label: 'tail-chase', cost: 14, w: (P) => 0.5 + P.drama * 0.9,
     steps: [
-      { mutter: () => TXT().routines.chaseStart, wait: 1500 },
+      { mutter: () => pool('routines', 'chaseStart'), wait: 1500 },
       { clip: 'chase', sfx: 'whoosh', wait: 2350 },
       { clip: 'wobble', wait: 2400 },
-      { mutter: () => TXT().routines.chaseEnd },
+      { mutter: () => pool('routines', 'chaseEnd') },
     ],
   },
   juggle: {
@@ -89,24 +89,24 @@ const ROUTINES: Record<RoutineKey, Routine> = {
       { clip: 'bounceCard', wait: 1950 },
       { clip: 'bounceCard', wait: 1950 },
       { clip: 'hop', sfx: 'boing', wait: 900 },
-      { mutter: () => TXT().routines.juggleEnd },
+      { mutter: () => pool('routines', 'juggleEnd') },
     ],
   },
   study: {
     label: 'card-study', cost: 5, w: (P) => 0.4 + P.curious * 0.9,
     steps: [
-      { mutter: () => TXT().routines.studyStart, wait: 1300 },
+      { mutter: () => pool('routines', 'studyStart'), wait: 1300 },
       { clip: 'cardStudy', wait: 3450 },
-      { mutter: () => TXT().routines.studyEnd },
+      { mutter: () => pool('routines', 'studyEnd') },
     ],
   },
   practice: {
     label: 'wave practice', cost: 8, w: (P) => 0.35 + P.drama * 0.6,
     steps: [
-      { mutter: () => TXT().routines.practiceStart, wait: 1400 },
+      { mutter: () => pool('routines', 'practiceStart'), wait: 1400 },
       { clip: 'wave', wait: 1800 },
       { clip: 'wave', wait: 1900 },
-      { mutter: () => TXT().routines.practiceEnd },
+      { mutter: () => pool('routines', 'practiceEnd') },
     ],
   },
   hum: {
@@ -116,14 +116,14 @@ const ROUTINES: Record<RoutineKey, Routine> = {
       { emote: '♪', wait: 1400 },
       { emote: '♪', wait: 1300 },
       { emote: '♪', wait: 1300 },
-      { mode: 'idle', mutter: () => TXT().routines.humEnd },
+      { mode: 'idle', mutter: () => pool('routines', 'humEnd') },
     ],
   },
   stretch: {
     label: 'stretch', cost: -4, w: () => 0.45,
     steps: [
       { clip: 'stretch', wait: 2450 },
-      { mutter: () => TXT().routines.stretchEnd },
+      { mutter: () => pool('routines', 'stretchEnd') },
     ],
   },
   peek: {
@@ -134,7 +134,7 @@ const ROUTINES: Record<RoutineKey, Routine> = {
     label: 'sneeze', cost: 3, w: () => 0,
     steps: [
       { clip: 'sneeze', sfx: 'sneeze', wait: 1450 },
-      { mutter: () => TXT().routines.sneezeEnd },
+      { mutter: () => pool('routines', 'sneezeEnd') },
     ],
   },
 };
@@ -148,10 +148,6 @@ export function routineMs(key: string): number {
 }
 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
-const line = (v: SpokenLine): string => {
-  const r = typeof v === 'function' ? v() : v;
-  return Array.isArray(r) ? pick(r) : r;
-};
 
 export interface BrainCallbacks {
   mutter?: (text: string) => void;
@@ -196,7 +192,7 @@ export class SpudBrain {
   knockBackoff: number;
   waitDeadline: number;
   lastZz: number;
-  lastPool: Record<string, string>;
+  seen: WeakMap<string[], Set<number>>; // no-replacement bookkeeping: per pool array, the indices already drawn this lap
   lastTick: number;
   disposed: boolean;
   timer: number;
@@ -209,7 +205,8 @@ export class SpudBrain {
     this.timeScale = timeScale;
     this.canAct = canAct || (() => true);
     // optional (mood) => string[] source of fresh, pre-generated daily mutters;
-    // ~mutterFreshChance of idle mutters come from it, the rest stay built-in
+    // used first whenever it has lines, with the built-in pool only backing it up
+    // offline (mutterFreshChance is retained for the API but no longer gates it)
     this.serverMutters = serverMutters;
     this.mutterFreshChance = mutterFreshChance;
     this.needs = { energy: 74, boredom: 38, social: 30 };
@@ -224,7 +221,7 @@ export class SpudBrain {
     this.lastMutterClock = 0; this.mutterGap = this.randMutterGap();
     this.lastKnockClock = -30; this.knockBackoff = 1;
     this.waitDeadline = 0;              // scaled clock deadline for knock reply
-    this.lastZz = 0; this.lastPool = {};
+    this.lastZz = 0; this.seen = new WeakMap();
     this.lastTick = performance.now();
     this.disposed = false;
     this.timer = window.setInterval(() => this.tick(), 200);
@@ -286,26 +283,31 @@ export class SpudBrain {
   nearBy(): boolean { return !this.simAway && performance.now() - this.lastPointer < 60000; }
   randMutterGap(): number { return (9 + Math.random() * 8) / (0.55 + this.P.curious * 0.75); }
   fresh(poolKey: MutterPool): string {
-    // sometimes pull today's fresh server-generated line for this mood (only
-    // watch/alone/lonely have server pools; other moods fall through to built-in)
-    if (
-      this.serverMutters && Math.random() < this.mutterFreshChance &&
-      (poolKey === 'watch' || poolKey === 'alone' || poolKey === 'lonely')
-    ) {
-      const sp = this.serverMutters(poolKey);
-      if (sp && sp.length) {
-        const k = 'srv:' + poolKey;
-        let m = pick(sp);
-        if (sp.length > 2 && m === this.lastPool[k]) m = pick(sp);
-        this.lastPool[k] = m;
-        return m;
-      }
-    }
-    const pool = TXT().mutter[poolKey];
-    let m = pick(pool);
-    if (pool.length > 2 && m === this.lastPool[poolKey]) m = pick(pool);
-    this.lastPool[poolKey] = m;
-    return m;
+    // Draw from today's shared server pool for this mood when the batch carries
+    // one (all six moods now, via Bubbles.mutter), else the built-in lines —
+    // always without replacement, so a pool cycles fully before any repeat.
+    return this.pickNoRepeat(pool('mutter', poolKey));
+  }
+  // Draw one line from a pool WITHOUT replacement. Used indices are tracked per
+  // pool array (keyed by identity — TXT() and server pools are stable references
+  // within a language/day), and only reshuffle once every line has been shown.
+  // This is what kills the "same mutter again a few lines later" repetition a
+  // plain random pick caused on these small pools.
+  pickNoRepeat(pool: string[]): string {
+    if (!pool || !pool.length) return '';
+    if (pool.length === 1) return pool[0]!;
+    let used = this.seen.get(pool);
+    if (!used || used.size >= pool.length) { used = new Set(); this.seen.set(pool, used); }
+    let i = Math.floor(Math.random() * pool.length);
+    while (used.has(i)) i = Math.floor(Math.random() * pool.length);
+    used.add(i);
+    return pool[i]!;
+  }
+  // Resolve a spoken line (string, variant array, or fn returning either) to
+  // text; variant arrays draw without replacement via pickNoRepeat.
+  pickLine(v: SpokenLine): string {
+    const r = typeof v === 'function' ? v() : v;
+    return Array.isArray(r) ? this.pickNoRepeat(r) : r;
   }
   emitSfx(n: string): void { this.on.sfx && this.on.sfx(n); }
   log(kind: string, text: string): void { this.on.log && this.on.log({ kind, text }); }
@@ -412,8 +414,8 @@ export class SpudBrain {
     if (s.clip) this.A.play(s.clip);
     if (s.mode) this.A.setMode(s.mode);
     if (s.sfx) this.emitSfx(s.sfx);
-    if (s.mutter) this.mutter(line(s.mutter));
-    if (s.speak) this.speak(line(s.speak));
+    if (s.mutter) this.mutter(this.pickLine(s.mutter));
+    if (s.speak) this.speak(this.pickLine(s.speak));
     if (s.emote) this.emote(s.emote);
     this.seqT = window.setTimeout(() => this.runSteps(steps, done), s.wait || 400);
   }
@@ -437,7 +439,7 @@ export class SpudBrain {
     this.runSteps([
       { clip: 'peek', wait: 1100 },
       { clip: 'knock', sfx: 'knock', wait: 700 },
-      { speak: () => TXT().speak.knock, wait: 1300 },
+      { speak: () => pool('speak', 'knock'), wait: 1300 },
     ], () => {
       this.busy = false;
       this.setState('wait');
@@ -455,7 +457,7 @@ export class SpudBrain {
     this.emote('♥'); this.emote('♥');
     this.runSteps([
       { clip: 'cheer', sfx: 'chime', wait: 1600 },
-      { speak: () => TXT().speak.delight, wait: 1400 },
+      { speak: () => pool('speak', 'delight'), wait: 1400 },
     ], () => { this.busy = false; this.setState('watch'); });
   }
 
@@ -490,7 +492,7 @@ export class SpudBrain {
     this.log('act', 'you are back → greeting');
     this.runSteps([
       { clip: 'hop', sfx: 'boing', wait: 750 },
-      { speak: () => TXT().speak.greet, wait: 1500 },
+      { speak: () => pool('speak', 'greet'), wait: 1500 },
     ], () => { this.busy = false; this.setState('watch'); });
   }
 }
