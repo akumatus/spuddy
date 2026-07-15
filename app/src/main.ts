@@ -22,7 +22,7 @@ const state = store.load();
 // them without grinding each unlock condition
 if (pp?.debug) state.unlockedIds = CHARS.map((c) => c.id);
 
-setSoundEnabled(state.sound);
+setSoundEnabled(state.sound && !state.immersive); // immersive mode gates sound off
 setLangPref(state.lang); // resolve the language before any text renders
 
 const scene = new PetScene($('pet') as HTMLCanvasElement);
@@ -54,10 +54,12 @@ ctx.brain = new SpudBrain({
     drama: (per.drama ?? 55) / 100,
     sleepy: (per.sleepiness ?? 35) / 100,
   },
-  // no decisions while you're actually using him (chat, book, weave) or he's
-  // napping against a screen edge
+  // no decisions while you're actually using him (chat, book, weave), he's
+  // docked against a screen edge, or immersive mode has him on quiet duty
+  // (no idle mutters, routines, knocks or dozes — tap reactions still work)
   canAct: () =>
-    !ctx.anim().tucked && !ctx.anim().asleep && !isOverlayOpen() && !ctx.chatBusy && !ctx.weaving &&
+    !state.immersive && !ctx.anim().docked &&
+    !ctx.anim().tucked && !isOverlayOpen() && !ctx.chatBusy && !ctx.weaving &&
     document.visibilityState !== 'hidden' && document.activeElement !== $('chatInput'),
   // fresh daily mutters (pre-generated server-side, no real-time LLM); ~half of
   // idle mutters come from today's batch, the rest from the built-in lines

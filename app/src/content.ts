@@ -86,6 +86,8 @@ export interface UiText {
   soundLabel: string;
   soundOn: string;
   soundOff: string;
+  immersiveLabel: string;
+  immersiveHint: string; // one-liner under the toggle: what the mode does
   sizeLabel: string;
   sizeSmall: string;
   sizeMed: string;

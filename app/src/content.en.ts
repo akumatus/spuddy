@@ -434,6 +434,8 @@ export const EN: TextPack = {
     soundLabel: 'sound',
     soundOn: 'on',
     soundOff: 'off',
+    immersiveLabel: 'focus mode',
+    immersiveHint: 'he stays quiet & still while you work — no muttering, no antics, sound off',
     sizeLabel: 'size',
     sizeSmall: 'small',
     sizeMed: 'medium',

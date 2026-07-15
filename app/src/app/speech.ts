@@ -108,7 +108,7 @@ export function hideBubble(): void {
 
 // ── mutter — dashed thought bubble for the inner monologue (7a) ──
 export function showMutter(text: string): void {
-  if (ctx.anim().tucked || ctx.anim().asleep || isOverlayOpen() || ctx.chatBusy || ctx.weaving) return;
+  if (ctx.anim().tucked || ctx.anim().docked || isOverlayOpen() || ctx.chatBusy || ctx.weaving) return;
   if (!$('bubble').classList.contains('hidden')) return; // speech first
   const el = $('mutter');
   clearTimeout(mutterTimer);
@@ -125,7 +125,7 @@ export function showMutter(text: string): void {
 
 // ── floating emotes (♪ ♥ Z) drifting off his head (7a) ──
 export function spawnEmote(g: string): void {
-  if (ctx.anim().tucked || ctx.anim().asleep || document.visibilityState === 'hidden') return;
+  if (ctx.anim().tucked || ctx.anim().docked || document.visibilityState === 'hidden') return;
   const el = document.createElement('span');
   el.className = 'em';
   el.textContent = g === 'z' ? 'Z' : g;

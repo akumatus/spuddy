@@ -45,6 +45,11 @@ export function createWindow(): void {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       sandbox: true,
+      // UI-test instances boot next to (often exactly underneath) the live
+      // potato — macOS reports them occluded and Chromium pauses rAF, freezing
+      // the scene mid-test. Production keeps throttling: a covered pet may
+      // as well sleep.
+      backgroundThrottling: !process.env.PP_UITEST,
     },
   });
   win.setAlwaysOnTop(true, 'floating');
@@ -103,28 +108,94 @@ export function createWindow(): void {
 // ── edge dock: report which screen edge the potato is pushed against ──
 // The potato renders at the horizontal center of the transparent window (CSS
 // stage: right: calc(50% - 150px), bottom:0, 300x400), so its on-screen anchor
-// sits at this offset inside the window. We only dock on the sides / top — the
-// bottom is his resting spot, so docking there would put him to sleep the
-// moment he boots.
+// sits at this offset inside the window. The renderer's `lift` (stage slid up
+// within the window during a drag toward the top) shifts the effective anchor —
+// without it a top dock could never trigger, since macOS pins the window's top
+// under the menu bar and the raw anchor never gets within reach of wa.y.
 const ANCHOR_X = WIN_W / 2; // stage horizontal center
 const ANCHOR_Y = 490; // roughly the potato's body center
-const DOCK = 95; // how close the anchor must get to count as "at the edge"
-let lastEdge: string | null = null;
+// Per-edge snap thresholds — how close the (lift-adjusted) anchor must get.
+// Sides want most of the body already hanging out; the bottom needs him
+// dragged ~55px below his normal resting spot (at rest the anchor sits 150px
+// above the work-area bottom, so a plain drop along the ground never snaps).
+const SNAP_X = 60;
+const SNAP_TOP = 140;
+const SNAP_BOTTOM = 95;
+let lastEdge = { side: null as string | null, ex: 0, ey: 0 };
 
-function reportEdge(): void {
+function reportEdge(lift = 0): void {
   if (!win) return;
   const [x, y] = win.getPosition();
   const wa = screen.getDisplayMatching(win.getBounds()).workArea;
   const ax = x + ANCHOR_X;
-  const ay = y + ANCHOR_Y;
-  let side: string | null = null;
-  if (ax >= wa.x + wa.width - DOCK) side = 'right';
-  else if (ax <= wa.x + DOCK) side = 'left';
-  else if (ay <= wa.y + DOCK) side = 'top';
-  if (side !== lastEdge) {
-    lastEdge = side;
-    win.webContents.send('edge', side);
+  const ay = y + ANCHOR_Y - lift;
+  // corners resolve to the nearest qualifying edge
+  const cand: [string, number][] = [];
+  if (ax - wa.x <= SNAP_X) cand.push(['left', ax - wa.x]);
+  if (wa.x + wa.width - ax <= SNAP_X) cand.push(['right', wa.x + wa.width - ax]);
+  if (ay - wa.y <= SNAP_TOP) cand.push(['top', ay - wa.y]);
+  if (wa.y + wa.height - ay <= SNAP_BOTTOM) cand.push(['bottom', wa.y + wa.height - ay]);
+  cand.sort((a, b) => a[1] - b[1]);
+  const side = cand.length ? cand[0][0] : null;
+  // where the screen edge's line sits in window coords, for the snap highlight
+  const info = {
+    side,
+    ex: side === 'right' ? wa.x + wa.width - x : wa.x - x,
+    ey: side === 'bottom' ? wa.y + wa.height - y : wa.y - y,
+  };
+  if (info.side !== lastEdge.side || info.ex !== lastEdge.ex || info.ey !== lastEdge.ey) {
+    lastEdge = info;
+    win.webContents.send('edge', info);
   }
+}
+
+// ── dock snap: tween the window flush against the chosen edge ──
+// Final geometry is deterministic so the renderer can pose the model against
+// the canvas boundary: the stage's matching edge lands exactly on the work-area
+// line (for 'top' the renderer additionally lifts the stage 240px so the canvas
+// top meets the window top). The coordinate along the edge keeps the drop spot,
+// clamped so the peeking strip stays comfortably on screen.
+const STAGE_L = ANCHOR_X - 150; // stage box within the window: x 210..510, y 240..640
+const STAGE_R = ANCHOR_X + 150;
+let dockTween: ReturnType<typeof setInterval> | null = null;
+
+function dockTarget(side: string): [number, number] | null {
+  if (!win) return null;
+  const [x, y] = win.getPosition();
+  const wa = screen.getDisplayMatching(win.getBounds()).workArea;
+  const alongX = Math.max(wa.x + 10 - STAGE_L, Math.min(x, wa.x + wa.width - 10 - STAGE_R));
+  const alongY = Math.min(y, wa.y + wa.height - WIN_H);
+  switch (side) {
+    case 'left': return [wa.x - STAGE_L, alongY];
+    case 'right': return [wa.x + wa.width - STAGE_R, alongY];
+    case 'top': return [alongX, wa.y];
+    case 'bottom': return [alongX, wa.y + wa.height - WIN_H];
+    default: return null;
+  }
+}
+
+function dockSnap(side: string): Promise<void> {
+  const target = dockTarget(side);
+  if (!win || !target) return Promise.resolve();
+  if (dockTween) { clearInterval(dockTween); dockTween = null; }
+  const [x0, y0] = win.getPosition();
+  const [x1, y1] = target;
+  const t0 = Date.now();
+  const DUR = 240;
+  return new Promise((resolve) => {
+    dockTween = setInterval(() => {
+      if (!win) { if (dockTween) clearInterval(dockTween); dockTween = null; resolve(); return; }
+      const k = Math.min(1, (Date.now() - t0) / DUR);
+      const e = 1 - Math.pow(1 - k, 3); // outCubic
+      win.setPosition(Math.round(x0 + (x1 - x0) * e), Math.round(y0 + (y1 - y0) * e));
+      if (k >= 1) {
+        if (dockTween) clearInterval(dockTween);
+        dockTween = null;
+        reportEdge();
+        resolve();
+      }
+    }, 16);
+  });
 }
 
 // ── hover panel side ──
@@ -152,13 +223,26 @@ export function registerWindowIpc(): void {
   // macOS pins a window's top under the menu bar, so a drag toward the top edge
   // stalls there. The renderer uses the shortfall to slide the potato up *within*
   // the window so he can still be dragged to the very top of the screen.
-  ipcMain.handle('move-by', (_e, dx: number, dy: number) => {
+  ipcMain.handle('move-by', (_e, dx: number, dy: number, lift?: number) => {
     if (!win) return 0;
     const [x, y] = win.getPosition();
+    const targetX = Math.round(x + dx);
     const targetY = Math.round(y + dy);
-    win.setPosition(Math.round(x + dx), targetY);
-    reportEdge();
+    // Floor clamp: macOS lets setPosition place the window below the work area
+    // but then asynchronously shoves the whole frame back up — fighting it made
+    // downward drags rubber-band. Clamp to the floor of whatever display the
+    // target lands on (so vertically stacked displays stay reachable) and
+    // report the deficit as negative shortfall; the renderer sinks the stage
+    // within the window instead, mirroring the lift trick at the top.
+    const twa = screen.getDisplayMatching({ x: targetX, y: targetY, width: WIN_W, height: WIN_H }).workArea;
+    const clampedY = Math.min(targetY, twa.y + twa.height - WIN_H);
+    win.setPosition(targetX, clampedY);
+    reportEdge(typeof lift === 'number' ? lift : 0);
     const [, actualY] = win.getPosition();
-    return actualY - targetY; // > 0 ⇒ clamped below where we asked (couldn't rise)
+    // > 0 ⇒ pinned under the menu bar (couldn't rise); < 0 ⇒ held at the work-
+    // area floor (couldn't sink)
+    return actualY - targetY;
   });
+
+  ipcMain.handle('dock-snap', (_e, side: string) => dockSnap(side));
 }

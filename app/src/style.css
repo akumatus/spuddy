@@ -136,17 +136,39 @@ html, body {
   height: 400px;
   cursor: pointer;
 }
-#zz {
+/* golden snap highlight — a soft glow washing IN from the screen-edge line
+   while a drag holds the potato in a dock zone (interactions.ts positions it
+   live). Opaque gold sits on the edge and fades toward the screen interior, so
+   his body sinks into the wash while his face stays clear; the -webkit-mask
+   feathers the band's ends so it doesn't read as a hard rectangle. */
+#dockGlow {
   position: absolute;
-  top: 66%;
-  right: 60px;
-  font-family: var(--hand);
-  font-weight: 700;
-  font-size: 24px;
-  color: #5a4934;
-  text-shadow: 0 1px 6px rgba(255, 253, 246, 0.9);
-  animation: pp-zz 2.4s ease-in-out infinite;
+  /* behind the stage (z 50): the canvas is transparent except for his
+     silhouette, so the wash glows out from around him and his body occludes
+     the part it covers — the gold sits behind him, not painted over him */
+  z-index: 1;
   pointer-events: none;
+  animation: pp-glow 1.3s ease-in-out infinite;
+}
+#dockGlow[data-side='top'],
+#dockGlow[data-side='bottom'] {
+  width: 360px;
+  height: 64px;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+#dockGlow[data-side='left'],
+#dockGlow[data-side='right'] {
+  width: 64px;
+  height: 360px;
+  -webkit-mask: linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent);
+}
+#dockGlow[data-side='bottom'] { background: linear-gradient(to top, rgba(242, 201, 76, 0.82), rgba(242, 201, 76, 0.14) 52%, transparent); }
+#dockGlow[data-side='top'] { background: linear-gradient(to bottom, rgba(242, 201, 76, 0.82), rgba(242, 201, 76, 0.14) 52%, transparent); }
+#dockGlow[data-side='left'] { background: linear-gradient(to right, rgba(242, 201, 76, 0.82), rgba(242, 201, 76, 0.14) 52%, transparent); }
+#dockGlow[data-side='right'] { background: linear-gradient(to left, rgba(242, 201, 76, 0.82), rgba(242, 201, 76, 0.14) 52%, transparent); }
+@keyframes pp-glow {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 
 #bubble {
@@ -505,6 +527,8 @@ html, body {
   transition: transform 0.18s ease;
 }
 #spanel .sp-tgl.on .sp-knob { transform: translateX(21px); }
+#spanel .sp-hint { margin-top: 6px; font-weight: 700; font-size: 10px; line-height: 1.5; color: #b4a480; }
+#spanel.zh .sp-hint { font-size: 11px; }
 
 #chatrow {
   display: flex;
@@ -1008,7 +1032,6 @@ html, body {
 @keyframes pp-heart { 0% { transform: translateY(0) scale(0.7); opacity: 0.95; } 100% { transform: translateY(-90px) scale(1.25); opacity: 0; } }
 @keyframes pp-conf { 0% { transform: translateY(-30px) rotate(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotate(540deg); opacity: 0.5; } }
 @keyframes pp-sparkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
-@keyframes pp-zz { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-36px); opacity: 0; } }
 @keyframes pp-mut { 0% { transform: translateX(-50%) translateY(9px) scale(0.85); opacity: 0; } 100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; } }
 @keyframes pp-em { 0% { transform: translateY(0) scale(0.7) rotate(-6deg); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateY(-70px) scale(1.2) rotate(8deg); opacity: 0; } }
 @keyframes pp-rotate { to { transform: rotate(360deg); } }

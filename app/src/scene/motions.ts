@@ -13,6 +13,7 @@
 // 'bigSquish' for the [proud] emotion trigger.
 import type { Group } from 'three';
 import type { Rig } from './rig';
+import type { DockSide } from '../types';
 
 const D2R = Math.PI / 180;
 const TAU = Math.PI * 2;
@@ -497,7 +498,13 @@ export class Animator {
   mode: AnimMode;
   leanK: number;
   tucked: boolean;
-  asleep: boolean; // napping against a screen edge (edge-dock sleep)
+  // ── edge dock (贴边吸附): lying against a screen edge, body off-screen,
+  // only eyes-and-above peeking in. dockSide names the edge, dockOn drives the
+  // eased dockK (0→1 settle-in, 1→0 climb-out); the scene reads both each
+  // frame to roll/slide the dockGroup, and `docked` is what app code gates on.
+  dockSide: DockSide;
+  dockOn: boolean;
+  dockK: number;
   tuckT: number; tuckFrom: number; tuckTo: number; tuckOffset: number;
   faceY: number; faceX: number;
   faceTargetY: number; faceTargetX: number;
@@ -521,7 +528,7 @@ export class Animator {
     this.mode = 'idle'; // idle | lean | rock | doze | hum
     this.leanK = 0;
     this.tucked = false;
-    this.asleep = false;
+    this.dockSide = 'bottom'; this.dockOn = false; this.dockK = 0;
     this.tuckT = 1; this.tuckFrom = 0; this.tuckTo = 0; this.tuckOffset = 0;
     this.faceY = 0; this.faceX = 0;
     this.faceTargetY = 0; this.faceTargetX = 0;
@@ -559,6 +566,26 @@ export class Animator {
     this.tuckT = 0;
   }
 
+  // the edge he's docked against, or null when he's up and about (dockSide is
+  // kept through the climb-out so the ease-back knows which pose to leave)
+  get docked(): DockSide | null {
+    return this.dockOn ? this.dockSide : null;
+  }
+
+  setDock(side: DockSide | null): void {
+    if (side) {
+      this.dockSide = side;
+      this.dockOn = true;
+      // settle the gaze toward the screen's interior (his local "up"); the
+      // dock branch of the saccade timer keeps it wandering gently from here
+      this.eyeTX = 0; this.eyeTY = 0.26;
+      this.faceTargetY = 0; this.faceTargetX = -0.05;
+      this.lastCursorAt = performance.now();
+    } else {
+      this.dockOn = false;
+    }
+  }
+
   facePoint(nx: number, ny?: number): void {
     this.faceTargetY = Math.max(-1, Math.min(1, nx)) * 0.62;
     this.faceTargetX = Math.max(-1, Math.min(1, ny ?? 0)) * 4 * D2R;
@@ -593,6 +620,18 @@ export class Animator {
       handL: PART_DEFS.hand(), handR: PART_DEFS.hand(),
       eyes: PART_DEFS.eyes(), card: PART_DEFS.card(),
     };
+
+    /* edge dock: ease in/out, paws come up to hook over the screen edge —
+       raised to just below the eyes, right where the edge line crosses him */
+    this.dockK += ((this.dockOn ? 1 : 0) - this.dockK) * (1 - Math.exp(-dt * 7));
+    if (!this.dockOn && this.dockK < 0.001) this.dockK = 0;
+    if (this.dockK > 0.001) {
+      // paws crest the edge just a touch — two little nubs splayed at his
+      // sides, not arms flung up to his face (raise 78 read as goofy)
+      P.handL.raise += 62 * this.dockK; P.handR.raise += 62 * this.dockK;
+      P.handL.out += 0.036 * this.dockK; P.handR.out += 0.036 * this.dockK;
+      P.handL.lift += 0.03 * this.dockK; P.handR.lift += 0.03 * this.dockK;
+    }
 
     /* doze: deep slow breath, drift lean, nod-and-catch, lids at 82% */
     this.out.nodCatch = false;
@@ -647,9 +686,18 @@ export class Animator {
         P.eyes.blink += bp < 0.35 ? EASE.inQuad(bp / 0.35) : 1 - EASE.outQuad((bp - 0.35) / 0.65);
       }
       if (now - this.lastCursorAt > 3500 && now >= this.nextSaccadeAt) {
-        this.eyeTX = (Math.random() * 2 - 1) * 0.42;
-        this.eyeTY = (Math.random() * 2 - 1) * 0.24;
-        this.faceTargetY = this.eyeTX * 0.35;
+        if (this.dockOn) {
+          // docked: eyes stay on the screen's interior (his local "up"),
+          // wandering only a little — he's watching you work, not the room
+          this.eyeTX = (Math.random() * 2 - 1) * 0.18;
+          this.eyeTY = 0.24 + (Math.random() * 2 - 1) * 0.08;
+          this.faceTargetY = 0;
+          this.faceTargetX = -0.05;
+        } else {
+          this.eyeTX = (Math.random() * 2 - 1) * 0.42;
+          this.eyeTY = (Math.random() * 2 - 1) * 0.24;
+          this.faceTargetY = this.eyeTX * 0.35;
+        }
         this.nextSaccadeAt = now + 1400 + Math.random() * 3200;
       }
     }

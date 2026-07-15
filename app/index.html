@@ -11,10 +11,13 @@
 
   <!-- no data-interactive: the mouse-active region is the potato's raycast
        silhouette (see interactions.ts), not this whole 300×400 box -->
+  <!-- golden snap highlight: lights up along the screen-edge line while a drag
+       holds the potato in a dock zone (positioned by interactions.ts) -->
+  <div id="dockGlow" class="hidden"></div>
+
   <div id="stage">
     <div id="bubble" class="hidden"></div>
     <div id="mutter" class="hidden"></div>
-    <div id="zz" class="hidden">z z</div>
     <div id="hearts"></div>
     <div id="emotes"></div>
     <div id="petclip">

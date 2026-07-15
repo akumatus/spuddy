@@ -96,6 +96,9 @@ export interface AppState {
   unlockedIds: CharId[];
   buddyNew: boolean;
   sound: boolean;
+  // do-not-disturb (settings ⚙): no idle mutters/routines, no gaze tracking,
+  // sound gated off while on — `sound` keeps the user's preference untouched
+  immersive: boolean;
   petSize: PetSize; // character render size within the stage (settings ⚙)
   lang: LangPref; // UI/content language — 'auto' follows the system locale
   nightShownDate: string | null;
@@ -173,13 +176,23 @@ export interface AiGreetRequest {
 
 // ── preload bridge (window.pp) ──
 
-export type EdgeSide = 'left' | 'right' | 'top' | null;
+export type EdgeSide = 'left' | 'right' | 'top' | 'bottom' | null;
+export type DockSide = Exclude<EdgeSide, null>;
+
+// Edge-proximity report: which screen edge the potato is pushed against, plus
+// where that edge's line sits in window coordinates (ex for left/right, ey for
+// top/bottom) so the renderer can draw the snap highlight exactly on it.
+export interface EdgeInfo {
+  side: EdgeSide;
+  ex: number;
+  ey: number;
+}
 
 // payload per push channel the main process emits
 export interface PpEventMap {
   sedentary: void;
   cursor: { x: number; y: number };
-  edge: EdgeSide;
+  edge: EdgeInfo;
   'set-lang': LangPref; // tray menu language pick — renderer persists + applies
   'update-note': string; // updater feedback, pre-localized — the pet says it out loud
 }
@@ -215,8 +228,11 @@ export interface PreloadBridge {
   win: {
     setIgnoreMouse(v: boolean): void;
     // resolves to how many px the window fell short of the requested vertical
-    // move (macOS pins the top under the menu bar)
-    moveBy(dx: number, dy: number): Promise<number>;
+    // move (macOS pins the top under the menu bar); lift = how far the stage is
+    // slid up within the window, so edge detection tracks the potato, not the box
+    moveBy(dx: number, dy: number, lift?: number): Promise<number>;
+    // edge-dock snap: tween the window flush against the given screen edge
+    dock(side: DockSide): Promise<void>;
     // which flank of the potato the hover panel fits on, given where the
     // window sits on screen — queried at boot and after each drag ends
     panelSide(): Promise<'left' | 'right'>;

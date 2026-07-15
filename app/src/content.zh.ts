@@ -422,6 +422,8 @@ export const ZH: TextPack = {
     soundLabel: '音效',
     soundOn: '开',
     soundOff: '关',
+    immersiveLabel: '沉浸模式',
+    immersiveHint: '他会安静陪着你——不喃喃自语、不做小动作、音效自动关闭',
     sizeLabel: '大小',
     sizeSmall: '小',
     sizeMed: '中',

@@ -133,7 +133,9 @@ function renderBuddies(): void {
 
 // ── care cards (scheduler / OS events) ──
 export function presentCare(tag: string, msg: string): void {
-  if (isOverlayOpen() || ctx.anim().tucked) return;
+  // docked: the raise-card choreography would fight the edge pose, and he's on
+  // quiet duty anyway — skip tonight's card rather than yanking him off the edge
+  if (isOverlayOpen() || ctx.anim().tucked || ctx.anim().docked) return;
   ctx.brain.interrupt();
   sfx.chime();
   ctx.scene.raiseCard();

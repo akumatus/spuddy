@@ -29,7 +29,8 @@ contextBridge.exposeInMainWorld('pp', {
   },
   win: {
     setIgnoreMouse: (v: boolean) => ipcRenderer.send('set-ignore-mouse', v),
-    moveBy: (dx: number, dy: number) => ipcRenderer.invoke('move-by', dx, dy),
+    moveBy: (dx: number, dy: number, lift?: number) => ipcRenderer.invoke('move-by', dx, dy, lift),
+    dock: (side: string) => ipcRenderer.invoke('dock-snap', side),
     panelSide: () => ipcRenderer.invoke('panel-side'),
   },
   // pet-renderer side of the popup bridge: mirror markup out, take clicks

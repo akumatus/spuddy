@@ -6,7 +6,7 @@ import { Animator } from './motions';
 import { CardScreen, type CardPlacement } from './cardscreen';
 import { rigParts } from './rig';
 import { LIGHT_BASE, LIGHT_TWEAKS, makeShadowTexture, makeStudioEnvScene, type LightRig } from './lighting';
-import type { CharId, PetSize } from '../types';
+import type { CharId, DockSide, PetSize } from '../types';
 
 // BVH-accelerated raycasting: the scan models run 125k–332k triangles and a
 // naive cast costs ~10ms — pick() now fires on hover (interactions.ts hit
@@ -65,6 +65,19 @@ function queueBvhBuild(meshes: THREE.Mesh[]): void {
 // UV half-extent from center (0.5, 0.5); 0.3 ⇒ a central 60%×60% draw zone.
 const CARD_DRAW_ZONE = 0.3;
 
+// Every model is normalized to this world-space height (see setCharacter) —
+// the dock-pose geometry leans on it to know where his eyes are.
+const MODEL_H = 1.5;
+
+// ── edge-dock pose tuning ──
+// Fraction of his height left visible while docked, measured from the top of
+// the head: 0.42 keeps the eyes (at roughly 0.6–0.65 of most buddies' height)
+// just inside the screen with the edge line crossing right under them.
+const DOCK_VIS = 0.42;
+// For side docks the peeking strip keeps the height where he was dropped; this
+// is its center in world y — about where his face sits when standing.
+const DOCK_SIDE_Y = 0.62;
+
 // User-facing "pet size" setting → world-space scale on the normalized model.
 // Applied to the holder group (the animator drives rootGroup, so this rides on
 // top of the squash rather than fighting it) with the contact shadow tracking
@@ -115,6 +128,7 @@ export class PetScene {
   shadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   holder: THREE.Group;
   rootGroup: THREE.Group;
+  dockGroup: THREE.Group;
   animator: Animator;
   cardScreen: CardScreen;
   cardsData: Promise<Record<string, CardPlacement | undefined>>;
@@ -180,7 +194,12 @@ export class PetScene {
     this.holder = new THREE.Group(); // scaled/positioned per model
     this.rootGroup = new THREE.Group(); // animated by Animator, origin at contact point
     this.rootGroup.add(this.holder);
-    this.scene.add(this.rootGroup);
+    // dockGroup composes the edge-dock pose (roll + slide toward a screen edge)
+    // on top of everything the animator does to rootGroup — the canvas boundary
+    // does the clipping, so the body simply hangs off-screen while docked
+    this.dockGroup = new THREE.Group();
+    this.dockGroup.add(this.rootGroup);
+    this.scene.add(this.dockGroup);
 
     // exists from construction (not first model load) so boot can wire the
     // brain and interactions without waiting on the GLB — clips played on the
@@ -216,9 +235,9 @@ export class PetScene {
     // Normalize by TOTAL model height (cap / tassel / any headwear included) so
     // every buddy is the same overall size and no one's head reaches up into the
     // speech bubble. The bubble sits at a fixed spot, so a consistent model top
-    // keeps a clean, even gap under it — TARGET_H is tuned against that bubble.
+    // keeps a clean, even gap under it — MODEL_H is tuned against that bubble.
     // (Card-width normalization let Prof's graduation cap tower past the crew.)
-    const TARGET_H = 1.5;
+    const TARGET_H = MODEL_H;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const scale = TARGET_H / size.y;
@@ -324,14 +343,49 @@ export class PetScene {
     }
   }
 
+  // ── edge-dock pose geometry ──
+  // World-space target for the dockGroup on a given side: roll about the view
+  // axis so his head points into the screen, then slide toward the edge until
+  // only the eyes-and-above strip stays inside the canvas. Once the window has
+  // snapped flush, the canvas boundary IS the screen edge — clipping is free.
+  dockGeom(side: DockSide): { rot: number; x: number; y: number } {
+    // px→world at the model plane (z≈0), from the camera's vertical fov
+    const dist = this.camBase.distanceTo(this.lookAt);
+    const wpp = (2 * dist * Math.tan((this.camera.fov * Math.PI) / 360)) / this.canvas.clientHeight;
+    const halfW = (this.canvas.clientWidth / 2) * wpp;
+    const halfH = (this.canvas.clientHeight / 2) * wpp;
+    const H = MODEL_H * this.sizeScale;
+    const vis = DOCK_VIS * H;
+    switch (side) {
+      case 'bottom': return { rot: 0, x: 0, y: this.lookAt.y - halfH + vis - H };
+      case 'top': return { rot: Math.PI, x: 0, y: this.lookAt.y + halfH - vis + H };
+      case 'left': return { rot: -Math.PI / 2, x: -halfW + vis - H, y: DOCK_SIDE_Y };
+      case 'right': return { rot: Math.PI / 2, x: halfW - vis + H, y: DOCK_SIDE_Y };
+    }
+  }
+
   _tick(): void {
     const t = (performance.now() - this.t0) / 1000;
     this.animator.update();
     const o = this.animator.out;
     const spread = 1 + (o.y / 2) * 0.55;
     this.shadow.scale.set(o.sx * spread * this.sizeScale, spread * this.sizeScale, 1);
-    this.shadow.material.opacity = o.ground;
-    if (this.cameraSway) {
+    // the ground shadow fades out as he leaves the ground for an edge
+    const dk = this.animator.dockK;
+    this.shadow.material.opacity = o.ground * (1 - dk);
+    if (dk > 0.0005) {
+      // dockSide stays valid through the climb-out (dockOn false, dockK easing
+      // to 0), so the ease-back retraces the same roll it came in on
+      const g = this.dockGeom(this.animator.dockSide);
+      this.dockGroup.rotation.z = g.rot * dk;
+      this.dockGroup.position.set(g.x * dk, g.y * dk, 0);
+    } else {
+      this.dockGroup.rotation.z = 0;
+      this.dockGroup.position.set(0, 0, 0);
+    }
+    // camera sway would slide the peeking strip along the screen edge — hold
+    // the camera still while docked so his paws stay hooked on the line
+    if (this.cameraSway && dk < 0.001) {
       this.camera.position.set(
         this.camBase.x + 0.12 * Math.sin((2 * Math.PI * t) / 11),
         this.camBase.y + 0.05 * Math.sin((2 * Math.PI * t) / 8.2),

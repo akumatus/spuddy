@@ -6,7 +6,7 @@ import { hasHan, lang } from '../locale';
 import { CLIPS, WOBBLE } from '../scene/motions';
 import type { PickTarget } from '../scene/scene';
 import { setSoundEnabled, sfx } from '../sfx';
-import type { PetSize } from '../types';
+import type { DockSide, EdgeInfo, PetSize } from '../types';
 import * as store from '../store';
 import { heartsBurst } from '../ui/effects';
 import { isOverlayOpen } from '../ui/overlay';
@@ -72,14 +72,13 @@ export function tapPet(target: PickTarget): void {
   // on empty air (raycast hit nothing) is inert — no reaction, no waking, and
   // no need-nudge in the brain — so play tracks his silhouette, not the box.
   if (!target) return;
-  if (ctx.anim().asleep) {
-    wakeFromEdge(); // a tap rouses him from his edge nap
+  if (ctx.anim().docked) {
+    undock(); // a tap on the peeking strip brings him back on screen
     return;
   }
   if (ctx.anim().tucked) {
     sfx.boing();
     ctx.anim().setTucked(false);
-    $('zz').classList.add('hidden');
     ctx.anim().play('squish');
     return;
   }
@@ -120,29 +119,91 @@ export function tapPet(target: PickTarget): void {
   }
 }
 
-// ── edge-dock nap: drag him against a screen edge and he curls up to snooze,
-// waking when you drag him back off the edge or tap him. The main process
-// reports which edge (if any) the potato is currently pushed against.
-let edgeSide: string | null = null;
+// ── edge-dock snap (贴边吸附): drag him to any edge — body hanging out, a
+// golden strip lights the snap line — and on release he settles flush against
+// it, only eyes-and-above peeking in, paws hooked over the edge, watching the
+// screen. Sides have him rolled 90°, the top has him hanging upside down (the
+// roll lives in scene.dockGeom). Docked = quiet duty: the same gates as
+// immersive mode apply (no mutters, routines, gaze-tracking; sound off). A tap
+// or a grab-and-drag brings him back. The main process streams which edge (if
+// any) the potato is pushed against, with the edge line in window coords.
+let edge: EdgeInfo = { side: null, ex: 0, ey: 0 };
 
-function sleepAtEdge(): void {
-  if (ctx.anim().asleep) return;
+// effective sound gate: the saved preference, muted by immersive mode or an
+// edge dock (both are quiet duty; the preference itself stays untouched)
+export function applySoundGate(): void {
+  setSoundEnabled(ctx.state.sound && !ctx.state.immersive && !ctx.anim().docked);
+}
+
+// the stage's in-window vertical shift, shared by the drag-to-top lift and the
+// top dock (which needs the canvas top flush with the window top: lift 240)
+const DOCK_TOP_LIFT = 240;
+
+export function dockTo(side: DockSide): void {
+  if (ctx.anim().docked) return;
   ctx.brain.interrupt();
   hideBubble();
   $('mutter').classList.add('hidden');
-  ctx.anim().asleep = true;
-  ctx.anim().setMode('doze');
-  $('zz').classList.remove('hidden');
-  sfx.low();
+  closeSettings();
+  $('hoverpanel').classList.remove('show');
+  sfx.low(); // one soft settle tone, then quiet duty
+  // top needs the canvas flush with the window top; every other side hands the
+  // hiding over to the in-scene dock pose, so any leftover drag lift eases home
+  liftTo(side === 'top' ? DOCK_TOP_LIFT : 0);
+  ctx.anim().setDock(side);
+  applySoundGate();
+  updateGlowEl();
+  void pp.win.dock(side); // tween the window flush against the edge
 }
 
-export function wakeFromEdge(): void {
-  if (!ctx.anim().asleep) return;
-  ctx.anim().asleep = false;
-  ctx.anim().setMode('idle');
-  $('zz').classList.add('hidden');
-  ctx.anim().play('squish');
-  sfx.boing();
+// playful = a tap woke him (pop + squish + lift back down). A grab-and-drag
+// passes false: the drag has taken over — no fanfare, and a top dock keeps its
+// stage lift so the drag mechanics can spend it dragging him down.
+export function undock(playful = true): void {
+  if (!ctx.anim().docked) return;
+  ctx.anim().setDock(null);
+  if (playful) liftTo(0); // ease the stage home (only ever shifted by a top dock)
+  applySoundGate(); // restore sound before the pop, so it's heard
+  if (playful) {
+    ctx.anim().play('squish');
+    sfx.boing();
+  }
+  ctx.brain.interrupt();
+}
+
+// animate the stage's lift with a transition (the drag path sets it raw)
+let liftAnimT = 0;
+function liftTo(v: number): void {
+  const stage = $('stage');
+  clearTimeout(liftAnimT);
+  stage.style.transition = 'transform 300ms cubic-bezier(0.33, 1, 0.68, 1)';
+  setLift(v);
+  liftAnimT = window.setTimeout(() => { stage.style.transition = ''; }, 320);
+}
+// wired inside wireInteractions (the lift state lives there); split so the
+// dock choreography above can drive it too
+let setLift: (v: number) => void = () => {};
+
+// ── golden snap highlight: a soft glow washing in from the screen-edge line
+// while a drag holds him in a snap zone ──
+// SPAN = band length along the edge; DEPTH = how far the wash reaches inward.
+// The opaque end sits on the edge line (edge.ex / edge.ey), the faded end
+// points into the screen. Side bands center vertically on the stage (window
+// y 240..640, mid 440), so top = 440 − SPAN/2.
+const GLOW_SPAN = 360;
+const GLOW_DEPTH = 64;
+function updateGlowEl(dragging = false): void {
+  const g = $('dockGlow');
+  const show = dragging && !!edge.side && !ctx.anim().docked;
+  g.classList.toggle('hidden', !show);
+  if (!show || !edge.side) return;
+  g.dataset.side = edge.side;
+  const midY = 440 - GLOW_SPAN / 2;
+  const halfSpan = GLOW_SPAN / 2;
+  if (edge.side === 'left') g.style.cssText = `left:${edge.ex}px;top:${midY}px;`;
+  else if (edge.side === 'right') g.style.cssText = `left:${edge.ex - GLOW_DEPTH}px;top:${midY}px;`;
+  else if (edge.side === 'top') g.style.cssText = `top:${edge.ey}px;left:calc(50% - ${halfSpan}px);`;
+  else g.style.cssText = `top:${edge.ey - GLOW_DEPTH}px;left:calc(50% - ${halfSpan}px);`;
 }
 
 // The static chrome that carries language: the chat placeholder. (The icon
@@ -165,7 +226,8 @@ function renderSettingsPanel(): void {
   const sp = $('spanel');
   const ui = TXT().ui;
   const zh = lang() === 'zh';
-  const on = ctx.state.sound;
+  const imm = ctx.state.immersive;
+  const on = ctx.state.sound && !imm; // immersive gates sound; the pref itself is kept
   const sz = ctx.state.petSize;
   sp.classList.toggle('zh', zh);
   sp.innerHTML = `
@@ -191,7 +253,12 @@ function renderSettingsPanel(): void {
         <span class="sp-word ${on ? 'on' : ''}">${on ? ui.soundOn : ui.soundOff}</span>
         <div class="sp-tgl ${on ? 'on' : ''}" id="spTgl"><div class="sp-knob"></div></div>
       </div>
-    </div>`;
+    </div>
+    <div class="sp-row">
+      <span class="sp-lbl">${ui.immersiveLabel}</span>
+      <div class="sp-tgl ${imm ? 'on' : ''}" id="spImm"><div class="sp-knob"></div></div>
+    </div>
+    <div class="sp-hint">${ui.immersiveHint}</div>`;
   $('spClose').onclick = () => closeSettings();
   $('spZh').onclick = () => { applyLangPref('zh'); sfx.pop(); };
   $('spEn').onclick = () => { applyLangPref('en'); sfx.pop(); };
@@ -207,12 +274,45 @@ function renderSettingsPanel(): void {
   $('spSizeM').onclick = () => setSize('md');
   $('spSizeL').onclick = () => setSize('lg');
   $('spTgl').onclick = () => {
-    ctx.state.sound = !ctx.state.sound;
-    setSoundEnabled(ctx.state.sound);
-    store.save(ctx.state);
-    if (ctx.state.sound) sfx.pop(); // turning it on gets to say so; turning it off goes quiet at once
+    const s = ctx.state;
+    if (s.immersive) {
+      // immersive mode is what's holding sound off — asking for sound back
+      // lifts the whole mode (turning sound on ⇒ leave do-not-disturb)
+      s.sound = true;
+      setImmersive(false);
+      sfx.pop();
+      renderSettingsPanel();
+      return;
+    }
+    s.sound = !s.sound;
+    applySoundGate();
+    store.save(s);
+    if (s.sound) sfx.pop(); // turning it on gets to say so; turning it off goes quiet at once
     renderSettingsPanel();
   };
+  $('spImm').onclick = () => {
+    setImmersive(!ctx.state.immersive);
+    if (!ctx.state.immersive && ctx.state.sound) sfx.pop(); // sound may just have come back
+    renderSettingsPanel();
+  };
+}
+
+// Enter / leave immersive (do-not-disturb) mode. Entering also cuts any running
+// skit, clears the spoken leftovers and re-centers his gaze; either way sound
+// is re-gated and the state persisted. Both the immersive toggle and the sound
+// toggle (turning sound back on) drive this.
+function setImmersive(v: boolean): void {
+  const s = ctx.state;
+  if (s.immersive === v) return;
+  s.immersive = v;
+  if (v) {
+    ctx.brain.interrupt();
+    hideBubble();
+    $('mutter').classList.add('hidden');
+    ctx.anim().facePoint(0, 0);
+  }
+  applySoundGate();
+  store.save(s);
 }
 
 function openSettings(): void {
@@ -246,7 +346,8 @@ export function wireInteractions(): void {
   }
   function showPanel(): void {
     clearTimeout(hovT);
-    if (!ctx.anim().tucked) panel.classList.add('show');
+    // docked: quiet duty — hovering the peeking strip shouldn't pop controls
+    if (!ctx.anim().tucked && !ctx.anim().docked) panel.classList.add('show');
   }
   function hidePanelSoon(): void {
     clearTimeout(hovT);
@@ -279,21 +380,31 @@ export function wireInteractions(): void {
   // second click during fast tapping into the same spin, which is exactly the
   // monotony the user asked to fix — pirouette lives in the random pool now)
 
-  pp.on('edge', (side) => {
-    edgeSide = side;
-    if (!side) wakeFromEdge(); // pulled off the edge → he stirs awake
+  let drag: { x: number; y: number; moved: boolean } | null = null;
+
+  // the main process streams edge proximity as the window moves — the snap
+  // highlight follows the edge line live while a drag holds him in the zone
+  pp.on('edge', (info) => {
+    edge = info;
+    updateGlowEl(!!(drag && drag.moved));
   });
 
-  let drag: { x: number; y: number; moved: boolean } | null = null;
   // How far the potato is shifted up WITHIN the window. macOS pins the window's
   // top under the menu bar, and he's drawn ~490px below that top, so without this
   // he could never be dragged past mid-screen. When the window stalls at the top,
   // we slide the whole stage up instead so he keeps tracking the cursor to the top.
+  // Positive lift slides the stage up (dragging past the menu-bar pin);
+  // negative lift slides it DOWN past the work-area floor — the window is
+  // clamped there (see move-by in electron/src/window.ts), so sinking the
+  // stage is what lets his body visually dip below the screen's bottom edge.
   let lift = 0;
   const LIFT_MAX = 360; // brings his head to the top edge without clipping it off
+  const LIFT_MIN = -240; // enough to bury him below the bottom edge entirely
   function applyLift(): void {
     stage.style.transform = lift ? `translateY(${-lift}px)` : '';
   }
+  // hand the dock choreography (module scope) a handle on the lift state
+  setLift = (v: number) => { lift = v; applyLift(); };
 
   stage.addEventListener('pointerdown', (e) => {
     // Only his body takes a grab. Stage air is normally click-through and never
@@ -301,7 +412,15 @@ export function wireInteractions(): void {
     // (throttled raycast below), so a stale press could sneak in — re-check.
     if (!ctx.scene.pick(e.clientX, e.clientY)) return;
     drag = { x: e.screenX, y: e.screenY, moved: false };
-    stage.setPointerCapture(e.pointerId);
+    // a dock lift animation may still be easing — the drag needs raw control
+    clearTimeout(liftAnimT);
+    stage.style.transition = '';
+    try {
+      stage.setPointerCapture(e.pointerId);
+    } catch (err) {
+      // synthetic/exotic pointers (UI tests, some tablets) may not be capturable —
+      // the drag still works, it just loses the capture guarantee
+    }
   });
   stage.addEventListener('pointermove', async (e) => {
     if (!drag) return;
@@ -311,24 +430,33 @@ export function wireInteractions(): void {
       drag.moved = true;
       ctx.brain.interrupt();
       ctx.anim().setDragging(true);
-      wakeFromEdge(); // grabbing a sleeping potato wakes him
+      // grabbing the peeking strip pulls him back out; a top dock keeps its
+      // lift so the normal drag mechanics spend it on the way down
+      undock(false);
     }
     if (!drag.moved) return;
     drag.x = e.screenX;
     drag.y = e.screenY;
     ctx.anim().dragBy(dx * 0.5);
 
-    // Dragging back down: spend the in-window lift before the window itself moves,
-    // so he peels off the top smoothly instead of the window lurching down first.
+    // Dragging back toward center: spend the in-window lift (either sign)
+    // before the window itself moves, so he peels off the edge smoothly
+    // instead of the window lurching first.
     let winDy = dy;
     if (dy > 0 && lift > 0) {
       const take = Math.min(lift, dy);
       lift -= take;
       winDy -= take;
+    } else if (dy < 0 && lift < 0) {
+      const take = Math.max(lift, dy); // both negative
+      lift -= take;
+      winDy -= take;
     }
-    const shortfall = await pp.win.moveBy(dx, winDy); // px the window couldn't rise
-    if (shortfall > 0) lift = Math.min(lift + shortfall, LIFT_MAX);
+    const shortfall = await pp.win.moveBy(dx, winDy, lift); // px the window couldn't move
+    if (shortfall > 0) lift = Math.min(lift + shortfall, LIFT_MAX); // pinned under the menu bar
+    else if (shortfall < 0) lift = Math.max(lift + shortfall, LIFT_MIN); // held at the floor
     applyLift();
+    updateGlowEl(true); // an edge event may have landed while we awaited
   });
   stage.addEventListener('pointerup', (e) => {
     if (!drag) return;
@@ -340,9 +468,11 @@ export function wireInteractions(): void {
     if (moved) {
       void settlePanelSide(); // the drop spot decides which flank the panel takes
       ctx.anim().setDragging(false); // spring-back with one overshoot
-      if (edgeSide) {
-        sleepAtEdge(); // landed against an edge — tuck in for a nap
+      updateGlowEl(); // drag over — snap highlight off
+      if (edge.side) {
+        dockTo(edge.side); // dropped in a snap zone — settle onto that edge
       } else {
+        if (lift < 0) liftTo(0); // dropped half-sunk but shy of the snap zone — surface
         ctx.anim().play('bigSquish');
         sfx.boing();
         bubble(TXT().ui.landing);
@@ -360,6 +490,8 @@ export function wireInteractions(): void {
     if (moved) {
       void settlePanelSide(); // the window stays wherever the cancel left it
       ctx.anim().setDragging(false); // drop the pose — no landing fanfare
+      updateGlowEl();
+      if (lift < 0) liftTo(0); // never leave him half-buried below the floor
     }
     lastCast = 0;
     refreshMouseRegion(e.clientX, e.clientY);
@@ -473,7 +605,11 @@ export function wireInteractions(): void {
     // presence for the brain: the cursor actually moving means you're there
     if (lastCursor && Math.abs(x - lastCursor.x) + Math.abs(y - lastCursor.y) > 3) ctx.brain.pointerMove();
     lastCursor = { x, y };
-    if (ctx.anim().tucked || ctx.anim().asleep || drag) return;
+    // immersive mode / edge dock: presence still registers (cheap, and the
+    // brain is gated anyway), but his eyes stay off your cursor — while docked
+    // they rest on the screen's interior instead (see Animator.setDock)
+    if (ctx.state.immersive || ctx.anim().docked) return;
+    if (ctx.anim().tucked || drag) return;
     const r = stage.getBoundingClientRect();
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height * 0.55; // eye line, not stage center
