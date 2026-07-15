@@ -3,7 +3,7 @@
 // language — then stores each batch in KV (cards:current for English,
 // cards:current:zh for Chinese). Golden cards are not baked here: the app
 // draws them live or from the curated famous-quote pool (quotes-*.ts).
-import { CHAT_IDS, buildBubblesPrompt, buildNormalBatchPrompt, type BubblePart } from './personas';
+import { CHAT_IDS, buildBubblesPrompt, buildFlavorPrompt, buildNormalBatchPrompt, type BubblePart } from './personas';
 import { callLLMChain, genProviderChain, loadConfig } from './providers';
 import {
   BUBBLE_FLAT, BUBBLE_MOODS, DAYPARTS, MOODS, ROUTINE_KEYS, SPEAK_KEYS, batchKey,
@@ -150,6 +150,39 @@ async function generateBubbles(env: Env, opts: GenOpts): Promise<Bubbles> {
   return { ...voice, ...social };
 }
 
+// Per-persona flavor lines — ONE small call for all six personas (~48 lines),
+// so buddies keep their accent without a per-persona batch. Best-effort: an
+// empty result just means the app serves pure shared pools today.
+const FLAVOR_MAX = 8; // per kind per persona — prompt asks for 4, slack for a chatty run
+async function generateFlavor(env: Env, opts: GenOpts): Promise<Record<string, CharBatch['flavor']>> {
+  const prompt = buildFlavorPrompt(opts.lang);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { text } = await callLLMChain(env, opts.genChain, {
+        system: '',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 2500, // ~48 short JSON lines across six personas
+        temperature: 0.95,
+        timeoutMs: 240000,
+        json: true,
+        models: opts.models,
+      });
+      const parsed = extractJson(text);
+      const out: Record<string, CharBatch['flavor']> = {};
+      for (const id of CHAT_IDS) {
+        const src = parsed?.[id] as Record<string, unknown> | undefined;
+        const mutter = dedupeLines(sanitizeList(src?.mutter, FLAVOR_MAX));
+        const greet = dedupeLines(sanitizeList(src?.greet, FLAVOR_MAX));
+        if (mutter.length || greet.length) out[id] = { ...(mutter.length && { mutter }), ...(greet.length && { greet }) };
+      }
+      if (Object.keys(out).length) return out;
+    } catch (e) {
+      // transient — fall through to retry
+    }
+  }
+  return {};
+}
+
 // One language's full batch: shared normal pool + per-persona mutters. Golden
 // cards are no longer baked here — the app draws goldens from the live weave or
 // the curated famous-quote pool (server/src/quotes-*.ts) instead.
@@ -159,11 +192,16 @@ async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
   // concurrent keeps total time ~= one call. Per-persona mutters are no longer
   // generated here — the shared bubbles replaced them (storeBatch still carries
   // any previously stored per-persona mutters forward for older app versions).
-  const [normalRaw, bubbles] = await Promise.all([
+  const [normalRaw, bubbles, flavor] = await Promise.all([
     generateNormalPool(env, opts).catch(() => [] as string[]),
     generateBubbles(env, opts).catch(() => ({} as Bubbles)),
+    generateFlavor(env, opts).catch(() => ({} as Record<string, CharBatch['flavor']>)),
   ]);
-  return storeBatch(env, opts.lang, normalRaw, {}, bubbles);
+  const cards: Record<string, CharBatch> = {};
+  for (const id of Object.keys(flavor)) {
+    cards[id] = { mutters: { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]>, flavor: flavor[id] };
+  }
+  return storeBatch(env, opts.lang, normalRaw, cards, bubbles);
 }
 
 // Merge a freshly-built batch into KV and return it. Never clobbers good
@@ -198,6 +236,7 @@ export async function storeBatch(
         if (p.mutters) for (const k of MOODS) {
           if (!cards[id].mutters[k]?.length && p.mutters[k]?.length) cards[id].mutters[k] = p.mutters[k];
         }
+        if (!cards[id].flavor && p.flavor) cards[id].flavor = p.flavor; // flavor never-clobber
       }
       // bubbles never-clobber, per group: a part that came back empty this run
       // keeps whatever the last batch held, so no pool ever goes dark
@@ -225,7 +264,7 @@ export async function putForLang(env: Env, lang: Lang, body: unknown): Promise<C
   const b = (body || {}) as {
     normal?: unknown;
     bubbles?: Record<string, unknown>;
-    cards?: Record<string, { mutters?: Record<string, unknown> }>;
+    cards?: Record<string, { mutters?: Record<string, unknown>; flavor?: Record<string, unknown> }>;
   };
   const nNormal = parseInt(env.CARDS_PER_DAY || '24', 10);
   const nMutters = parseInt(env.MUTTERS_PER_DAY || '12', 10);
@@ -236,6 +275,12 @@ export async function putForLang(env: Env, lang: Lang, body: unknown): Promise<C
     const mutters = {} as Record<MutterMood, string[]>;
     for (const k of MOODS) mutters[k] = dedupeLines(sanitizeList(src[k], nMutters));
     cards[id] = { mutters };
+    const fl = b.cards?.[id]?.flavor;
+    if (fl) {
+      const mutter = dedupeLines(sanitizeList(fl.mutter, 8));
+      const greet = dedupeLines(sanitizeList(fl.greet, 8));
+      if (mutter.length || greet.length) cards[id].flavor = { ...(mutter.length && { mutter }), ...(greet.length && { greet }) };
+    }
   }
   const bubbles: Bubbles = {
     ...sanitizeBubblesPart(b.bubbles || null, 'voice'),

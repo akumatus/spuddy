@@ -41,6 +41,11 @@ Read the **exact current prompts and persona voices** from
   sedentary / nightMsg care lines). Follow the counts and moment descriptions
   spelled out in each prompt; the two JSON objects merge into one `bubbles`
   field.
+- `buildFlavorPrompt(lang)` — per-persona FLAVOR lines, one small call covering
+  all six personas: **4 mutters + 4 greetings each, in that persona's voice**.
+  These ride in the POST body as `cards.<id>.flavor = { mutter, greet }`; the
+  app mixes them into the shared pools at a low rate so buddies keep their
+  accent.
 
 For `zh`, write genuinely Chinese lines (not translated English) — the prompts
 already carry the Chinese-language instructions; honor them.
@@ -84,6 +89,14 @@ add fewer rather than inventing or stretching — quality bar over hitting 60.
     "hi":       { "morning": ["…6…"], "afternoon": ["…6…"], "evening": ["…6…"], "night": ["…6…"] },
     "poke": ["…8…"], "retap": ["…8…"], "drawLines": ["…8…"], "weaveLines": ["…4…"],
     "cardHint": ["…4…"], "sedentary": ["…4…"], "nightMsg": ["…4…"]
+  },
+  "cards": {
+    "spud":  { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
+    "taco":  { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
+    "donut": { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
+    "bloom": { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
+    "leo":   { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
+    "grad":  { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } }
   }
 }
 ```

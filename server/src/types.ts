@@ -69,6 +69,9 @@ export type MutterMood = (typeof MOODS)[number];
 export interface CharBatch {
   normal?: string[]; // pre-split batches kept normals per persona
   mutters: Record<MutterMood, string[]>;
+  // a small daily set of lines in THIS persona's voice, mixed into the shared
+  // pools at a low rate on the app side (~4 mutters + ~4 greetings per day)
+  flavor?: { mutter?: string[]; greet?: string[] };
 }
 
 // Shared, daily-refreshed bubble/greeting pools — ONE voice-neutral set every

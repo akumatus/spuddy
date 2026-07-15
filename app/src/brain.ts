@@ -164,7 +164,15 @@ export interface BrainOptions {
   personality?: Partial<Personality>;
   timeScale?: number;
   canAct?: () => boolean;
+  // today's flavor mutters for the ACTIVE buddy (small, in its own voice) — a
+  // thunk so buddy switches apply immediately; mixed in at FLAVOR_CHANCE
+  flavor?: () => string[] | null;
 }
+
+// How often an idle mutter comes from the active buddy's tiny flavor set
+// instead of the shared pool — enough accent to be felt, rare enough that the
+// ~4 flavor lines don't wear out within a day.
+const FLAVOR_CHANCE = 0.15;
 
 export class SpudBrain {
   A: Animator;
@@ -172,6 +180,7 @@ export class SpudBrain {
   P: Personality;
   timeScale: number;
   canAct: () => boolean;
+  flavor: () => string[] | null;
   needs: Needs;
   state: BrainState;
   clock: number;
@@ -192,12 +201,13 @@ export class SpudBrain {
   timer: number;
   lastRoutine?: RoutineKey;
 
-  constructor({ animator, on = {}, personality, timeScale = 1, canAct }: BrainOptions) {
+  constructor({ animator, on = {}, personality, timeScale = 1, canAct, flavor }: BrainOptions) {
     this.A = animator;
     this.on = on;                       // callbacks: mutter/speak/emote/state/log/needs/sfx
     this.P = { curious: 0.65, clingy: 0.6, drama: 0.55, sleepy: 0.35, ...(personality || {}) };
     this.timeScale = timeScale;
     this.canAct = canAct || (() => true);
+    this.flavor = flavor || (() => null);
     this.needs = { energy: 74, boredom: 38, social: 30 };
     this.state = 'alone';
     this.clock = 0;                     // scaled seconds lived
@@ -272,9 +282,12 @@ export class SpudBrain {
   nearBy(): boolean { return !this.simAway && performance.now() - this.lastPointer < 60000; }
   randMutterGap(): number { return (9 + Math.random() * 8) / (0.55 + this.P.curious * 0.75); }
   fresh(poolKey: MutterPool): string {
-    // Draw from today's shared server pool for this mood when the batch carries
-    // one (all six moods now, via Bubbles.mutter), else the built-in lines —
-    // always without replacement, so a pool cycles fully before any repeat.
+    // Occasionally the active buddy's own tiny flavor set — its accent — and
+    // otherwise today's shared pool for this mood (all six moods via
+    // Bubbles.mutter), else the built-in lines. Always without replacement,
+    // so a pool cycles fully before any repeat.
+    const fl = this.flavor();
+    if (fl && fl.length && Math.random() < FLAVOR_CHANCE) return this.pickNoRepeat(fl);
     return this.pickNoRepeat(pool('mutter', poolKey));
   }
   // Draw one line from a pool WITHOUT replacement. Used indices are tracked per

@@ -76,6 +76,15 @@ export function serverQuotes(): Quote[] | null {
   return Array.isArray(q) && q.length ? q : null;
 }
 
+// Today's flavor lines for a persona ('mutter' | 'greet') — a small daily set
+// in that character's own voice, or null. Mixed into the shared pools at a low
+// rate by the callers; returns the batch's own array (stable identity).
+export function flavor(charId: CharId, kind: 'mutter' | 'greet'): string[] | null {
+  const c = BATCH && BATCH.cards && BATCH.cards[charId];
+  const arr = c && c.flavor && c.flavor[kind];
+  return Array.isArray(arr) && arr.length ? arr : null;
+}
+
 // A shared daily bubble/greeting pool from today's batch, or null → the caller
 // falls back to the app's built-in content pack (see content.ts `pool`). `group`
 // is a Bubbles field; `key` indexes the nested groups (mutter/speak/routines/hi)

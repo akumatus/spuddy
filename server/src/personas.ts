@@ -389,3 +389,20 @@ export function buildBubblesPrompt(part: BubblePart, lang: Lang = 'en'): string 
     zhBatchBlock(lang, 20)
   );
 }
+
+// Per-persona flavor lines — a SMALL daily set in each character's own voice,
+// mixed into the shared bubble pools at a low rate on the app side so buddies
+// keep their accent without a full per-persona batch. ONE call covers all six.
+export function buildFlavorPrompt(lang: Lang = 'en'): string {
+  const roster = CHAT_IDS.map((id) => `"${id}": ${PERSONAS[id].name} — ${PERSONAS[id].voice}`).join('\n');
+  return (
+    `You write tiny daily flavor lines for six hand-crocheted potato desktop pets. Their voices:\n${roster}\n` +
+    `For EACH persona write, IN THAT PERSONA'S VOICE: "mutter" — 4 private lines murmured to itself ` +
+    `(not addressed to the human, never "you"/"friend"; quiet, whimsical, a touch absurd), and ` +
+    `"greet" — 4 short hellos spoken to the returning human, any time of day, nudging them to poke for today's card. ` +
+    `Each line MAX 12 words. No emojis, no quotation marks, no numbering, no emotion tags. Every line distinct. ` +
+    `Return ONLY minified JSON of the exact shape ` +
+    `{"spud":{"mutter":[...],"greet":[...]},"taco":{...},"donut":{...},"bloom":{...},"leo":{...},"grad":{...}}.` +
+    zhBatchBlock(lang, 18)
+  );
+}

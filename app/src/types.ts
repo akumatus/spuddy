@@ -119,6 +119,9 @@ export interface CharBatch {
   golden?: string[];
   normal?: string[]; // older pre-split batches kept normals per persona
   mutters?: Partial<Record<MutterMood, string[]>>;
+  // small daily set in THIS persona's voice, mixed into the shared pools at a
+  // low rate so buddies keep their accent (see brain FLAVOR_CHANCE / greet)
+  flavor?: { mutter?: string[]; greet?: string[] };
 }
 
 // Shared, daily-refreshed bubble/greeting pools — one voice-neutral set every

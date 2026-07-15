@@ -231,9 +231,12 @@ export function pool(group: string, key?: string, charId?: CharId): string[] {
   return typeof g === 'string' ? [g] : []; // single-line built-ins (cardHint/sedentary/nightMsg)
 }
 
-// The active buddy's greeting for the current time of day — drawn from today's
-// fresh daypart pool when the server has one, else the built-in daypart line.
+// The active buddy's greeting for the current time of day — occasionally its
+// own daily flavor hello (accent), otherwise today's fresh daypart pool when
+// the server has one, else the built-in daypart line.
 export function greet(id: CharId, d = new Date()): string {
+  const fl = remote.flavor(id, 'greet');
+  if (fl && fl.length && Math.random() < 0.25) return pickOne(fl);
   const p = pool('hi', daypart(d), id);
   if (p.length) return pickOne(p);
   const hi = (TXT().pers[id] || TXT().pers.spud).hi;
