@@ -1,0 +1,8 @@
+{
+  // Worktrees live under .claude/worktrees/<task> (depth 3). Raise the scan
+  // depth so VS Code's Source Control panel discovers them as repositories.
+  "git.repositoryScanMaxDepth": 3,
+  // Auto-scan can skip dot-folders like .claude — point VS Code at the
+  // worktrees directory explicitly.
+  "git.scanRepositories": [".claude/worktrees/quote-pool", ".claude/worktrees/golden-card-variety"]
+}
