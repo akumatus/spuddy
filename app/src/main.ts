@@ -55,16 +55,13 @@ ctx.brain = new SpudBrain({
     sleepy: (per.sleepiness ?? 35) / 100,
   },
   // no decisions while you're actually using him (chat, book, weave), he's
-  // docked against a screen edge, or immersive mode has him on quiet duty
-  // (no idle mutters, routines, knocks or dozes — tap reactions still work)
+  // docked against a screen edge, immersive mode has him on quiet duty, or
+  // your cursor lives on another display (no idle mutters, routines, knocks
+  // or dozes — tap reactions still work)
   canAct: () =>
-    !state.immersive && !ctx.anim().docked &&
+    !state.immersive && !ctx.anim().docked && !ctx.otherDisplay &&
     !ctx.anim().tucked && !isOverlayOpen() && !ctx.chatBusy && !ctx.weaving &&
     document.visibilityState !== 'hidden' && document.activeElement !== $('chatInput'),
-  // fresh daily mutters (pre-generated server-side, no real-time LLM); ~half of
-  // idle mutters come from today's batch, the rest from the built-in lines
-  serverMutters: (mood) => remote.mutterPool(ctx.activeChar().id, mood),
-  mutterFreshChance: 0.5,
   on: {
     mutter: (text) => showMutter(text),
     speak: (text, ms) => bubble(text, { hold: ms }),

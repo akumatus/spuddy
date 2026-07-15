@@ -22,6 +22,9 @@ class AppContext {
 
   chatBusy = false;
   weaving = false;
+  // the global cursor is on a different display than the pet — park all idle
+  // behavior (mutters, routines, knocks, dozes) until it comes back (watchers.ts)
+  otherDisplay = false;
 
   private afterPersist: (() => void)[] = [];
 

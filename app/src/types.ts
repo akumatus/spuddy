@@ -212,7 +212,7 @@ export interface EdgeInfo {
 // payload per push channel the main process emits
 export interface PpEventMap {
   sedentary: void;
-  cursor: { x: number; y: number };
+  cursor: { x: number; y: number; sameDisplay?: boolean }; // sameDisplay absent on older preloads
   edge: EdgeInfo;
   'set-lang': LangPref; // tray menu language pick — renderer persists + applies
   'update-note': string; // updater feedback, pre-localized — the pet says it out loud

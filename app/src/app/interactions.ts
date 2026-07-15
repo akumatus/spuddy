@@ -604,10 +604,13 @@ export function wireInteractions(): void {
   // keeps watching even while the pointer roams other windows; eyes lead, head
   // follows (Turn 6). ±420px from his nose = full turn.
   let lastCursor: { x: number; y: number } | null = null;
-  pp.on('cursor', ({ x, y }) => {
+  pp.on('cursor', ({ x, y, sameDisplay }) => {
     // presence for the brain: the cursor actually moving means you're there
     if (lastCursor && Math.abs(x - lastCursor.x) + Math.abs(y - lastCursor.y) > 3) ctx.brain.pointerMove();
     lastCursor = { x, y };
+    // on another monitor → canAct() parks idle behavior (older preloads
+    // don't send the flag — treat missing as "same display")
+    ctx.otherDisplay = sameDisplay === false;
     // immersive mode / edge dock: presence still registers (cheap, and the
     // brain is gated anyway), but his eyes stay off your cursor — while docked
     // they rest on the screen's interior instead (see Animator.setDock)

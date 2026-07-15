@@ -19,7 +19,6 @@
 //     random), not the prototype's single fixed strings
 import { pool, type MutterPool } from './content';
 import type { AnimMode, Animator } from './scene/motions';
-import type { MutterMood } from './types';
 
 export type BrainState =
   | 'watch' | 'alone' | 'play' | 'doze' | 'knock' | 'wait' | 'sulk' | 'greet';
@@ -165,9 +164,6 @@ export interface BrainOptions {
   personality?: Partial<Personality>;
   timeScale?: number;
   canAct?: () => boolean;
-  // optional (mood) => string[] source of fresh, pre-generated daily mutters
-  serverMutters?: ((mood: MutterMood) => string[] | null) | null;
-  mutterFreshChance?: number;
 }
 
 export class SpudBrain {
@@ -176,8 +172,6 @@ export class SpudBrain {
   P: Personality;
   timeScale: number;
   canAct: () => boolean;
-  serverMutters: ((mood: MutterMood) => string[] | null) | null;
-  mutterFreshChance: number;
   needs: Needs;
   state: BrainState;
   clock: number;
@@ -198,17 +192,12 @@ export class SpudBrain {
   timer: number;
   lastRoutine?: RoutineKey;
 
-  constructor({ animator, on = {}, personality, timeScale = 1, canAct, serverMutters = null, mutterFreshChance = 0.5 }: BrainOptions) {
+  constructor({ animator, on = {}, personality, timeScale = 1, canAct }: BrainOptions) {
     this.A = animator;
     this.on = on;                       // callbacks: mutter/speak/emote/state/log/needs/sfx
     this.P = { curious: 0.65, clingy: 0.6, drama: 0.55, sleepy: 0.35, ...(personality || {}) };
     this.timeScale = timeScale;
     this.canAct = canAct || (() => true);
-    // optional (mood) => string[] source of fresh, pre-generated daily mutters;
-    // used first whenever it has lines, with the built-in pool only backing it up
-    // offline (mutterFreshChance is retained for the API but no longer gates it)
-    this.serverMutters = serverMutters;
-    this.mutterFreshChance = mutterFreshChance;
     this.needs = { energy: 74, boredom: 38, social: 30 };
     this.state = 'alone';
     this.clock = 0;                     // scaled seconds lived

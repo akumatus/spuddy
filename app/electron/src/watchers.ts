@@ -14,7 +14,11 @@ export function startWatchers(): void {
     if (Math.abs(p.x - lastCursor.x) + Math.abs(p.y - lastCursor.y) < 3) return;
     lastCursor = p;
     const [wx, wy] = win.getPosition();
-    win.webContents.send('cursor', { x: p.x - wx, y: p.y - wy });
+    // whether the cursor is on the pet's own display — while the human works on
+    // another monitor the renderer parks all idle behavior (mutters, routines,
+    // knocks, dozes) so the pet doesn't chatter to an empty screen
+    const sameDisplay = screen.getDisplayNearestPoint(p).id === screen.getDisplayMatching(win.getBounds()).id;
+    win.webContents.send('cursor', { x: p.x - wx, y: p.y - wy, sameDisplay });
   }, 90);
 
   // ── sedentary watch: 90 min of continuous activity → stretch reminder ──

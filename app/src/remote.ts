@@ -3,7 +3,7 @@
 // isn't configured or is unreachable, the pools stay null and callers fall back
 // to the built-in offline content in the language packs.
 import { lang } from './locale';
-import type { CardsBatch, CharId, Lang, MutterMood, Quote } from './types';
+import type { CardsBatch, CharId, Lang, Quote } from './types';
 
 const pp = window.pp;
 
@@ -74,14 +74,6 @@ export function normalPool(charId: CharId): string[] | null {
 export function serverQuotes(): Quote[] | null {
   const q = BATCH && BATCH.quotes;
   return Array.isArray(q) && q.length ? q : null;
-}
-
-// Today's fresh mutter pool for a mood (watch/alone/lonely), or null → the brain
-// falls back to its built-in MUTTER lines. Zero real-time cost — pre-generated.
-export function mutterPool(charId: CharId, mood: MutterMood): string[] | null {
-  const c = BATCH && BATCH.cards && BATCH.cards[charId];
-  const m = c && c.mutters && c.mutters[mood];
-  return Array.isArray(m) && m.length ? m : null;
 }
 
 // A shared daily bubble/greeting pool from today's batch, or null → the caller
