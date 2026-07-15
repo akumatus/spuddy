@@ -244,6 +244,10 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
   // only swap the head + body content, leaving #book (and its animation) alone.
   const book = document.getElementById('book');
   if (book) {
+    // #book is a shared id: the buddies roster also uses it (with .buddiespanel,
+    // which forces height:auto). If we're morphing that panel into the cardbook,
+    // strip its class so the cardbook keeps its fixed height.
+    book.className = '';
     book.querySelector('.head')!.innerHTML = headInner;
     while (book.children.length > 1) book.lastElementChild!.remove();
     book.insertAdjacentHTML('beforeend', body);
