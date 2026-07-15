@@ -32,10 +32,15 @@ Read the **exact current prompts and persona voices** from
   Generate **~72 lines** (matches `CARDS_PER_DAY`). Follow every rule in that
   prompt: warm neutral potato voice, no character quirks, no pet names, no
   fortune-cookie metaphors, avoid the `BANNED_PHRASES`, vary sentence shapes.
-- `buildMutterPrompt(persona, n, lang)` — per-persona idle mutters, in that
-  character's voice, split across the three moods `watch` / `alone` / `lonely`.
-  Do this for **all six personas** (`spud, taco, donut, bloom, leo, grad` — the
-  `CHAT_IDS`), **~16 lines per mood** (matches `MUTTERS_PER_DAY`).
+- `buildBubblesPrompt(part, lang)` — the shared daily bubble pools, ONE
+  voice-neutral set every persona serves (this REPLACED the old per-persona
+  mutters — do not generate those anymore). Run it twice per language:
+  `part = 'voice'` (idle mutters for all six moods + the ten routine step
+  pools) and `part = 'social'` (speak greet/knock/delight, `hi` daypart
+  greetings, poke/retap reactions, draw/weave lines, and the cardHint /
+  sedentary / nightMsg care lines). Follow the counts and moment descriptions
+  spelled out in each prompt; the two JSON objects merge into one `bubbles`
+  field.
 
 For `zh`, write genuinely Chinese lines (not translated English) — the prompts
 already carry the Chinese-language instructions; honor them.
@@ -72,19 +77,20 @@ add fewer rather than inventing or stretching — quality bar over hitting 60.
 ```json
 {
   "normal": ["…72 neutral lines…"],
-  "cards": {
-    "spud":  { "mutters": { "watch": ["…"], "alone": ["…"], "lonely": ["…"] } },
-    "taco":  { "mutters": { "watch": ["…"], "alone": ["…"], "lonely": ["…"] } },
-    "donut": { "mutters": { "watch": ["…"], "alone": ["…"], "lonely": ["…"] } },
-    "bloom": { "mutters": { "watch": ["…"], "alone": ["…"], "lonely": ["…"] } },
-    "leo":   { "mutters": { "watch": ["…"], "alone": ["…"], "lonely": ["…"] } },
-    "grad":  { "mutters": { "watch": ["…"], "alone": ["…"], "lonely": ["…"] } }
+  "bubbles": {
+    "mutter":   { "watch": ["…20…"], "alone": ["…20…"], "lonely": ["…20…"], "sleepy": ["…8…"], "ignored": ["…8…"], "wake": ["…8…"] },
+    "routines": { "chaseStart": ["…4…"], "chaseEnd": ["…4…"], "juggleEnd": ["…4…"], "studyStart": ["…4…"], "studyEnd": ["…4…"], "practiceStart": ["…4…"], "practiceEnd": ["…4…"], "humEnd": ["…4…"], "stretchEnd": ["…4…"], "sneezeEnd": ["…4…"] },
+    "speak":    { "greet": ["…8…"], "knock": ["…8…"], "delight": ["…8…"] },
+    "hi":       { "morning": ["…6…"], "afternoon": ["…6…"], "evening": ["…6…"], "night": ["…6…"] },
+    "poke": ["…8…"], "retap": ["…8…"], "drawLines": ["…8…"], "weaveLines": ["…4…"],
+    "cardHint": ["…4…"], "sedentary": ["…4…"], "nightMsg": ["…4…"]
   }
 }
 ```
 
 Worker rules on receipt: each line 4–199 chars, near-dups collapse, empty fields
-keep last run's value (never-clobber). No `golden` field.
+keep last run's value (never-clobber, per bubbles group too). No `golden` field;
+a legacy `cards.<id>.mutters` field is still accepted but no longer needed.
 
 ### Quotes → `POST /admin/quotes?lang=<lang>`
 

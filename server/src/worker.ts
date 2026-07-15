@@ -80,8 +80,15 @@ async function bumpQuota(env: Env, q: QuotaState): Promise<void> {
 
 // Per-language batch summary for the admin responses (/admin/generate, /admin/put).
 function batchCounts(batch: CardsBatch): Record<string, unknown> {
+  // total lines across the shared bubble pools (nested groups + flat arrays)
+  const bubbles = Object.values(batch.bubbles || {}).reduce<number>((s, v) => {
+    if (Array.isArray(v)) return s + v.length;
+    const g = (v || {}) as Record<string, string[]>;
+    return s + Object.values(g).reduce((t, a) => t + (Array.isArray(a) ? a.length : 0), 0);
+  }, 0);
   return {
     normal: batch.normal.length,
+    bubbles,
     ...Object.fromEntries(
       Object.entries(batch.cards).map(([k, v]) => [
         k,
@@ -97,7 +104,12 @@ function batchCounts(batch: CardsBatch): Record<string, unknown> {
 async function todaysMusings(env: Env, charId: string | undefined, lang: Lang): Promise<string[]> {
   try {
     const raw = await env.KV.get(batchKey(lang));
-    const mutters = raw ? (JSON.parse(raw) as CardsBatch).cards?.[charId || '']?.mutters : null;
+    if (!raw) return [];
+    const batch = JSON.parse(raw) as CardsBatch;
+    // prefer the shared daily bubble mutters; fall back to a legacy batch's
+    // per-persona pools so older stored batches keep feeding the chat prompt
+    const shared = batch.bubbles?.mutter;
+    const mutters = shared && Object.keys(shared).length ? shared : batch.cards?.[charId || '']?.mutters;
     if (!mutters) return [];
     const pool = MOODS.flatMap((k) => mutters[k] || []);
     const out: string[] = [];
@@ -129,7 +141,7 @@ export default {
         if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes });
         const data = JSON.parse(raw) as CardsBatch;
         const char = url.searchParams.get('char');
-        if (char) return json({ date: data.date, normal: data.normal || [], cards: { [char]: data.cards[char] || null }, quotes });
+        if (char) return json({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes });
         return json({ ...data, quotes });
       }
 

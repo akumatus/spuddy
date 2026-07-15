@@ -71,6 +71,34 @@ export interface CharBatch {
   mutters: Record<MutterMood, string[]>;
 }
 
+// Shared, daily-refreshed bubble/greeting pools — ONE voice-neutral set every
+// persona draws from (mirrors the shared `normal` pool; the app falls back to
+// its built-in packs when a group is missing). Group/key names mirror the
+// app's content packs: mutter moods (all six), routine step lines, spoken
+// social lines, daypart greetings, and the flat reaction/care pools.
+export const BUBBLE_MOODS = ['watch', 'alone', 'lonely', 'sleepy', 'ignored', 'wake'] as const;
+export const ROUTINE_KEYS = [
+  'chaseStart', 'chaseEnd', 'juggleEnd', 'studyStart', 'studyEnd',
+  'practiceStart', 'practiceEnd', 'humEnd', 'stretchEnd', 'sneezeEnd',
+] as const;
+export const SPEAK_KEYS = ['greet', 'knock', 'delight'] as const;
+export const DAYPARTS = ['morning', 'afternoon', 'evening', 'night'] as const;
+export const BUBBLE_FLAT = ['poke', 'retap', 'drawLines', 'weaveLines', 'cardHint', 'sedentary', 'nightMsg'] as const;
+
+export interface Bubbles {
+  mutter?: Record<string, string[]>;
+  speak?: Record<string, string[]>;
+  routines?: Record<string, string[]>;
+  hi?: Record<string, string[]>;
+  poke?: string[];
+  retap?: string[];
+  drawLines?: string[];
+  weaveLines?: string[];
+  cardHint?: string[];
+  sedentary?: string[];
+  nightMsg?: string[];
+}
+
 // A curated famous line (film / series / book / speech / internet). Lives in a
 // persistent, growing KV library (quotes:<lang>, see quotes-store.ts) that the
 // daily membership routine APPENDS to; GET /cards serves the whole library
@@ -86,5 +114,6 @@ export interface Quote {
 export interface CardsBatch {
   date: string;
   normal: string[]; // the shared voice-neutral pool every persona draws from
+  bubbles?: Bubbles; // shared daily bubble/greeting pools (absent on pre-bubbles batches)
   cards: Record<string, CharBatch>;
 }

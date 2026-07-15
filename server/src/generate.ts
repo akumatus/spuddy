@@ -3,9 +3,12 @@
 // language — then stores each batch in KV (cards:current for English,
 // cards:current:zh for Chinese). Golden cards are not baked here: the app
 // draws them live or from the curated famous-quote pool (quotes-*.ts).
-import { CHAT_IDS, PERSONAS, buildMutterPrompt, buildNormalBatchPrompt } from './personas';
+import { CHAT_IDS, buildBubblesPrompt, buildNormalBatchPrompt, type BubblePart } from './personas';
 import { callLLMChain, genProviderChain, loadConfig } from './providers';
-import { MOODS, batchKey, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood } from './types';
+import {
+  BUBBLE_FLAT, BUBBLE_MOODS, DAYPARTS, MOODS, ROUTINE_KEYS, SPEAK_KEYS, batchKey,
+  type Bubbles, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood,
+} from './types';
 import { clean, today } from './util';
 
 interface GenOpts {
@@ -86,54 +89,81 @@ async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
   return dedupeLines(results.flat()).slice(0, opts.nNormal);
 }
 
-async function generateMuttersForChar(env: Env, id: string, opts: GenOpts): Promise<{ mutters: Record<MutterMood, string[]> }> {
-  // Mutters are short idle-monologue lines, so ONE call per persona is plenty —
-  // no need for the cards' multi-run variety strategy (the prompt already seeds
-  // its own inspiration). A single request generates the full per-mood count,
-  // with one retry. This keeps the daily batch cheap: 6 mutter calls, not 6×runs.
-  const prompt = buildMutterPrompt(PERSONAS[id], opts.nMutters, opts.lang);
-  const mutters = { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]>;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const { text } = await callLLMChain(env, opts.genChain, {
-        system: '',
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 3500, // ~48 short lines of JSON (nMutters × 3 moods) — headroom against truncation
-        temperature: 0.95, // the mutter prompt already asks for absurdity; higher tips it into word salad
-        timeoutMs: 240000,
-        json: true,
-        models: opts.models,
-      });
-      const parsed = extractJson(text);
-      for (const k of MOODS) mutters[k] = dedupeLines(sanitizeList(parsed?.[k], opts.nMutters));
-      if (MOODS.some((k) => mutters[k].length)) return { mutters };
-    } catch (e) {
-      // transient — fall through to retry
+// Per-pool cap — generous slack above the prompt's asked-for counts so a chatty
+// run isn't truncated to nothing useful, while a runaway response stays bounded.
+const BUBBLE_POOL_MAX = 40;
+
+// Coerce one part's parsed JSON into clean Bubbles groups, dropping anything
+// malformed and deduping near-identical lines within each pool.
+function sanitizeBubblesPart(parsed: Record<string, unknown> | null, part: BubblePart): Bubbles {
+  const out: Bubbles = {};
+  const group = (src: unknown, keys: readonly string[]): Record<string, string[]> | undefined => {
+    if (!src || typeof src !== 'object') return undefined;
+    const g: Record<string, string[]> = {};
+    let any = false;
+    for (const k of keys) {
+      const lines = dedupeLines(sanitizeList((src as Record<string, unknown>)[k], BUBBLE_POOL_MAX));
+      if (lines.length) { g[k] = lines; any = true; }
     }
+    return any ? g : undefined;
+  };
+  if (part === 'voice') {
+    out.mutter = group(parsed?.mutter, BUBBLE_MOODS);
+    out.routines = group(parsed?.routines, ROUTINE_KEYS);
+    return out;
   }
-  return { mutters };
+  out.speak = group(parsed?.speak, SPEAK_KEYS);
+  out.hi = group(parsed?.hi, DAYPARTS);
+  for (const k of BUBBLE_FLAT) {
+    const lines = dedupeLines(sanitizeList(parsed?.[k], BUBBLE_POOL_MAX));
+    if (lines.length) out[k] = lines;
+  }
+  return out;
+}
+
+// The shared daily bubble pools — TWO calls per language (voice + social),
+// replacing the old six per-persona mutter calls: cheaper, and every persona
+// now shares one fresh voice-neutral set (per-persona flavor rides separately).
+async function generateBubbles(env: Env, opts: GenOpts): Promise<Bubbles> {
+  const part = async (p: BubblePart): Promise<Bubbles> => {
+    const prompt = buildBubblesPrompt(p, opts.lang);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const { text } = await callLLMChain(env, opts.genChain, {
+          system: '',
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 5000, // ~90-130 short JSON lines per part — headroom against truncation
+          temperature: 0.95, // absurdity comes from the prompt; hotter corrupts JSON mode
+          timeoutMs: 240000,
+          json: true,
+          models: opts.models,
+        });
+        const got = sanitizeBubblesPart(extractJson(text), p);
+        if (Object.keys(got).length) return got;
+      } catch (e) {
+        // transient (rate limit / timeout) — fall through to retry
+      }
+    }
+    return {};
+  };
+  const [voice, social] = await Promise.all([part('voice'), part('social')]);
+  return { ...voice, ...social };
 }
 
 // One language's full batch: shared normal pool + per-persona mutters. Golden
 // cards are no longer baked here — the app draws goldens from the live weave or
 // the curated famous-quote pool (server/src/quotes-*.ts) instead.
 async function generateBatch(env: Env, opts: GenOpts): Promise<CardsBatch> {
-  // Generate the shared pool and every persona's mutters CONCURRENTLY.
+  // Generate the shared normal pool and the shared bubble pools CONCURRENTLY.
   // Sequential calls accumulate wall time and the later ones get throttled/cut;
-  // concurrent keeps total time ~= one call.
-  const [normalRaw, results] = await Promise.all([
+  // concurrent keeps total time ~= one call. Per-persona mutters are no longer
+  // generated here — the shared bubbles replaced them (storeBatch still carries
+  // any previously stored per-persona mutters forward for older app versions).
+  const [normalRaw, bubbles] = await Promise.all([
     generateNormalPool(env, opts).catch(() => [] as string[]),
-    Promise.all(
-      CHAT_IDS.map((id): Promise<CharBatch> =>
-        generateMuttersForChar(env, id, opts).catch(() => ({
-          mutters: { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]>,
-        }))
-      )
-    ),
+    generateBubbles(env, opts).catch(() => ({} as Bubbles)),
   ]);
-  const cards: Record<string, CharBatch> = {};
-  CHAT_IDS.forEach((id, i) => { cards[id] = results[i]; });
-  return storeBatch(env, opts.lang, normalRaw, cards);
+  return storeBatch(env, opts.lang, normalRaw, {}, bubbles);
 }
 
 // Merge a freshly-built batch into KV and return it. Never clobbers good
@@ -145,7 +175,8 @@ export async function storeBatch(
   env: Env,
   lang: Lang,
   normalRaw: string[],
-  cards: Record<string, CharBatch>
+  cards: Record<string, CharBatch>,
+  bubbles: Bubbles = {}
 ): Promise<CardsBatch> {
   let normal = normalRaw;
   const key = batchKey(lang);
@@ -163,14 +194,23 @@ export async function storeBatch(
       for (const id of CHAT_IDS) {
         const p = prevCards[id];
         if (!p) continue;
+        if (!cards[id]) cards[id] = { mutters: { watch: [], alone: [], lonely: [] } as Record<MutterMood, string[]> };
         if (p.mutters) for (const k of MOODS) {
           if (!cards[id].mutters[k]?.length && p.mutters[k]?.length) cards[id].mutters[k] = p.mutters[k];
         }
+      }
+      // bubbles never-clobber, per group: a part that came back empty this run
+      // keeps whatever the last batch held, so no pool ever goes dark
+      const prevBubbles = (prev.bubbles || {}) as Record<string, unknown>;
+      const merged = bubbles as Record<string, unknown>;
+      for (const g of Object.keys(prevBubbles)) {
+        if (merged[g] == null) merged[g] = prevBubbles[g];
       }
     } catch (e) {}
   }
 
   const data: CardsBatch = { date: today(), normal, cards };
+  if (Object.keys(bubbles).length) data.bubbles = bubbles;
   await env.KV.put(key, JSON.stringify(data));
   return data;
 }
@@ -179,9 +219,14 @@ export async function storeBatch(
 // routine running on the maintainer's own membership, POSTed to /admin/put).
 // The Worker does no LLM work here — it only sanitizes and stores, so this path
 // costs nothing against the API budget. Body shape mirrors what the app reads:
-//   { normal: string[], cards: { <charId>: { mutters: { watch, alone, lonely } } } }
+//   { normal: string[], bubbles: { mutter, speak, routines, hi, poke, … },
+//     cards: { <charId>: { mutters: { watch, alone, lonely } } } }   (cards optional/legacy)
 export async function putForLang(env: Env, lang: Lang, body: unknown): Promise<CardsBatch> {
-  const b = (body || {}) as { normal?: unknown; cards?: Record<string, { mutters?: Record<string, unknown> }> };
+  const b = (body || {}) as {
+    normal?: unknown;
+    bubbles?: Record<string, unknown>;
+    cards?: Record<string, { mutters?: Record<string, unknown> }>;
+  };
   const nNormal = parseInt(env.CARDS_PER_DAY || '24', 10);
   const nMutters = parseInt(env.MUTTERS_PER_DAY || '12', 10);
   const normal = dedupeLines(sanitizeList(b.normal, nNormal));
@@ -192,7 +237,11 @@ export async function putForLang(env: Env, lang: Lang, body: unknown): Promise<C
     for (const k of MOODS) mutters[k] = dedupeLines(sanitizeList(src[k], nMutters));
     cards[id] = { mutters };
   }
-  return storeBatch(env, lang, normal, cards);
+  const bubbles: Bubbles = {
+    ...sanitizeBubblesPart(b.bubbles || null, 'voice'),
+    ...sanitizeBubblesPart(b.bubbles || null, 'social'),
+  };
+  return storeBatch(env, lang, normal, cards, bubbles);
 }
 
 // ONE language per invocation — hard requirement, not a preference. A single
