@@ -29,9 +29,13 @@ Read the **exact current prompts and persona voices** from
 [`server/src/personas.ts`](../src/personas.ts) so the register never drifts:
 
 - `buildNormalBatchPrompt(n, lang)` — the shared, voice-neutral normal pool.
-  Generate **~72 lines** (matches `CARDS_PER_DAY`). Follow every rule in that
+  Generate **~180 lines** (matches `CARDS_PER_DAY`). Follow every rule in that
   prompt: warm neutral potato voice, no character quirks, no pet names, no
   fortune-cookie metaphors, avoid the `BANNED_PHRASES`, vary sentence shapes.
+  At this size especially, generate across **~9 focused passes of ~20 lines**
+  (each drawing its own inspiration seeds) rather than one long dump — long
+  batches template out toward the tail. `/admin/put` dedupes and caps at
+  `CARDS_PER_DAY`, so a little overshoot is fine.
 - `buildBubblesPrompt(part, lang)` — the shared daily bubble pools, ONE
   voice-neutral set every persona serves (this REPLACED the old per-persona
   mutters — do not generate those anymore). Run it twice per language:
@@ -81,7 +85,7 @@ add fewer rather than inventing or stretching — quality bar over hitting 60.
 
 ```json
 {
-  "normal": ["…72 neutral lines…"],
+  "normal": ["…180 neutral lines…"],
   "bubbles": {
     "mutter":   { "watch": ["…20…"], "alone": ["…20…"], "lonely": ["…20…"], "sleepy": ["…8…"], "ignored": ["…8…"], "wake": ["…8…"] },
     "routines": { "chaseStart": ["…4…"], "chaseEnd": ["…4…"], "juggleEnd": ["…4…"], "studyStart": ["…4…"], "studyEnd": ["…4…"], "practiceStart": ["…4…"], "practiceEnd": ["…4…"], "humEnd": ["…4…"], "stretchEnd": ["…4…"], "sneezeEnd": ["…4…"] },

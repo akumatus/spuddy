@@ -55,9 +55,11 @@ DEEPSEEK_MODEL = "deepseek-v4-flash"
 CHAT_DAILY_LIMIT = "100"
 # Pool sizes. CARDS_PER_DAY is the SHARED normal pool (voice-neutral — every
 # persona draws from it). Sized for the app's no-replacement gacha: heavy users
-# burn through the whole pool in a day. (Goldens are no longer generated here —
-# the app draws them live or from the curated famous-quote pool.)
-CARDS_PER_DAY = "72"
+# burn through the whole pool in a day, so keep it roomy. Also caps how many
+# normal lines /admin/put will store, so the routine's batch must not exceed it.
+# (Goldens are no longer generated here — the app draws them live or from the
+# curated famous-quote pool.)
+CARDS_PER_DAY = "180"
 # Mutters (private inner-monologue) per mood (watch/alone/lonely) per persona.
 MUTTERS_PER_DAY = "16"
 # Cap on the persistent famous-quote library (quotes:<lang>). The daily routine
@@ -66,9 +68,10 @@ MUTTERS_PER_DAY = "16"
 QUOTES_LIB_MAX = "1000"
 # Small generation calls per pool per day — several small batches, each with
 # its own random inspiration seeds, beat one long call that templates out.
-# Scales with CARDS_PER_DAY: ~18 normal lines per call keeps quality up
-# (long single batches template out toward the tail).
-GEN_RUNS = "4"
+# Scales with CARDS_PER_DAY: ~20 normal lines per call keeps quality up
+# (long single batches template out toward the tail). Only the cron fallback
+# uses this; the membership routine paces itself per the playbook.
+GEN_RUNS = "9"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:
 #   ANTHROPIC_API_KEY  (primary — chat + cron generation default to anthropic, alias "claude")
