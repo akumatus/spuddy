@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "server-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "server", "run", "dev", "--", "--llm", "claude"],
+      "port": 8787
+    },
+    {
       "name": "spuddy-site",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4321", "--directory", "web"],
