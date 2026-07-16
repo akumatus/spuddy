@@ -194,8 +194,11 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
     // patch: sunny ones dashed gold, rainy ones dashed blue, a little doodle face
     // wearing the mood, the category stitched on and the day it was kept. Newest
     // first. Hover a patch to unpick it.
-    const patches = state.memory
-      .map((m, i) => ({ ...m, i }))
+    // Attic (retired) cards stay off the quilt — index i is captured BEFORE
+    // the filter, so the del button still splices the right state.memory slot.
+    const shown = state.memory.map((m, i) => ({ ...m, i })).filter((m) => !m.retired);
+    const patches = shown
+      .slice()
       .reverse()
       .map((m) => {
         const mood = memMood(m);
@@ -220,14 +223,14 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
       .join('');
     body = `
       ${
-        state.memory.length === 0
+        shown.length === 0
           ? `<div class="empty">${ui.emptyMem}</div>`
           : `<div class="memhead">${ui.memHead}</div>
              <div class="memgrid">${patches}</div>`
       }
       <div class="bookfoot">
         <span class="hint">${ui.hintMem}</span>
-        ${state.memory.length ? `<button class="clear" id="memClear">${ui.clearAll}</button>` : ''}
+        ${shown.length ? `<button class="clear" id="memClear">${ui.clearAll}</button>` : ''}
       </div>`;
   }
 
@@ -235,7 +238,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
         <span class="title">${ui.bookTitle}</span>
         <button class="tab ${tab === 'cards' ? 'on' : ''}" data-tab="cards">${ui.tabCards} · ${state.cards.length}</button>
         <button class="tab ${tab === 'chat' ? 'on' : ''}" data-tab="chat">${ui.tabChat}</button>
-        <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">${ui.tabMem} · ${state.memory.length}</button>
+        <button class="tab ${tab === 'mem' ? 'on' : ''}" data-tab="mem">${ui.tabMem} · ${state.memory.filter((m) => !m.retired).length}</button>
         <button class="close" id="bookClose">×</button>`;
 
   // Re-render in place while the book is already open. Recreating #book (via

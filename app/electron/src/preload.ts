@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('pp', {
   ai: {
     reply: (payload: unknown) => ipcRenderer.invoke('ai-reply', payload),
     distill: (payload: unknown) => ipcRenderer.invoke('ai-distill', payload),
+    consolidate: (payload: unknown) => ipcRenderer.invoke('ai-consolidate', payload),
     golden: (payload: unknown) => ipcRenderer.invoke('ai-golden', payload),
     greet: (payload: unknown) => ipcRenderer.invoke('ai-greet', payload),
   },

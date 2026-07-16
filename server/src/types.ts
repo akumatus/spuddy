@@ -88,6 +88,26 @@ export interface DistillFact {
   updates?: number;
 }
 
+// POST body for /consolidate — the periodic curation pass over the WHOLE fact
+// list (see app/src/app/consolidate.ts): merge fragments about one entity,
+// reword aged phrasing, retire long-passed states. Runs rarely (weekly-ish);
+// most passes should be no-ops.
+export interface ConsolidatePayload {
+  deviceId?: string;
+  day?: number; // today's friendship day — ages the facts below
+  lang?: string;
+  memory?: { fact?: string; kind?: string; mood?: string | null; day?: number }[];
+}
+
+// One curation operation in the /consolidate response. All refs are 1-based
+// indices into the memory list AS SENT. merge folds `from` cards into `into`
+// (optionally with richer text); reword replaces wording only; retire moves a
+// long-passed state to the attic (hidden from prompts, recoverable).
+export type ConsolidateOp =
+  | { op: 'merge'; into: number; from: number[]; fact?: string; kind?: string; mood?: string | null }
+  | { op: 'reword'; target: number; fact: string }
+  | { op: 'retire'; target: number };
+
 export interface ChatTurn {
   role: string;
   content: string;

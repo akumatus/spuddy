@@ -22,6 +22,7 @@
 // mid-call stay beyond the captured end and are never skipped.
 import { lang } from '../locale';
 import * as store from '../store';
+import { maybeConsolidate } from './consolidate';
 import { ctx, pp } from './context';
 import { rememberFact, updateFact } from './memory';
 
@@ -82,8 +83,9 @@ async function runDistill(): Promise<void> {
   try {
     // Snapshot the fact cards before the call: the response's `updates` refs
     // are indices into THIS list, and chat may append (or the Book delete)
-    // cards while the request is in flight.
-    const memSnapshot = state.memory.slice();
+    // cards while the request is in flight. Active only — a correction to an
+    // attic card isn't a thing (re-affirming un-retires via rememberFact).
+    const memSnapshot = store.activeMemory(state);
     const res = await pp.ai.distill({
       day: state.day,
       lang: lang(),
@@ -107,6 +109,8 @@ async function runDistill(): Promise<void> {
     }
     state.distilledUpTo = total;
     ctx.persist();
+    // fresh facts may have pushed the list toward the cap — curate if due
+    void maybeConsolidate();
   } finally {
     busy = false;
   }

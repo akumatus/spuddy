@@ -6,7 +6,7 @@
 // anchors. Models learn a voice far better from one real exchange than from a
 // paragraph of adjectives — cover different moods (down / win / hello / odd)
 // and different reply lengths so replies don't converge on one template.
-import type { ChatPayload, DistillFact, DistillPayload, Lang, RememberNote } from './types';
+import type { ChatPayload, ConsolidateOp, ConsolidatePayload, DistillFact, DistillPayload, Lang, RememberNote } from './types';
 import { clean, extractJson } from './util';
 
 export interface Persona {
@@ -373,6 +373,76 @@ export function parseDistillFacts(raw: string, maxTurn: number, maxMem = 0): Dis
     const updates = Number.isInteger(u) && u >= 1 && u <= maxMem ? u : undefined;
     out.push({ fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other', mood, turn, updates });
     if (out.length >= 5) break;
+  }
+  return out;
+}
+
+// ── /consolidate: periodic curation of the whole fact list ──
+// Extraction (chat notes, /distill) only ever ADDS or corrects single cards;
+// this pass is the housekeeping that keeps the quilt honest as it ages: same-
+// entity fragments merge into one richer card, wording that quietly went stale
+// gets refreshed, and a state recorded long ago that clearly passed retires to
+// the attic. Deliberately conservative — most passes should change nothing.
+export function buildConsolidateSystem(p: ConsolidatePayload): string {
+  return (
+    `You are the long-term memory curator of a tiny desk companion. The user message is the companion's numbered list of remembered facts about its human, each with the friendship day it was learned; today is day ${p.day || 1}. ` +
+    `Suggest at most 6 curation operations, and ONLY where one clearly improves the memory — a list needing nothing gets {"ops":[]}. Operations:` +
+    ` merge — several cards are fragments about the SAME entity or fact: fold them into one, optionally with richer combined text (only what the originals say — never invent a detail).` +
+    ` reword — the text aged badly ("just got...", "recently..." long ago, or a "today"-anchored phrasing): restate the same fact so it reads true now. Meaning must not change.` +
+    ` retire — a feeling, goal or other-kind fact that describes a TEMPORARY state (a stress spell, being sick, preparing for an exam, mid-move chaos) learned 30+ days ago with nothing newer in the list reaffirming it: treat it as passed and retire it. Do not keep such a state alive by rewording away its recency words — retire is the right op for an expired state; reword is only for facts that are still true. Never retire people, pets, likes, milestones or work facts — outdated ones get corrected elsewhere, not by you. For lasting griefs and losses, keep them: they don't expire on a calendar.` +
+    ` Write merged/reworded text in the same language as the original facts.` +
+    ` Respond with ONLY a JSON object, no prose: {"ops":[{"op":"merge","into":<n>,"from":[<n>...],"fact":"<combined text>"} | {"op":"reword","target":<n>,"fact":"<new text>"} | {"op":"retire","target":<n>}]}`
+  );
+}
+
+// The numbered fact list as the /consolidate user message. The "N days ago"
+// is precomputed — a model subtracting across a long list gets it wrong.
+export function consolidateList(p: ConsolidatePayload): string {
+  const today = p.day || 1;
+  return (p.memory || [])
+    .map((m, i) => {
+      const ago = typeof m.day === 'number' ? Math.max(0, today - m.day) : null;
+      return `${i + 1}. [${m.kind || 'other'}] ${m.fact || ''} (learned on day ${m.day ?? '?'}${ago === null ? '' : ` — ${ago} days ago`})`;
+    })
+    .join('\n');
+}
+
+// Kinds a curation pass may retire: states that expire by nature. Identity and
+// standing facts (people/pets/likes/milestone/work) are protected MECHANICALLY
+// here, not just by prompt — models drift past soft rules.
+const RETIRABLE_KINDS = ['feeling', 'goal', 'other'];
+
+// Parse + sanitize the /consolidate reply: unknown op types drop, refs must be
+// in-range 1-based ints, retire targets must be of a retirable kind (`kinds`
+// aligns with the sent list), merge needs a non-empty from list, reword needs
+// text. Caps at 6 ops. The app adds its own safety net on top (identity
+// checks, an abort when a pass tries to remove too much at once).
+export function parseConsolidateOps(raw: string, maxIdx: number, kinds: string[] = []): ConsolidateOp[] {
+  const obj = extractJson(raw);
+  const arr = obj && Array.isArray((obj as { ops?: unknown }).ops) ? ((obj as { ops: unknown[] }).ops) : [];
+  const okIdx = (v: unknown): v is number => Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= maxIdx;
+  const out: ConsolidateOp[] = [];
+  for (const o of arr) {
+    if (!o || typeof o !== 'object') continue;
+    const rec = o as Record<string, unknown>;
+    const fact = clean(String(rec.fact ?? ''));
+    if (rec.op === 'merge' && okIdx(rec.into) && Array.isArray(rec.from)) {
+      const from = rec.from.filter(okIdx).map(Number).filter((n) => n !== Number(rec.into));
+      if (!from.length) continue;
+      const kind = String(rec.kind ?? '').trim().toLowerCase();
+      out.push({
+        op: 'merge', into: Number(rec.into), from, fact: fact || undefined,
+        kind: MEMORY_KINDS.includes(kind) ? kind : undefined,
+        mood: MOODS[String(rec.mood ?? '').trim().toLowerCase()] || undefined,
+      });
+    } else if (rec.op === 'reword' && okIdx(rec.target) && fact) {
+      out.push({ op: 'reword', target: Number(rec.target), fact });
+    } else if (rec.op === 'retire' && okIdx(rec.target)) {
+      const kind = kinds[Number(rec.target) - 1];
+      if (kind !== undefined && !RETIRABLE_KINDS.includes(kind)) continue; // protected kind — drop the op
+      out.push({ op: 'retire', target: Number(rec.target) });
+    }
+    if (out.length >= 6) break;
   }
   return out;
 }

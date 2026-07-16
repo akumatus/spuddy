@@ -16,6 +16,8 @@ npm run eval -- --mode distill            # batch /distill path instead of in-re
 npm run eval -- --samples 3               # 3 replays, per-fact hit-rate averaged (temp is nonzero)
 npm run eval -- --provider anthropic      # score on Claude instead
 npm run eval -- --fixture 2026-07-16-heavy --out eval/out/new.json
+npm run eval -- --mode distill --fixture contradictions      # /distill `updates` corrections
+npm run eval -- --mode consolidate --fixture consolidation   # /consolidate curation ops
 ```
 
 Modes mirror the two extraction paths: `chat` replays turn by turn and parses
@@ -66,9 +68,11 @@ something with the model held constant.
 `fixtures/` is **git-ignored** — fixtures built from real conversations stay on
 your machine only (the baseline below was measured against a private one).
 Synthetic fixtures containing no real user data are force-added past the
-ignore (`git add -f`): `contradictions.json` ships that way, as a runnable
-example and as the regression for `/distill`'s `updates` corrections
-(seeded cards the conversation then contradicts).
+ignore (`git add -f`). Two ship that way: `contradictions.json` (regression
+for `/distill`'s `updates` corrections — seeded cards the conversation then
+contradicts) and `consolidation.json` (regression for `/consolidate` — an
+aged list that should merge/retire/reword, scored via `expectOps`/`avoidOps`;
+its `turns` are unused).
 
 `fixtures/<name>.json`:
 
