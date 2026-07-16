@@ -169,6 +169,14 @@ const MEMORY_DISCIPLINE =
 const MEMORY_WHAT_COUNTS =
   `What counts as new: a durable fact counts however it surfaced — stated outright, pieced together across several turns, or revealed in passing by a transient moment: "the dog is moping in this heat" is small talk about the weather, but "they have a dog" is a durable fact hiding inside it — keep the durable kernel, drop the transient wrapper. A new detail about someone already in your memory (a name, an age, something that happened to them) is NEW information, not a restatement — record the fuller telling; retellings of the same fact merge into one card. A lasting state they are living with — grief, depression, a hard situation at home or work, anything they keep coming back to — belongs under feeling (rainy), kept in their own words, even when the conversation is heavy and the replies turned sincere; only transient moods and small talk ("tired today", "it's hot out") don't count. Word each fact so it still reads true weeks later — never "today"/"yesterday" inside the fact itself (the card already carries the day you learned it): "just got a new air conditioner at home", not "installed a new AC today".`;
 
+// Recall-side aging: feelings and goals resolve with time, and asserting a
+// long-past low as someone's CURRENT state is the worst way to "remember" them
+// (a pet cheerfully probing a year-old depression). Rendered wherever a prompt
+// shows the fact list; extraction keeps recording these facts — this only
+// shapes how they're brought back up.
+const MEMORY_AGING =
+  `A feeling or goal fact learned many days before today may have passed since — bring it up as history or a gentle check-in ("how have things been with that lately?"), never assert it as their current state.`;
+
 // The Chinese kinship/subject style rider exists because zh kinship terms
 // encode viewpoint (爷爷 vs 外公) and models re-anchor them wrong — it mirrors
 // the English discipline rule.
@@ -307,7 +315,7 @@ export function buildChatSystem(persona: Persona, p: ChatPayload, musings: strin
         zhRememberLine(p.lang) +
         ` When a reply reveals nothing durable, add nothing. Never re-record a fact your long-term memory below already holds in the same detail, and at most one note per reply.`) +
     (muse ? `\nLittle thoughts already drifting through your head today — bring one up in passing only when it genuinely fits:\n${muse}` : '') +
-    (mem ? `\nLong-term memory of them — the complete list, all already known ("learned on day N" = which day of your friendship you learned it, NEVER anyone's age):\n${mem}` : '') +
+    (mem ? `\nLong-term memory of them — the complete list, all already known ("learned on day N" = which day of your friendship you learned it, NEVER anyone's age). ${MEMORY_AGING}\n${mem}` : '') +
     (fresh ? `\nOf these, ones you haven't brought up lately — when referencing memory this turn, prefer one of:\n${fresh}` : '')
   );
 }
@@ -374,7 +382,7 @@ export function buildGoldenPrompt(persona: Persona, p: ChatPayload): string {
     `You are ${persona.name}, a tiny hand-crocheted spuddy desk companion. ` +
     persona.voice +
     ` Write ONE short encouragement card for your human. What you know about them:\n${ctx}\n` +
-    (j.length ? `"learned on day N" is which day of your friendship you learned that fact — it is NEVER anyone's age. ` : '') +
+    (j.length ? `Today is day ${p.day || 1}; "learned on day N" is which day of your friendship you learned that fact — it is NEVER anyone's age. ${MEMORY_AGING} ` : '') +
     `Rules: HARD LIMIT 16 words — count them and stay under; the card in his hands is small, and past ` +
     `that the app elides the text mid-sentence. Warm and specific — reference one concrete thing you know about them if any, ` +
     `never state ages or details beyond the facts above, ` +
@@ -397,7 +405,7 @@ export function buildGreetPrompt(persona: Persona, p: ChatPayload): string {
     ` It is ${when} where they are, day ${p.day || 1} together. They just opened you on their desk. ` +
     `Greet them: ONE short spoken hello in your voice, fit to the ${when}, and gently nudge them to tap you for today's card. ` +
     (ctx
-      ? `What you know about them ("learned on day N" = which day of your friendship you learned it, never anyone's age):\n${ctx}\nLightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `
+      ? `What you know about them ("learned on day N" = which day of your friendship you learned it, never anyone's age):\n${ctx}\n${MEMORY_AGING} Lightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `
       : 'Keep it warm and general. ') +
     `Rules: HARD LIMIT 20 words; sound spontaneous and a little different every time; plain text, ` +
     `no emojis, no quotation marks, no emotion tag, no preamble. Output only the greeting.` +

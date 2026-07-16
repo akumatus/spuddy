@@ -1,4 +1,4 @@
-import type { AppState, ChatMessage, MemoryFact } from './types';
+import type { AppState, ChatMessage, MemoryFact, MemoryKind } from './types';
 
 const KEY = 'pp_ritual_v1';
 
@@ -228,15 +228,46 @@ export function load(): AppState {
   return s;
 }
 
+// ── memory cap ──
+// state.json is rewritten whole on every save, so memory must stay bounded.
+// The cap used to be a straight slice(-60): the oldest fact dropped regardless
+// of what it was — "her daughter's name" aged out exactly like "likes mango".
+// Evict kind-aware instead: kinds that expire by nature go first (oldest
+// within the tier), identity kinds only when nothing else is left to give.
+const MEMORY_MAX = 60;
+const EVICT_TIERS: MemoryKind[][] = [
+  ['other'],
+  ['feeling'],
+  ['likes', 'goal', 'work'],
+  ['people', 'pets', 'milestone'],
+];
+export function capMemory(mem: MemoryFact[], max = MEMORY_MAX): MemoryFact[] {
+  if (mem.length <= max) return mem;
+  const out = mem.slice();
+  while (out.length > max) {
+    let victim = -1;
+    for (const tier of EVICT_TIERS) {
+      for (let i = 0; i < out.length; i++) {
+        if (!tier.includes(out[i].kind)) continue;
+        if (victim === -1 || out[i].day < out[victim].day) victim = i;
+      }
+      if (victim !== -1) break;
+    }
+    // only unknown kinds left (corrupt/future data) — drop the oldest-inserted
+    out.splice(victim === -1 ? 0 : victim, 1);
+  }
+  return out;
+}
+
 export function save(s: AppState): void {
   try {
     const fs = fileStore();
     if (!fs) {
       // plain browser (vite dev): everything, chat included, in localStorage
-      localStorage.setItem(KEY, JSON.stringify({ ...s, memory: s.memory.slice(-60) }));
+      localStorage.setItem(KEY, JSON.stringify({ ...s, memory: capMemory(s.memory) }));
       return;
     }
-    const slim: Partial<AppState> = { ...s, memory: s.memory.slice(-60) };
+    const slim: Partial<AppState> = { ...s, memory: capMemory(s.memory) };
     delete slim.chat; // lives in chat.jsonl
     fs.save(JSON.stringify(slim));
     if (s.chat.length < chatOnDisk) {

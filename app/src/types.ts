@@ -216,6 +216,7 @@ export interface AiGoldenRequest {
   charId: CharId;
   charName: string;
   voice: string;
+  day?: number; // today's friendship day — lets the prompt age old feeling/goal facts
   memory: MemoryFact[];
   lang?: Lang; // 'zh' → the card is written in Chinese
 }
