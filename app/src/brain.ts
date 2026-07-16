@@ -280,7 +280,10 @@ export class SpudBrain {
   /* ── internals ── */
   present(): boolean { return !this.simAway && performance.now() - this.lastPointer < 25000; }
   nearBy(): boolean { return !this.simAway && performance.now() - this.lastPointer < 60000; }
-  randMutterGap(): number { return (9 + Math.random() * 8) / (0.55 + this.P.curious * 0.75); }
+  // Gap between idle mutters. Kept deliberately long — a desk pet muttering
+  // every ~10s reads as nagging; ~90–180s (at default curiosity) feels like
+  // occasional company. Still personality-scaled: higher curiosity → shorter.
+  randMutterGap(): number { return (93 + Math.random() * 93) / (0.55 + this.P.curious * 0.75); }
   fresh(poolKey: MutterPool): string {
     // Occasionally the active buddy's own tiny flavor set — its accent — and
     // otherwise today's shared pool for this mood (all six moods via
@@ -350,8 +353,8 @@ export class SpudBrain {
         this.A.setMode('idle');
         this.setState(present ? 'watch' : 'alone');
         this.log('act', 'well rested — woke up on his own');
-        // deviation from the prototype (always stretch): user wants it rare
-        if (!blocked && Math.random() < 0.35) this.runRoutine('stretch', ROUTINES.stretch, true);
+        // an occasional wake-up stretch — kept infrequent on purpose
+        if (!blocked && Math.random() < 0.12) this.runRoutine('stretch', ROUTINES.stretch, true);
       }
       return;
     }
@@ -382,8 +385,8 @@ export class SpudBrain {
       return;
     }
     if (Math.random() < dt * 0.004) { this.runRoutine('sneeze', ROUTINES.sneeze, true); return; }
-    // deviation from the prototype (dt*0.02): user finds the stretch tiresome — keep it rare
-    if (Math.random() < dt * 0.005) { this.runRoutine('stretch', ROUTINES.stretch, true); return; }
+    // spontaneous stretch — deliberately rare (~9 min mean when idle)
+    if (Math.random() < dt * 0.0018) { this.runRoutine('stretch', ROUTINES.stretch, true); return; }
 
     /* idle mutters */
     if (this.clock - this.lastMutterClock > this.mutterGap) {

@@ -10,6 +10,13 @@ import { $, ctx } from './context';
 let bubbleTimer = 0;
 let typeTimer = 0;
 let mutterTimer = 0;
+// A mutter is protected for its full reading dwell: while one is still on
+// screen, a newly triggered line doesn't yank it away — it waits in this single
+// slot (latest wins) and paints the moment the current line has had its dwell.
+// Without this, an idle mutter + a routine's opening line (fired ~200ms apart)
+// would flash the first away before it could be read.
+let mutterHideAt = 0; // perf-time the current mutter is protected until
+let pendingMutter: string | null = null;
 
 // ── keep the head cards on screen ──
 // Both cards hang over the potato's head, centered on the stage — but the
@@ -107,9 +114,11 @@ export function hideBubble(): void {
 }
 
 // ── mutter — dashed thought bubble for the inner monologue (7a) ──
-export function showMutter(text: string): void {
-  if (ctx.anim().tucked || ctx.anim().docked || isOverlayOpen() || ctx.chatBusy || ctx.weaving) return;
-  if (!$('bubble').classList.contains('hidden')) return; // speech first
+function mutterBlocked(): boolean {
+  return !!(ctx.anim().tucked || ctx.anim().docked || isOverlayOpen() || ctx.chatBusy || ctx.weaving);
+}
+
+function paintMutter(text: string): void {
   const el = $('mutter');
   clearTimeout(mutterTimer);
   el.textContent = text;
@@ -120,7 +129,33 @@ export function showMutter(text: string): void {
   clampOverhead(el, 0.5); // centered by translateX(-50%), invisible to offsetLeft
   void el.offsetWidth; // restart the pop-in
   el.style.animation = '';
-  mutterTimer = window.setTimeout(() => el.classList.add('hidden'), 2800 + text.length * 75);
+  const dwell = 2800 + text.length * 75; // reading window scales with length
+  mutterHideAt = performance.now() + dwell;
+  mutterTimer = window.setTimeout(() => {
+    // hand off to a line that queued up while this one was being read, unless
+    // speech / an overlay has since taken the stage — else just fade out
+    if (pendingMutter !== null && $('bubble').classList.contains('hidden') && !mutterBlocked()) {
+      const next = pendingMutter; pendingMutter = null;
+      paintMutter(next);
+    } else {
+      pendingMutter = null;
+      el.classList.add('hidden');
+    }
+  }, dwell);
+}
+
+export function showMutter(text: string): void {
+  if (mutterBlocked()) return;
+  if (!$('bubble').classList.contains('hidden')) return; // speech first
+  // Don't pull a line out from under the reader: while the current mutter is
+  // still inside its reading window, park this one (latest wins) to paint the
+  // moment the current line has had its full dwell.
+  const el = $('mutter');
+  if (!el.classList.contains('hidden') && performance.now() < mutterHideAt) {
+    pendingMutter = text;
+    return;
+  }
+  paintMutter(text);
 }
 
 // ── floating emotes (♪ ♥ Z) drifting off his head (7a) ──
