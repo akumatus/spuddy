@@ -43,12 +43,12 @@ id = "276e01a434db4d07a1576578862a45fe"
 # walks down the rest of the chain automatically.
 #
 # Primary provider for real-time chat / greeting / golden card.
-CHAT_PROVIDER = "anthropic"
+CHAT_PROVIDER = "openai"
 # Primary provider the daily cron uses to knit card pools.
 GEN_PROVIDER = "anthropic"
 # Model ids per provider — override here, or per-request via config:current.models.
 ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
-OPENAI_MODEL = "gpt-5.4-mini"
+OPENAI_MODEL = "gpt-5.6-luna"
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
