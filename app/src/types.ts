@@ -92,6 +92,10 @@ export interface AppState {
   usedMemory: UsedPool; // memory facts fed to a golden weave today (rotation, no same-day repeat); date = calendar day
   memory: MemoryFact[]; // durable facts he's distilled about the human
   chat: ChatMessage[];
+  // batch memory extraction cursor — how many chat.jsonl lines (absolute file
+  // count, NOT an index into the state.chat window) have been distilled. See
+  // app/distill.ts; healed by clamping when the transcript shrinks (clear chat).
+  distilledUpTo: number;
   active: CharId;
   unlockedIds: CharId[];
   buddyNew: boolean;
@@ -171,6 +175,9 @@ export interface AiReplyRequest {
   fresh?: string[]; // rotated subset of memory facts to prefer bringing up this turn
   messages: ChatMessage[];
   lang?: Lang; // picks the matching daily-batch musings server-side
+  // this build extracts memory in batch (app/distill.ts) — the server omits the
+  // in-reply [[remember]] instructions from the chat prompt
+  distill?: boolean;
 }
 
 export interface AiReplyResult {
@@ -178,6 +185,30 @@ export interface AiReplyResult {
   tag?: string; // EmotionTag, but the model may drift — validated app-side
   gesture?: string | null;
   remember?: RememberNote | null;
+  limited?: boolean; // daily real-time budget spent (server 429)
+}
+
+// ── batch memory extraction (app/distill.ts ↔ POST /distill) ──
+
+export interface AiDistillRequest {
+  day: number;
+  lang?: Lang; // 'zh' → facts written in Chinese
+  memory: MemoryFact[]; // FULL current fact list — the server's "already known" dedupe context
+  context: { who: string; text: string }[]; // already-distilled tail — extract nothing from these
+  messages: { who: string; text: string }[]; // the undistilled chunk
+}
+
+// One fact from the /distill response; turn = 1-based index of the chunk
+// message that revealed it, for the transcript's "knit into Memory" stitch.
+export interface DistilledFact {
+  fact: string;
+  kind?: string; // validated against MemoryKind app-side; unknown → 'other'
+  mood?: MemoryMood | null;
+  turn?: number;
+}
+
+export interface AiDistillResult {
+  facts?: DistilledFact[] | null; // null: provider chain failed — keep the cursor, retry later
   limited?: boolean; // daily real-time budget spent (server 429)
 }
 
@@ -226,6 +257,7 @@ export interface PreloadBridge {
   debug: boolean;
   ai: {
     reply(payload: AiReplyRequest): Promise<AiReplyResult | null>;
+    distill?(payload: AiDistillRequest): Promise<AiDistillResult | null>; // absent on older preloads
     golden(payload: AiGoldenRequest): Promise<string | null>;
     greet(payload: AiGreetRequest): Promise<string | null>;
   };

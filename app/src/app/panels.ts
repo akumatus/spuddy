@@ -75,6 +75,7 @@ function renderBook(): void {
     onClearChat: () => {
       sfx.pop();
       state.chat = [];
+      state.distilledUpTo = 0; // transcript restarts — so does the distill cursor
       clearChatQueue();
       ctx.persist();
       renderBook();

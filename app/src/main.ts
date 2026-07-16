@@ -11,6 +11,7 @@ import * as store from './store';
 import { isOverlayOpen } from './ui/overlay';
 import { $, ctx, pp } from './app/context';
 import { installDebugHooks } from './app/debug';
+import { initDistill } from './app/distill';
 import { wireInteractions } from './app/interactions';
 import { applyLangPref } from './app/lang';
 import { presentCare } from './app/panels';
@@ -43,6 +44,10 @@ const modelReady = scene.setCharacter(state.active).catch((e) => {
 // restart (the cron flips it at midnight Asia/Shanghai)
 remote.refresh();
 setInterval(() => remote.refresh(), 60 * 60 * 1000);
+
+// catch up on a transcript tail left undistilled by quitting mid-lull
+// (batch memory extraction — see app/distill.ts)
+initDistill();
 
 // ── personality engine (7a) — needs-driven autonomy, ported from lib/spud-brain.js ──
 const per = state.personality || {};

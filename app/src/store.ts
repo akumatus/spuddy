@@ -143,6 +143,7 @@ export function defaultState(): AppState {
     // The transcript starts empty — his daily hello lives in a spoken bubble, not
     // the record (see main.js). It fills as you actually talk.
     chat: [],
+    distilledUpTo: 0, // batch memory-extraction cursor, in absolute chat.jsonl lines (app/distill.ts)
     active: 'spud',
     unlockedIds: ['spud'],
     buddyNew: false,
@@ -217,6 +218,13 @@ export function load(): AppState {
       if (legacy) save(s); // rewrites state.json without the chat field
     } catch (e) {}
   }
+  // Batch-extraction cursor (app/distill.ts). Saves from before the field
+  // existed backfill the last few messages once — history distilled under the
+  // old in-reply rules gets a second read — then clamp into the transcript
+  // (it can point past the end after an external truncation).
+  const total = chatTotal(s);
+  if (typeof s.distilledUpTo !== 'number') s.distilledUpTo = Math.max(0, total - 30);
+  s.distilledUpTo = Math.max(0, Math.min(s.distilledUpTo, total));
   return s;
 }
 
@@ -275,6 +283,13 @@ export function loadOlderChat(s: AppState, n: number): number {
 // whether chat.jsonl still has lines above the loaded window
 export function hasOlderChat(): boolean {
   return chatBase > 0;
+}
+
+// Total transcript length in absolute chat.jsonl lines — the coordinate space
+// of the distill cursor (state.chat indexes shift as the Book pages history in,
+// absolute counts don't). In browser mode the window IS the whole log.
+export function chatTotal(s: AppState): number {
+  return chatBase + s.chat.length;
 }
 
 export function reset(): void {
