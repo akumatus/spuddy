@@ -1,3 +1,6 @@
 node_modules/
 .dev.vars
 .wrangler/
+eval/run.mjs
+eval/out/
+eval/fixtures/
