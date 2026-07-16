@@ -196,7 +196,7 @@ export default {
         });
         if (!raw || !raw.trim()) return json({ facts: null, provider }); // chain failed — don't spend budget
         await bumpQuota(env, q); // a real extraction pass counts
-        return json({ facts: parseDistillFacts(raw, chunk.length), provider, model });
+        return json({ facts: parseDistillFacts(raw, chunk.length, (p.memory || []).length), provider, model });
       }
 
       if (url.pathname === '/golden' && request.method === 'POST') {

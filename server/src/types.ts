@@ -76,12 +76,16 @@ export interface DistillPayload {
 
 // One extracted fact in the /distill response. turn = 1-based index of the
 // chunk message that revealed it (a user line), so the app can stitch the
-// "knit into Memory" tag onto the transcript.
+// "knit into Memory" tag onto the transcript. updates = 1-based index into
+// the memory list AS SENT: the chunk showed that known fact is outdated
+// (a pet passed away, a job changed) and this fact is its correction — the
+// app rewrites that card in place instead of adding a twin beside it.
 export interface DistillFact {
   fact: string;
   kind: string;
   mood: string | null;
   turn?: number;
+  updates?: number;
 }
 
 export interface ChatTurn {

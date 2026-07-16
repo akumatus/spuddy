@@ -200,11 +200,14 @@ export interface AiDistillRequest {
 
 // One fact from the /distill response; turn = 1-based index of the chunk
 // message that revealed it, for the transcript's "knit into Memory" stitch.
+// updates = 1-based index into the memory list as sent: this fact corrects
+// that (now outdated) card — rewrite it in place instead of adding a twin.
 export interface DistilledFact {
   fact: string;
   kind?: string; // validated against MemoryKind app-side; unknown → 'other'
   mood?: MemoryMood | null;
   turn?: number;
+  updates?: number;
 }
 
 export interface AiDistillResult {

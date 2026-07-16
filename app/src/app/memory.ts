@@ -39,15 +39,19 @@ export function nextMemories(n: number): MemoryFact[] {
 // stamp; when it skipped one, `fallbackTag` colors it from the reply's emotion
 // tag: [comfort] means they were down → rainy, a celebrating [cheer]/[proud]
 // reads sunny, and a [calm] reply keeps the patch plain.
+// Junk guard, script-aware: dense CJK facts are legitimately tiny ("养了狗",
+// "怀孕了" — the zh prompt omits subjects), so only empty/single-char
+// fragments are junk there; Latin under 4 chars ("ok") always is. Silently
+// dropping a real memory costs more than letting an odd card through.
+function junkFact(f: string): boolean {
+  const latin = (f.match(/[a-z]/gi) || []).length > f.length / 2;
+  return f.length < (latin ? 4 : 2);
+}
+
 export function rememberFact(fact: string, kind: string | undefined, mood: MemoryMood | null | undefined, fallbackTag: string): MemoryKind | null {
   const state = ctx.state;
   const f = (fact || '').trim();
-  // Junk guard, script-aware: dense CJK facts are legitimately tiny ("养了狗",
-  // "怀孕了" — the zh prompt omits subjects), so only empty/single-char
-  // fragments are junk there; Latin under 4 chars ("ok") always is. Silently
-  // dropping a real memory costs more than letting an odd card through.
-  const latin = (f.match(/[a-z]/gi) || []).length > f.length / 2;
-  if (f.length < (latin ? 4 : 2)) return null;
+  if (junkFact(f)) return null;
   const k: MemoryKind = MEMORY_KIND_IDS.includes(kind as MemoryKind) ? (kind as MemoryKind) : 'other';
   const md = mood || (fallbackTag === 'comfort' ? 'rainy' : fallbackTag === 'cheer' || fallbackTag === 'proud' ? 'sunny' : 'plain');
   const twin = state.memory.find((m) => store.factTwin(m.fact, f));
@@ -62,5 +66,24 @@ export function rememberFact(fact: string, kind: string | undefined, mood: Memor
     return k;
   }
   state.memory.push({ day: state.day, fact: f, kind: k, mood: md });
+  return k;
+}
+
+// Apply a /distill "updates" correction: the chunk showed an existing card is
+// outdated (a pet passed away, a job changed) — rewrite that card in place so
+// no stale twin lingers beside the truth. day stays: it marks when he first
+// learned OF the thing, not its latest state. kind/mood keep the card's own
+// values unless the correction supplies valid ones. `target` is the card from
+// the pre-call snapshot; if the user deleted it mid-flight (Book), the
+// correction is stored as a plain new fact instead.
+export function updateFact(target: MemoryFact, fact: string, kind: string | undefined, mood: MemoryMood | null | undefined): MemoryKind | null {
+  const state = ctx.state;
+  if (!state.memory.includes(target)) return rememberFact(fact, kind, mood, 'calm');
+  const f = (fact || '').trim();
+  if (junkFact(f)) return null;
+  const k: MemoryKind = MEMORY_KIND_IDS.includes(kind as MemoryKind) ? (kind as MemoryKind) : target.kind;
+  target.fact = f;
+  target.kind = k;
+  target.mood = mood || target.mood;
   return k;
 }

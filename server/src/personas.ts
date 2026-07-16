@@ -167,7 +167,7 @@ const MEMORY_DISCIPLINE =
   `Distill with discipline: keep ONLY what they actually said — never guess or infer a gender, an age, or a family role they didn't state. Use they/their when gender is unknown. Keep relatives anchored to THEIR point of view: their "my dad" stays "their dad" — never re-anchor to another family member's viewpoint (e.g. never turn their dad into "grandpa"). When unsure about one detail, drop that detail but keep the fact; skip recording only when the whole fact would be a guess.`;
 
 const MEMORY_WHAT_COUNTS =
-  `What counts as new: a durable fact counts however it surfaced — stated outright, pieced together across several turns, or revealed in passing by a transient moment: "the dog is moping in this heat" is small talk about the weather, but "they have a dog" is a durable fact hiding inside it — keep the durable kernel, drop the transient wrapper. A new detail about someone already in your memory (a name, an age, something that happened to them) is NEW information, not a restatement — record the fuller telling; retellings of the same fact merge into one card. A lasting state they are living with — grief, depression, a hard situation at home or work, anything they keep coming back to — belongs under feeling (rainy), kept in their own words, even when the conversation is heavy and the replies turned sincere; only transient moods and small talk ("tired today", "it's hot out") don't count. Word each fact so it still reads true weeks later — never "today"/"yesterday" inside the fact itself (the card already carries the day you learned it): "just got a new air conditioner at home", not "installed a new AC today".`;
+  `What counts as new: a durable fact counts however it surfaced — stated outright, pieced together across several turns, or revealed in passing by a transient moment: "the dog is moping in this heat" is small talk about the weather, but "they have a dog" is a durable fact hiding inside it — keep the durable kernel, drop the transient wrapper. A new detail about someone already in your memory (a name, an age, something that happened to them) is NEW information, not a restatement — record the fuller telling; retellings of the same fact merge into one card. A lasting state they are living with — grief, depression, a hard situation at home or work, anything they keep coming back to — belongs under feeling (rainy), kept in their own words, even when the conversation is heavy and the replies turned sincere; only transient moods and small talk ("tired today", "it's hot out") don't count. Word each fact so it still reads true weeks later — never "today"/"yesterday"/"last week"/"last month" inside the fact itself (the card already carries the day you learned it): "just got a new air conditioner at home", not "installed a new AC today".`;
 
 // Recall-side aging: feelings and goals resolve with time, and asserting a
 // long-past low as someone's CURRENT state is the worst way to "remember" them
@@ -327,15 +327,18 @@ export function buildChatSystem(persona: Persona, p: ChatPayload, musings: strin
 // or surfaced in a heavy stretch aren't lost to reply-writing pressure — and
 // one call can return several facts (the in-reply path was capped at one).
 export function buildDistillSystem(p: DistillPayload): string {
-  const mem = (p.memory || []).map((m) => `- ${m.fact || ''}`).join('\n');
+  const mem = (p.memory || []).map((m, i) => `${i + 1}. ${m.fact || ''}`).join('\n');
   return (
     `You are the long-term memory of a tiny desk companion. The user message carries a chunk of chat between your human and the companion; distill the durable facts about the HUMAN worth keeping. ` +
     `Only facts about the human and their life, drawn from what the human themselves said — never the companion's own words or guesses, and never general knowledge the human merely asked about. ` +
     MEMORY_DISCIPLINE + ' ' + MEMORY_WHAT_COUNTS + ' ' + MEMORY_CATEGORIES +
     (p.lang === 'zh' ? ` Write each fact in natural Simplified Chinese whatever language the conversation is in — kind and mood words stay English. ${ZH_FACT_STYLE}` : '') +
     ` Lines under "context" were already distilled — use them only to make sense of the chunk; never output a fact knowable only from context.` +
-    (mem ? `\nAlready known about them — never re-record one of these in the same detail (a fuller telling is fine, it upgrades the old card):\n${mem}` : '') +
-    `\nRespond with ONLY a JSON object, no prose: {"facts":[{"kind":"<category>","mood":"<sunny|rainy|plain>","fact":"<one concise third-person fact>","turn":<n>}]} — turn is the numbered chunk line where the human revealed it. 0 to 5 facts; {"facts":[]} when nothing qualifies.`
+    (mem ? `\nAlready known about them, numbered — never re-record one of these in the same detail (a fuller telling is fine, it upgrades the old card):\n${mem}` : '') +
+    (mem
+      ? ` When the chunk shows a numbered fact is now outdated or contradicted — a pet passed away, a job or home changed, a situation they say has ended — return the corrected fact with "updates" set to that number: the new text replaces the old card instead of leaving a stale twin beside it. Only what the human themselves said makes a fact outdated; never correct one on a guess.`
+      : '') +
+    `\nRespond with ONLY a JSON object, no prose: {"facts":[{"kind":"<category>","mood":"<sunny|rainy|plain>","fact":"<one concise third-person fact>","turn":<n>,"updates":<m>}]} — turn is the numbered chunk line where the human revealed it; updates only when correcting a numbered known fact, omitted otherwise. 0 to 5 facts; {"facts":[]} when nothing qualifies.`
   );
 }
 
@@ -351,9 +354,9 @@ export function distillTranscript(p: DistillPayload): string {
 
 // Parse + sanitize the /distill reply. Tolerant of fences/prose around the
 // JSON (extractJson); unknown kinds file under 'other', moods normalize through
-// the same synonym map as [[remember]] notes, out-of-range turns drop to
-// undefined, and the fact list caps at 5.
-export function parseDistillFacts(raw: string, maxTurn: number): DistillFact[] {
+// the same synonym map as [[remember]] notes, out-of-range turn/updates refs
+// drop to undefined, and the fact list caps at 5.
+export function parseDistillFacts(raw: string, maxTurn: number, maxMem = 0): DistillFact[] {
   const obj = extractJson(raw);
   const arr = obj && Array.isArray((obj as { facts?: unknown }).facts) ? ((obj as { facts: unknown[] }).facts) : [];
   const out: DistillFact[] = [];
@@ -366,7 +369,9 @@ export function parseDistillFacts(raw: string, maxTurn: number): DistillFact[] {
     const mood = MOODS[String(rec.mood ?? '').trim().toLowerCase()] || null;
     const t = Number(rec.turn);
     const turn = Number.isInteger(t) && t >= 1 && t <= maxTurn ? t : undefined;
-    out.push({ fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other', mood, turn });
+    const u = Number(rec.updates);
+    const updates = Number.isInteger(u) && u >= 1 && u <= maxMem ? u : undefined;
+    out.push({ fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other', mood, turn, updates });
     if (out.length >= 5) break;
   }
   return out;
