@@ -109,7 +109,12 @@ export function chatSend(): void {
 function rememberFact(fact: string, kind: string | undefined, mood: MemoryMood | null | undefined, tag: string): MemoryKind | null {
   const state = ctx.state;
   const f = (fact || '').trim();
-  if (f.length < 4) return null;
+  // Junk guard, script-aware: dense CJK facts are legitimately tiny ("养了狗",
+  // "怀孕了" — the zh prompt omits subjects), so only empty/single-char
+  // fragments are junk there; Latin under 4 chars ("ok") always is. Silently
+  // dropping a real memory costs more than letting an odd card through.
+  const latin = (f.match(/[a-z]/gi) || []).length > f.length / 2;
+  if (f.length < (latin ? 4 : 2)) return null;
   const k: MemoryKind = MEMORY_KIND_IDS.includes(kind as MemoryKind) ? (kind as MemoryKind) : 'other';
   const md = mood || (tag === 'comfort' ? 'rainy' : tag === 'cheer' || tag === 'proud' ? 'sunny' : 'plain');
   const twin = state.memory.find((m) => store.factTwin(m.fact, f));
