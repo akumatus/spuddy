@@ -91,7 +91,7 @@ html.zh .drawback .label { font-size: 19px; }
 html.zh .weavebox .line { font-size: 21px; }
 html.zh #book .empty { font-size: 19px; line-height: 1.4; }
 html.zh .memhead { font-size: 17px; }
-#mutter.zh { font-size: 16px; line-height: 1.45; }
+#mutter.zh { font-size: calc(16px * var(--bubble-scale, 1)); line-height: 1.45; }
 #said.zh { font-size: 15px; line-height: 1.4; }
 .cardbox .msg.zh { line-height: 1.5; }
 .pbub.zh { font-size: 15px; line-height: 1.6; }
@@ -122,6 +122,11 @@ html, body {
   width: 300px;
   height: 400px;
   z-index: 50; /* above the modal dim (#overlay, 40) — he stays visible, watching */
+  /* the overhead bubbles scale their text with the pet, but on a compressed
+     curve so the small sizes stay readable: at pet-scale 1 → 1, at 0.67 → 0.87
+     (not 0.67). The bubble box is em-based off this, so the whole card follows.
+     Bump the 0.4 up for a stronger size difference, down to keep text larger. */
+  --bubble-scale: calc(0.6 + 0.4 * var(--pet-scale, 1));
 }
 #petclip {
   position: absolute;
@@ -184,15 +189,20 @@ html, body {
   left: 0;
   right: 0;
   margin-inline: auto;
-  max-width: 250px;
+  /* the whole card scales with the pet: font-size rides --bubble-scale (the
+     compressed pet curve, see #stage) and every box metric below is in em, so
+     padding / radius / tail / shadow shrink and grow with the text as one unit
+     (the pp-bubble keyframe owns `transform`, so scaling has to come through
+     font-size, not a scale()) */
+  max-width: calc(250px * var(--bubble-scale, 1));
   width: max-content;
   background: var(--paper);
   border: 1.5px solid var(--ink);
-  border-radius: 16px;
-  padding: 10px 14px;
-  font-size: 14.5px;
+  border-radius: 1.1em;
+  padding: 0.69em 0.97em;
+  font-size: calc(14.5px * var(--bubble-scale, 1));
   font-weight: 700;
-  box-shadow: 0 4px 0 rgba(62, 50, 38, 0.14);
+  box-shadow: 0 0.28em 0 rgba(62, 50, 38, 0.14);
   animation: pp-bubble 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 6;
   /* click-through: the bubble floats over other apps' windows and must never
@@ -202,13 +212,13 @@ html, body {
 #bubble::after {
   content: '';
   position: absolute;
-  bottom: -8px;
+  bottom: -0.55em;
   /* --shift is the on-screen clamp offset (speech.ts clampOverhead): the tail
      counter-shifts so it keeps pointing at his head when the bubble is nudged
      away from a screen edge, clamped clear of the rounded corners */
-  left: clamp(18px, calc(50% - var(--shift, 0px)), calc(100% - 18px));
-  width: 13px;
-  height: 13px;
+  left: clamp(1.24em, calc(50% - var(--shift, 0px)), calc(100% - 1.24em));
+  width: 0.9em;
+  height: 0.9em;
   background: var(--paper);
   border-right: 1.5px solid var(--ink);
   border-bottom: 1.5px solid var(--ink);
@@ -222,18 +232,19 @@ html, body {
   bottom: calc(78px + 178px * var(--pet-scale, 1));
   left: 55%;
   transform: translateX(-50%);
-  max-width: 240px;
+  /* scales as a unit with the pet, same em technique as #bubble */
+  max-width: calc(240px * var(--bubble-scale, 1));
   width: max-content;
   background: rgba(255, 253, 246, 0.94);
   border: 1.5px dashed #d8c9ac;
-  border-radius: 16px;
-  padding: 7px 15px;
+  border-radius: 0.8em;
+  padding: 0.35em 0.75em;
   font-family: var(--hand);
-  font-size: 20px;
+  font-size: calc(20px * var(--bubble-scale, 1));
   font-weight: 600;
   color: #6b5b44;
   line-height: 1.2;
-  box-shadow: 0 8px 20px -12px rgba(90, 70, 40, 0.4);
+  box-shadow: 0 0.4em 1em -0.6em rgba(90, 70, 40, 0.4);
   animation: pp-mut 0.28s ease-out;
   z-index: 5;
   /* click-through, same as #bubble — the thought card must not block clicks
@@ -243,15 +254,15 @@ html, body {
 #mutter::after {
   content: '';
   position: absolute;
-  bottom: -12px;
+  bottom: -0.6em;
   /* counter-shift like #bubble's tail — the dot trail stays over his head */
-  left: clamp(14px, calc(24px - var(--shift, 0px)), calc(100% - 24px));
-  width: 9px;
-  height: 9px;
+  left: clamp(0.7em, calc(1.2em - var(--shift, 0px)), calc(100% - 1.2em));
+  width: 0.45em;
+  height: 0.45em;
   border-radius: 999px;
   background: rgba(255, 253, 246, 0.94);
   border: 1.5px dashed #d8c9ac;
-  box-shadow: -7px 8px 0 -2.5px rgba(255, 253, 246, 0.94), -7px 8px 0 -1px #d8c9ac;
+  box-shadow: -0.35em 0.4em 0 -0.125em rgba(255, 253, 246, 0.94), -0.35em 0.4em 0 -0.05em #d8c9ac;
 }
 
 /* floating emote (♪ ♥ Z) — rises and fades (7a) */
