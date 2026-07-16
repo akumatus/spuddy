@@ -149,7 +149,7 @@ export function defaultState(): AppState {
     sound: true,
     immersive: false, // do-not-disturb mode; tweakable in the ⚙ settings panel
     petSize: 'md', // character render size; tweakable in the ⚙ settings panel
-    lang: 'en', // default to English; the tray menu offers Auto/中文 to switch
+    lang: 'auto', // follow the system locale (zh → Chinese, else English); the tray menu offers Auto/中文/English to switch
     nightShownDate: null,
     // personality engine (7a) — 0..100, design Tweaks defaults
     personality: { curiosity: 65, clinginess: 60, drama: 55, sleepiness: 35 },
