@@ -174,7 +174,7 @@ export const EN: TextPack = {
 
   pers: {
     spud: {
-      p: 'warm & steady',
+      p: 'warm & witty',
       hi: {
         morning: "Morning. Card's warm — I sat on it all night. Tap me.",
         afternoon: "Afternoon. Card's still warm — been keeping it for you. Tap me.",

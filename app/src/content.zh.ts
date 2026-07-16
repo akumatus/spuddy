@@ -165,7 +165,7 @@ export const ZH: TextPack = {
 
   pers: {
     spud: {
-      p: '温暖 · 稳当',
+      p: '温暖 · 风趣',
       hi: {
         morning: '早。卡是热的——我坐了它一整晚。戳我。',
         afternoon: '下午好。卡还热着——一直给你留着呢。戳我。',
