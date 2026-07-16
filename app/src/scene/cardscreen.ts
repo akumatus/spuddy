@@ -45,11 +45,20 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   let line = '';
   for (const t of tokens) {
     const probe = line ? line + glue + t : t;
-    if (ctx.measureText(probe).width > maxW && line && !NO_LINE_START.test(t)) {
+    if (ctx.measureText(probe).width <= maxW || !line) {
+      line = probe;
+    } else if (!NO_LINE_START.test(t)) {
       lines.push(line);
       line = t;
+    } else if (line.length > 1 && !NO_LINE_START.test(line.slice(-1))) {
+      // 避头尾 push-out: the punctuation may not open the next line, and letting
+      // it ride out past maxW used to fail the fit check and shrink the WHOLE
+      // card another notch — punctuation-dense Chinese ratcheted down to
+      // unreadable sizes. Move its preceding character down with it instead.
+      lines.push(line.slice(0, -1));
+      line = line.slice(-1) + t;
     } else {
-      line = probe;
+      line = probe; // nothing safe to push down — let the punctuation hang
     }
   }
   if (line) lines.push(line);
@@ -241,17 +250,23 @@ export class CardScreen {
       return;
     }
 
-    // fixed-aspect content box, centered — quad aspects vary per scan,
-    // but the layout inside stays identical across the crew.
-    // Text is sized for readability over hand clearance: it fills nearly the
-    // whole card and the gripping hands may clip the lower corners — that's fine.
+    // The width-derived, fixed-aspect content box (ch) drives font sizing so
+    // typography stays consistent across the crew's differently-proportioned
+    // scans. Text is sized for readability over hand clearance: it fills nearly
+    // the whole card and the gripping hands may clip the lower corners — fine.
     let cw = W * (this.cardMesh ? 0.9 : 0.94);
     let ch = cw / CONTENT_ASPECT;
-    if (ch > H * 0.92) {
-      ch = H * 0.92;
+    if (ch > H * 0.94) {
+      ch = H * 0.94;
       cw = ch * CONTENT_ASPECT;
     }
-    const top = (H - ch) / 2;
+    // Vertical band the layout actually fills. A squarer quad (e.g. spud) is
+    // width-limited, so ch alone strands big margins above and below — expand
+    // the band toward the full card height and anchor the heart, text, and
+    // footer to it. Font size stays tied to ch, so the extra height buys more
+    // lines (long cards fit more text) rather than bigger glyphs in a taller box.
+    const vh = Math.max(ch, H * 0.9);
+    const top = (H - vh) / 2;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -259,7 +274,7 @@ export class CardScreen {
     if (c.top) {
       ctx.fillStyle = c.gold ? '#C9A227' : '#C9A96F';
       ctx.font = `800 ${Math.round(ch * 0.085)}px Nunito, sans-serif`;
-      ctx.fillText(c.top, W / 2, top + ch * 0.12);
+      ctx.fillText(c.top, W / 2, top + vh * 0.1);
     }
 
     // main text: auto-fit handwriting, wrapped — sized to fill the card so it
@@ -274,31 +289,69 @@ export class CardScreen {
     const cjk = /[㐀-鿿]/.test(c.main || '');
     const lead = cjk ? 1.38 : 1.08;
     const maxW = cw * (cjk ? 0.86 : 0.98);
-    const maxH = ch * (c.footL || c.footR ? 0.7 : 0.76);
+    const maxH = vh * (c.footL || c.footR ? 0.78 : 0.83);
+    // Hanging CJK punctuation at a line's end (wrapText's last resort) is fine
+    // typographically — never shrink the whole card over it.
+    const fits = (l: string): boolean => {
+      const w = ctx.measureText(l).width;
+      if (w <= maxW) return true;
+      return NO_LINE_START.test(l.slice(-1)) && w - ctx.measureText(l.slice(-1)).width <= maxW;
+    };
+    // Readability floor — at desktop-pet scale, glyphs below ~1/8 of the card
+    // height are texture, not text. A message that can't fit at the floor is
+    // elided with an ellipsis instead of shrinking further; the full text stays
+    // a tap away (the popup card / the Book). Floors sized so the daily pools'
+    // caps (16 words / 24 hanzi) always fit whole — only longer text elides.
+    const floor = Math.round(ch * (cjk ? 0.125 : 0.14));
     let size = Math.round(ch * (cjk ? 0.3 : 0.34));
     let lines: string[] = [];
-    while (size > 10) {
+    while (true) {
       ctx.font = `700 ${size}px ${HAND}`;
       lines = wrapText(ctx, c.main || '', maxW);
-      if (lines.length * size * lead <= maxH && lines.every((l) => ctx.measureText(l).width <= maxW)) break;
+      if (lines.length * size * lead <= maxH && lines.every(fits)) break;
+      if (size - 2 < floor) break;
       size -= 2;
+    }
+    const maxLines = Math.max(1, Math.floor(maxH / (size * lead)));
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      // drop trailing punctuation so the ellipsis doesn't stack on a comma,
+      // then trim until the ellipsis fits the measure
+      let last = lines[maxLines - 1].replace(/[，。、；：！？…,.!?;:\s]+$/u, '');
+      while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+      lines[maxLines - 1] = last + '…';
     }
     ctx.fillStyle = '#4A3B28';
     const lh = size * lead;
     const y0 = H / 2 - ((lines.length - 1) * lh) / 2;
-    lines.forEach((l, i) => ctx.fillText(l, W / 2, y0 + i * lh));
+    // Xiaolai ships a single face and its @font-face claims the 400–700 range,
+    // so the canvas never synthesizes bold for hanzi — they render at the
+    // font's regular weight while Caveat's real 700 makes Latin cards look
+    // heavier. Even the weight out. Fatten CJK with a hairline same-color
+    // stroke (faux bold); Latin already has its true bold face.
+    const embolden = cjk;
+    if (embolden) {
+      ctx.strokeStyle = '#4A3B28';
+      ctx.lineWidth = size * 0.03;
+      ctx.lineJoin = 'round';
+    }
+    lines.forEach((l, i) => {
+      const y = y0 + i * lh;
+      ctx.fillText(l, W / 2, y);
+      if (embolden) ctx.strokeText(l, W / 2, y);
+    });
 
     if (c.footL) {
       ctx.fillStyle = '#B9A57E';
       ctx.font = `900 ${Math.round(ch * 0.065)}px Nunito, sans-serif`;
       ctx.textAlign = 'left';
-      ctx.fillText(c.footL, W / 2 - cw / 2 + cw * 0.04, top + ch * 0.9);
+      ctx.fillText(c.footL, W / 2 - cw / 2 + cw * 0.04, top + vh * 0.93);
     }
     if (c.footR) {
       ctx.fillStyle = '#8A7455';
       ctx.font = `600 ${Math.round(ch * 0.095)}px ${HAND}`;
       ctx.textAlign = 'right';
-      ctx.fillText(c.footR, W / 2 + cw / 2 - cw * 0.04, top + ch * 0.9);
+      ctx.fillText(c.footR, W / 2 + cw / 2 - cw * 0.04, top + vh * 0.93);
     }
 
     this.texture!.needsUpdate = true;

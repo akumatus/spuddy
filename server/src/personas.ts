@@ -296,10 +296,11 @@ export function buildGoldenPrompt(persona: Persona, p: ChatPayload): string {
     persona.voice +
     ` Write ONE short encouragement card for your human. What you know about them:\n${ctx}\n` +
     (j.length ? `"learned on day N" is which day of your friendship you learned that fact — it is NEVER anyone's age. ` : '') +
-    `Rules: HARD LIMIT 22 words — count them and stay under; warm and specific — reference one concrete thing you know about them if any, ` +
+    `Rules: HARD LIMIT 16 words — count them and stay under; the card in his hands is small, and past ` +
+    `that the app elides the text mid-sentence. Warm and specific — reference one concrete thing you know about them if any, ` +
     `never state ages or details beyond the facts above, ` +
     `fully in your voice, no emojis, no quotation marks, no emotion tag, no preamble. Output only the card text.` +
-    zhLine(p.lang, 40)
+    zhLine(p.lang, 24)
   );
 }
 
