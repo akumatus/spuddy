@@ -341,7 +341,7 @@ export class SpudBrain {
     if (!blocked) {
       N.energy = Math.max(0, Math.min(100, N.energy + dt * (dozing ? 2.6 : this.busy ? -0.9 * (0.8 + P.drama * 0.5) : -0.12)));
       if (!this.busy && !dozing) N.boredom = Math.max(0, Math.min(100, N.boredom + dt * (present ? 0.34 : 0.62)));
-      if (!dozing) N.social = Math.max(0, Math.min(100, N.social + dt * (present ? 0.5 * (0.55 + P.clingy * 0.9) : 0.28)));
+      if (!dozing) N.social = Math.max(0, Math.min(100, N.social + dt * (present ? 0.3 * (0.55 + P.clingy * 0.9) : 0.28)));
     }
     this.on.needs && this.on.needs(N);
 
@@ -373,7 +373,9 @@ export class SpudBrain {
 
     /* decisions, roughly by priority */
     if (N.energy < 15 + P.sleepy * 24) { this.startDoze(); return; }
-    if (N.social > 84 - P.clingy * 28 && this.nearBy() && (this.clock - this.lastKnockClock) > 38 * this.knockBackoff) {
+    // knocking on the "glass" is the most attention-demanding thing he does
+    // (it comes with a knock sfx), so the bar is set high and the buildup slow
+    if (N.social > 92 - P.clingy * 22 && this.nearBy() && (this.clock - this.lastKnockClock) > 38 * this.knockBackoff) {
       this.startKnock(); return;
     }
     if (N.boredom > 64 - P.drama * 18) {
