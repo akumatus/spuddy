@@ -5,6 +5,8 @@
 import { ipcMain } from 'electron';
 import fs from 'node:fs';
 import type {
+  AiDistillRequest,
+  AiDistillResult,
   AiGoldenRequest,
   AiGreetRequest,
   AiReplyRequest,
@@ -26,6 +28,20 @@ export function registerAiIpc(): void {
         : null;
     } catch (e) {
       return null; // offline / server down → renderer uses its in-voice fallback
+    }
+  });
+
+  // Batch memory extraction over a transcript chunk (see src/app/distill.ts).
+  // null on failure and {limited} on 429 — the renderer keeps its cursor and
+  // retries at the next trigger, so nothing is lost to a bad network moment.
+  ipcMain.handle('ai-distill', async (_e, p: AiDistillRequest): Promise<AiDistillResult | null> => {
+    try {
+      const res = await serverFetch('/distill', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
+      if (res.status === 429) return { limited: true }; // daily budget spent
+      if (!res.ok) return null; // incl. 404 from a not-yet-deployed server
+      return ((await res.json()) as AiDistillResult | null) || null;
+    } catch (e) {
+      return null; // offline / server down
     }
   });
 

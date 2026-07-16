@@ -1,11 +1,11 @@
-// ── chat (heart-to-heart): send/reply loop, gesture acting, distilled memory ──
-import { MEMORY_KIND_IDS, PERS, chatFallback, limitReply } from '../content';
+// ── chat (heart-to-heart): send/reply loop, gesture acting ──
+import { PERS, chatFallback, limitReply } from '../content';
 import { hasHan, lang } from '../locale';
 import { sfx, type SfxName } from '../sfx';
 import * as store from '../store';
-import type { MemoryKind, MemoryMood } from '../types';
 import { $, ctx, pp } from './context';
-import { nextMemories } from './memory';
+import { scheduleDistill } from './distill';
+import { nextMemories, rememberFact } from './memory';
 import { bubble, hideBubble } from './speech';
 
 // notes fired while he's mid-reply — answered next, never dropped
@@ -88,49 +88,17 @@ export function chatSend(): void {
 
   ctx.state.chat.push({ who: 'user', text: note, day: ctx.state.day, date: store.todayStr() });
   chatPending.push(note);
+  scheduleDistill();
 
   if (ctx.chatBusy) return; // a reply is already brewing — he'll pick this up next
   runChat();
 }
 
-// Long-term memory is now the pet's own distillation, not a filter over raw
-// chat: the reply carries an optional `remember` — a durable fact he chose to
-// keep about the human, tagged with a category. Store it once, skipping
-// near-duplicates: models re-surface the same fact across a conversation,
-// often re-told with extra detail or reworded, so dedupe is by store.factTwin
-// (containment + bigram paraphrase match) rather than equality.
-
-// Stores the fact and returns the category it was filed under (or null when
-// skipped as too-short / a near-duplicate), so the caller can tag the message
-// that revealed it. Mood (sunny/rainy/plain — the quilt's patch color) is the
-// model's own stamp on the [[remember]] note; if it skipped one, fall back to
-// the reply's emotion tag: [comfort] means they were down → rainy, a celebrating
-// [cheer]/[proud] reads sunny, and a [calm] reply keeps the patch plain.
-function rememberFact(fact: string, kind: string | undefined, mood: MemoryMood | null | undefined, tag: string): MemoryKind | null {
-  const state = ctx.state;
-  const f = (fact || '').trim();
-  // Junk guard, script-aware: dense CJK facts are legitimately tiny ("养了狗",
-  // "怀孕了" — the zh prompt omits subjects), so only empty/single-char
-  // fragments are junk there; Latin under 4 chars ("ok") always is. Silently
-  // dropping a real memory costs more than letting an odd card through.
-  const latin = (f.match(/[a-z]/gi) || []).length > f.length / 2;
-  if (f.length < (latin ? 4 : 2)) return null;
-  const k: MemoryKind = MEMORY_KIND_IDS.includes(kind as MemoryKind) ? (kind as MemoryKind) : 'other';
-  const md = mood || (tag === 'comfort' ? 'rainy' : tag === 'cheer' || tag === 'proud' ? 'sunny' : 'plain');
-  const twin = state.memory.find((m) => store.factTwin(m.fact, f));
-  if (twin) {
-    // the old telling already says this (in equal or richer detail) → skip
-    if (store.normFact(f).length <= store.normFact(twin.fact).length) return null;
-    // a re-telling that adds detail upgrades the old card instead of adding a
-    // twin; day stays — that's when he first learned it
-    twin.fact = f;
-    twin.kind = k;
-    twin.mood = md;
-    return k;
-  }
-  state.memory.push({ day: state.day, fact: f, kind: k, mood: md });
-  return k;
-}
+// Long-term memory now has its own batch pass (distill.ts) — this build sends
+// distill: true so the chat prompt sheds its extraction rules. The reply's
+// optional `remember` note is still honored (memory.ts rememberFact) as
+// graceful degradation: an older deployed server ignores the flag and keeps
+// extracting in-reply; factTwin dedupe makes the overlap harmless.
 
 export async function runChat(): Promise<void> {
   const state = ctx.state;
@@ -153,6 +121,7 @@ export async function runChat(): Promise<void> {
       fresh: nextMemories(CHAT_MEMORY_FEED).map((m) => m.fact), // rotated "bring one up" candidates
       messages: state.chat.slice(-12),
       lang: lang(), // picks the matching daily-batch musings server-side
+      distill: true, // memory extraction runs in batch (distill.ts) — drop the in-reply rules
     }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy
     chatPending.splice(0, covered.length); // clear what he just answered; keep mid-flight arrivals
 
@@ -182,6 +151,7 @@ export async function runChat(): Promise<void> {
       }
     }
     ctx.persist();
+    scheduleDistill(); // pet reply landed — restart the lull clock
     bubble(reply, { hold: 9000, type: true });
     setTimeout(() => $('said').classList.add('hidden'), 4200);
 

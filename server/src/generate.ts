@@ -9,7 +9,7 @@ import {
   BUBBLE_FLAT, BUBBLE_MOODS, DAYPARTS, MOODS, ROUTINE_KEYS, SPEAK_KEYS, batchKey,
   type Bubbles, type CardsBatch, type CharBatch, type Env, type Lang, type MutterMood,
 } from './types';
-import { clean, today } from './util';
+import { clean, extractJson, today } from './util';
 
 interface GenOpts {
   genChain: string[];
@@ -39,22 +39,6 @@ function sanitizeList(arr: unknown, max: number): string[] {
     .map((s) => clean(String(s)))
     .filter((s) => s.length > 3 && s.length < 200)
     .slice(0, max);
-}
-
-function extractJson(text: string): Record<string, unknown> | null {
-  if (!text) return null;
-  const m = text.replace(/```json|```/g, '').match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try {
-    return JSON.parse(m[0]);
-  } catch (e) {
-    // tolerate trailing commas before } or ]
-    try {
-      return JSON.parse(m[0].replace(/,(\s*[}\]])/g, '$1'));
-    } catch (e2) {
-      return null;
-    }
-  }
 }
 
 // Shared normal pool — one voice-neutral batch that every persona draws from.

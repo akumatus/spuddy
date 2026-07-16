@@ -2,6 +2,7 @@
 //
 //   GET  /cards          today's pre-generated card batch (all personas)
 //   POST /chat           real-time chat reply (geo-routed, per-device quota)
+//   POST /distill        batch memory extraction over a transcript chunk (same quota)
 //   POST /golden         real-time personalized golden card (same quota)
 //   POST /greet          real-time personalized open-the-app greeting (same quota)
 //   POST /admin/generate?lang=en|zh  Worker-side batch regen via LLM (protected) —
@@ -20,9 +21,9 @@
 
 import { generateForLang, putForLang } from './generate';
 import { appendQuotes, readQuotes } from './quotes-store';
-import { PERSONAS, buildChatSystem, buildGoldenPrompt, buildGreetPrompt, parseGesture, parseRemember, parseTag } from './personas';
+import { PERSONAS, buildChatSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, distillTranscript, parseDistillFacts, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
-import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type Env, type Lang } from './types';
+import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type DistillPayload, type Env, type Lang } from './types';
 import { CORS, clean, json, today } from './util';
 
 // The zh cron expression — must match the second entry in wrangler.toml's
@@ -168,6 +169,34 @@ export default {
         const { gesture, body: afterGesture } = parseGesture(body); // optional action to act out
         const { remember, body: text } = parseRemember(afterGesture); // optional durable fact to keep
         return json({ tag, gesture, remember, text: text.slice(0, 260), provider, model });
+      }
+
+      // Batch memory extraction — one call per conversation lull (see
+      // app/src/app/distill.ts), not per message. Same per-device budget as
+      // chat: a distill spends one unit, so the endpoint can't be farmed.
+      // Returns { facts: [] } on a clean "nothing durable here" reply; null
+      // facts only when the whole provider chain failed (the app keeps its
+      // cursor and retries at the next trigger).
+      if (url.pathname === '/distill' && request.method === 'POST') {
+        if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
+        const p = (await request.json()) as DistillPayload;
+        const q = await quotaState(env, p.deviceId);
+        if (!q.ok) return json({ limited: true }, 429);
+        const chunk = (p.messages || []).filter((m) => m && typeof m.text === 'string' && m.text.trim());
+        if (!chunk.length) return json({ facts: [] });
+
+        const system = buildDistillSystem(p);
+        const cfg = await loadConfig(env);
+        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        // temperature 0.2 — extraction wants stability, not creativity
+        const { text: raw, provider, model } = await callLLMChain(env, chain, {
+          system,
+          messages: [{ role: 'user', content: distillTranscript(p) }],
+          maxTokens: 700, temperature: 0.2, json: true, models,
+        });
+        if (!raw || !raw.trim()) return json({ facts: null, provider }); // chain failed — don't spend budget
+        await bumpQuota(env, q); // a real extraction pass counts
+        return json({ facts: parseDistillFacts(raw, chunk.length), provider, model });
       }
 
       if (url.pathname === '/golden' && request.method === 'POST') {

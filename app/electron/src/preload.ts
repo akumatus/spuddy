@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('pp', {
   debug: process.env.PP_DEBUG === '1',
   ai: {
     reply: (payload: unknown) => ipcRenderer.invoke('ai-reply', payload),
+    distill: (payload: unknown) => ipcRenderer.invoke('ai-distill', payload),
     golden: (payload: unknown) => ipcRenderer.invoke('ai-golden', payload),
     greet: (payload: unknown) => ipcRenderer.invoke('ai-greet', payload),
   },

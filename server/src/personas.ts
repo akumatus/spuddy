@@ -6,7 +6,8 @@
 // anchors. Models learn a voice far better from one real exchange than from a
 // paragraph of adjectives — cover different moods (down / win / hello / odd)
 // and different reply lengths so replies don't converge on one template.
-import type { ChatPayload, Lang, RememberNote } from './types';
+import type { ChatPayload, DistillFact, DistillPayload, Lang, RememberNote } from './types';
+import { clean, extractJson } from './util';
 
 export interface Persona {
   name: string;
@@ -153,15 +154,34 @@ function zhLine(lang: string | undefined, charLimit: number): string {
     : '';
 }
 
+// ── shared memory-extraction rules ──
+// One source of truth for BOTH extraction paths: the in-reply [[remember]] note
+// (older app builds) and the dedicated /distill pass (builds that send
+// ChatPayload.distill). Wording changes here shift extraction behavior — run
+// eval/README.md's harness before shipping one.
+
+const MEMORY_CATEGORIES =
+  `Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they — or someone they love — achieved, a first, a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information).`;
+
+const MEMORY_DISCIPLINE =
+  `Distill with discipline: keep ONLY what they actually said — never guess or infer a gender, an age, or a family role they didn't state. Use they/their when gender is unknown. Keep relatives anchored to THEIR point of view: their "my dad" stays "their dad" — never re-anchor to another family member's viewpoint (e.g. never turn their dad into "grandpa"). When unsure about one detail, drop that detail but keep the fact; skip recording only when the whole fact would be a guess.`;
+
+const MEMORY_WHAT_COUNTS =
+  `What counts as new: a durable fact counts however it surfaced — stated outright, pieced together across several turns, or revealed in passing by a transient moment: "the dog is moping in this heat" is small talk about the weather, but "they have a dog" is a durable fact hiding inside it — keep the durable kernel, drop the transient wrapper. A new detail about someone already in your memory (a name, an age, something that happened to them) is NEW information, not a restatement — record the fuller telling; retellings of the same fact merge into one card. A lasting state they are living with — grief, depression, a hard situation at home or work, anything they keep coming back to — belongs under feeling (rainy), kept in their own words, even when the conversation is heavy and the replies turned sincere; only transient moods and small talk ("tired today", "it's hot out") don't count. Word each fact so it still reads true weeks later — never "today"/"yesterday" inside the fact itself (the card already carries the day you learned it): "just got a new air conditioner at home", not "installed a new AC today".`;
+
+// The Chinese kinship/subject style rider exists because zh kinship terms
+// encode viewpoint (爷爷 vs 外公) and models re-anchor them wrong — it mirrors
+// the English discipline rule.
+const ZH_FACT_STYLE =
+  `中文事实尽量省略主语,性别不明时不写"他/她";亲属称谓保持对方原话的视角——对方说"我爸"就记"爸爸",绝不换算成"爷爷""外公"这类别人视角的称谓。`;
+
 // Language rider for the [[remember:]] fact. The Memory quilt renders facts in
 // the app language, not the conversation language — without this, the English
 // examples pull models toward English facts even in a Chinese app. Category and
-// mood words must stay English: the parser matches them literally. The Chinese
-// kinship line exists because zh kinship terms encode viewpoint (爷爷 vs 外公)
-// and models re-anchor them wrong — see the English discipline rule it mirrors.
+// mood words must stay English: the parser matches them literally.
 function zhRememberLine(lang: string | undefined): string {
   return lang === 'zh'
-    ? ` Write the <fact> itself in natural Simplified Chinese whatever language the conversation is in — only the category and mood words stay English, e.g. [[remember: work | plain | 在做一款叫 spuddy 的桌宠应用]]. 中文事实尽量省略主语,性别不明时不写"他/她";亲属称谓保持对方原话的视角——对方说"我爸"就记"爸爸",绝不换算成"爷爷""外公"这类别人视角的称谓。`
+    ? ` Write the <fact> itself in natural Simplified Chinese whatever language the conversation is in — only the category and mood words stay English, e.g. [[remember: work | plain | 在做一款叫 spuddy 的桌宠应用]]. ${ZH_FACT_STYLE}`
     : '';
 }
 
@@ -275,15 +295,73 @@ export function buildChatSystem(persona: Persona, p: ChatPayload, musings: strin
     `You are not a therapist: if they seem in real distress, drop the playfulness, stay warm and sincere, and gently suggest also talking to a human they trust. ` +
     `Begin your reply with exactly one emotion tag in square brackets — [comfort] if they seem down, [cheer] if celebrating with them, [proud] if they did something good, [calm] otherwise — then the message itself.` +
     ` When their message calls for a physical action — they ask you to sing, dance, hug, wave, spin, jump, stretch, hide, peek, sneeze, sulk, or show your card, or acting one out would clearly land the moment — add ONE gesture tag immediately AFTER the emotion tag, chosen from EXACTLY this list: [wave] [hug] [dance] [spin] [cheer] [hop] [sing] [stretch] [shy] [peek] [sulk] [sneeze] [present]. Use it only when it truly fits; most replies have no gesture tag. Never invent gesture words outside that list. Example: "[cheer][dance] you got it — watch this."` +
-    ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. Categories: work (job, projects, studies), goal (plans, things they're working toward), people (relationships, family, friends), pets (their animals), likes (tastes, preferences, hobbies), milestone (something they — or someone they love — achieved, a first, a big life event), feeling (a lasting worry, fear, or what they deeply care about), other. Mood is the emotional color of the fact itself: sunny (a happy, warm, or proud thing), rainy (a sad, painful, or heavy thing — a loss, a conflict, a fear), plain (neutral everyday information). Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost their mother years ago]] · [[remember: milestone | sunny | just ran their first 10k]].` +
-    ` Distill with discipline: keep ONLY what they actually said — never guess or infer a gender, an age, or a family role they didn't state. Use they/their when gender is unknown. Keep relatives anchored to THEIR point of view: their "my dad" stays "their dad" — never re-anchor to another family member's viewpoint (e.g. never turn their dad into "grandpa"). When unsure about one detail, drop that detail but keep the fact; skip recording only when the whole fact would be a guess.` +
-    ` What counts as new: a durable fact counts however it surfaced — stated outright, pieced together across several turns, or revealed in passing by a transient moment: "the dog is moping in this heat" is small talk about the weather, but "they have a dog" is a durable fact hiding inside it — keep the durable kernel, drop the transient wrapper. A new detail about someone already in your memory (a name, an age, something that happened to them) is NEW information, not a restatement — record the fuller telling; retellings of the same fact merge into one card. A lasting state they are living with — grief, depression, a hard situation at home or work, anything they keep coming back to — belongs under feeling (rainy), kept in their own words, even when the conversation is heavy and your reply is a sincere one; only transient moods and small talk ("tired today", "it's hot out") don't count. Word each fact so it still reads true weeks later — never "today"/"yesterday" inside the fact itself (the card already carries the day you learned it): "just got a new air conditioner at home", not "installed a new AC today".` +
-    zhRememberLine(p.lang) +
-    ` When a reply reveals nothing durable, add nothing. Never re-record a fact your long-term memory below already holds in the same detail, and at most one note per reply.` +
+    // In-reply extraction — only for app builds without the /distill pass
+    // (p.distill absent): newer clients extract in batch instead, and skipping
+    // this block frees ~700 prompt tokens for the reply itself.
+    (p.distill
+      ? ''
+      : ` After your reply, only if this exchange revealed a durable fact worth remembering about them long-term, append it as the very last thing on its own, tagged with one category and one mood: [[remember: <category> | <mood> | <one concise third-person fact>]]. ` +
+        MEMORY_CATEGORIES +
+        ` Examples: [[remember: work | plain | is building a desktop-pet app called spuddy]] · [[remember: people | rainy | lost their mother years ago]] · [[remember: milestone | sunny | just ran their first 10k]]. ` +
+        MEMORY_DISCIPLINE + ' ' + MEMORY_WHAT_COUNTS +
+        zhRememberLine(p.lang) +
+        ` When a reply reveals nothing durable, add nothing. Never re-record a fact your long-term memory below already holds in the same detail, and at most one note per reply.`) +
     (muse ? `\nLittle thoughts already drifting through your head today — bring one up in passing only when it genuinely fits:\n${muse}` : '') +
     (mem ? `\nLong-term memory of them — the complete list, all already known ("learned on day N" = which day of your friendship you learned it, NEVER anyone's age):\n${mem}` : '') +
     (fresh ? `\nOf these, ones you haven't brought up lately — when referencing memory this turn, prefer one of:\n${fresh}` : '')
   );
+}
+
+// ── /distill: batch memory extraction ──
+// A dedicated pass over a chunk of transcript, replacing the in-reply
+// [[remember]] note for app builds that send ChatPayload.distill. Reading the
+// whole chunk at once means facts spread across turns, buried in small talk,
+// or surfaced in a heavy stretch aren't lost to reply-writing pressure — and
+// one call can return several facts (the in-reply path was capped at one).
+export function buildDistillSystem(p: DistillPayload): string {
+  const mem = (p.memory || []).map((m) => `- ${m.fact || ''}`).join('\n');
+  return (
+    `You are the long-term memory of a tiny desk companion. The user message carries a chunk of chat between your human and the companion; distill the durable facts about the HUMAN worth keeping. ` +
+    `Only facts about the human and their life, drawn from what the human themselves said — never the companion's own words or guesses, and never general knowledge the human merely asked about. ` +
+    MEMORY_DISCIPLINE + ' ' + MEMORY_WHAT_COUNTS + ' ' + MEMORY_CATEGORIES +
+    (p.lang === 'zh' ? ` Write each fact in natural Simplified Chinese whatever language the conversation is in — kind and mood words stay English. ${ZH_FACT_STYLE}` : '') +
+    ` Lines under "context" were already distilled — use them only to make sense of the chunk; never output a fact knowable only from context.` +
+    (mem ? `\nAlready known about them — never re-record one of these in the same detail (a fuller telling is fine, it upgrades the old card):\n${mem}` : '') +
+    `\nRespond with ONLY a JSON object, no prose: {"facts":[{"kind":"<category>","mood":"<sunny|rainy|plain>","fact":"<one concise third-person fact>","turn":<n>}]} — turn is the numbered chunk line where the human revealed it. 0 to 5 facts; {"facts":[]} when nothing qualifies.`
+  );
+}
+
+// The transcript chunk as the /distill user message: context lines unnumbered
+// (extract nothing from them), chunk lines numbered so the model's `turn`
+// refs are unambiguous.
+export function distillTranscript(p: DistillPayload): string {
+  const fmt = (m: { who?: string; text?: string }) => `${m.who === 'user' ? 'Human' : 'Companion'}: ${m.text || ''}`;
+  const ctx = (p.context || []).map((m) => `  ${fmt(m)}`).join('\n');
+  const chunk = (p.messages || []).map((m, i) => `  ${i + 1}. ${fmt(m)}`).join('\n');
+  return (ctx ? `context (already distilled):\n${ctx}\n` : '') + `chunk:\n${chunk}`;
+}
+
+// Parse + sanitize the /distill reply. Tolerant of fences/prose around the
+// JSON (extractJson); unknown kinds file under 'other', moods normalize through
+// the same synonym map as [[remember]] notes, out-of-range turns drop to
+// undefined, and the fact list caps at 5.
+export function parseDistillFacts(raw: string, maxTurn: number): DistillFact[] {
+  const obj = extractJson(raw);
+  const arr = obj && Array.isArray((obj as { facts?: unknown }).facts) ? ((obj as { facts: unknown[] }).facts) : [];
+  const out: DistillFact[] = [];
+  for (const f of arr) {
+    if (!f || typeof f !== 'object') continue;
+    const rec = f as Record<string, unknown>;
+    const fact = clean(String(rec.fact ?? ''));
+    if (!fact) continue;
+    const kind = String(rec.kind ?? '').trim().toLowerCase();
+    const mood = MOODS[String(rec.mood ?? '').trim().toLowerCase()] || null;
+    const t = Number(rec.turn);
+    const turn = Number.isInteger(t) && t >= 1 && t <= maxTurn ? t : undefined;
+    out.push({ fact, kind: MEMORY_KINDS.includes(kind) ? kind : 'other', mood, turn });
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 
 // Personalized golden card — knit from what he remembers about this human.

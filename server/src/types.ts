@@ -56,6 +56,32 @@ export interface ChatPayload {
   memory?: MemoryItem[]; // chat sends the FULL fact list (dedupe + consistency); golden/greet a rotated slice
   fresh?: string[]; // chat only: rotated memory facts to prefer bringing up this turn
   messages?: { who?: string; text?: string }[];
+  // client runs the separate /distill pass — omit the in-reply [[remember]]
+  // instructions from the chat prompt (absent on older app builds)
+  distill?: boolean;
+}
+
+// POST body for /distill — batch memory extraction over a chunk of transcript.
+// The app sends it once per conversation lull (see app/src/app/distill.ts),
+// not per message: context is the already-distilled tail (for topics that
+// straddle the boundary), messages is the undistilled chunk to extract from.
+export interface DistillPayload {
+  deviceId?: string;
+  day?: number;
+  lang?: string; // 'zh' → facts written in Chinese
+  memory?: MemoryItem[]; // FULL current fact list — the "already known" dedupe context
+  context?: { who?: string; text?: string }[]; // already-distilled tail — extract nothing from these
+  messages?: { who?: string; text?: string }[]; // the chunk to distill
+}
+
+// One extracted fact in the /distill response. turn = 1-based index of the
+// chunk message that revealed it (a user line), so the app can stitch the
+// "knit into Memory" tag onto the transcript.
+export interface DistillFact {
+  fact: string;
+  kind: string;
+  mood: string | null;
+  turn?: number;
 }
 
 export interface ChatTurn {
