@@ -58,6 +58,11 @@ export interface MemoryFact {
   fact: string;
   kind: MemoryKind;
   mood?: MemoryMood;
+  // In the attic: a consolidation pass judged this state long passed. Hidden
+  // from every prompt and from the quilt, but kept (not deleted) so nothing a
+  // model decided is unrecoverable; re-affirming the fact in chat un-retires
+  // it (memory.ts rememberFact).
+  retired?: boolean;
 }
 
 // No-replacement gacha bookkeeping for a server pool — resets when a fresh
@@ -96,6 +101,9 @@ export interface AppState {
   // count, NOT an index into the state.chat window) have been distilled. See
   // app/distill.ts; healed by clamping when the transcript shrinks (clear chat).
   distilledUpTo: number;
+  // friendship day of the last memory-consolidation pass (app/consolidate.ts);
+  // 0 = never ran. A clean no-op pass counts — it still answered "this week".
+  consolidatedDay: number;
   active: CharId;
   unlockedIds: CharId[];
   buddyNew: boolean;
@@ -215,6 +223,31 @@ export interface AiDistillResult {
   limited?: boolean; // daily real-time budget spent (server 429)
 }
 
+// ── periodic memory curation (app/consolidate.ts ↔ POST /consolidate) ──
+
+export interface AiConsolidateRequest {
+  day: number;
+  lang?: Lang;
+  memory: MemoryFact[]; // the ACTIVE fact list — op refs are 1-based indices into this
+}
+
+// One curation op; refs index the memory list as sent. merge folds `from`
+// cards into `into`; reword replaces text only; retire moves a card to the attic.
+export interface ConsolidateOpDto {
+  op: 'merge' | 'reword' | 'retire';
+  into?: number;
+  from?: number[];
+  target?: number;
+  fact?: string;
+  kind?: string;
+  mood?: MemoryMood | null;
+}
+
+export interface AiConsolidateResult {
+  ops?: ConsolidateOpDto[] | null; // null: provider chain failed — retry at the next trigger
+  limited?: boolean; // daily real-time budget spent (server 429)
+}
+
 export interface AiGoldenRequest {
   charId: CharId;
   charName: string;
@@ -262,6 +295,7 @@ export interface PreloadBridge {
   ai: {
     reply(payload: AiReplyRequest): Promise<AiReplyResult | null>;
     distill?(payload: AiDistillRequest): Promise<AiDistillResult | null>; // absent on older preloads
+    consolidate?(payload: AiConsolidateRequest): Promise<AiConsolidateResult | null>; // absent on older preloads
     golden(payload: AiGoldenRequest): Promise<string | null>;
     greet(payload: AiGreetRequest): Promise<string | null>;
   };

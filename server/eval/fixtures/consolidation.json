@@ -1,0 +1,30 @@
+{
+  "name": "consolidation",
+  "note": "Synthetic (committable — no real user data). A day-60 fact list that has aged: two hamster fragments should merge, a day-5 stress spell and a day-4 exam plan should retire, a 'just moved' phrasing should reword — while the daughter's name and a standing preference must stay untouched. Run with --mode consolidate; turns are unused.",
+  "charId": "spud",
+  "lang": "zh",
+  "day": 60,
+  "seedMemory": [
+    { "fact": "养了一只叫豆豆的仓鼠", "kind": "pets", "day": 2 },
+    { "fact": "仓鼠豆豆喜欢囤瓜子", "kind": "pets", "day": 9 },
+    { "fact": "最近工作压力很大，经常加班到很晚", "kind": "feeling", "mood": "rainy", "day": 5 },
+    { "fact": "女儿叫小满", "kind": "people", "day": 1 },
+    { "fact": "喜欢喝手冲咖啡", "kind": "likes", "day": 20 },
+    { "fact": "正在准备驾照考试", "kind": "goal", "day": 4 },
+    { "fact": "刚入职一家设计公司，还在适应新环境", "kind": "work", "day": 6 }
+  ],
+  "expectOps": [
+    { "id": "merge_hamster", "desc": "两条豆豆碎片合并成一张卡", "op": "merge", "target": "豆豆" },
+    { "id": "retire_stress", "desc": "day 5 的加班压力早已过去 → 退休", "op": "retire", "target": "加班|压力" },
+    { "id": "retire_license", "desc": "day 4 的驾照备考早已过去 → 退休", "op": "retire", "target": "驾照" },
+    { "id": "reword_job", "desc": "「刚入职…还在适应」过期,work 不可退休 → 只能改写", "op": "reword", "target": "设计公司|入职" }
+  ],
+  "avoidOps": [
+    { "id": "keep_daughter", "desc": "女儿的名字永不清理", "op": "remove", "target": "小满|女儿" },
+    { "id": "keep_coffee", "desc": "长期偏好不该退休", "op": "remove", "target": "咖啡" },
+    { "id": "keep_job", "desc": "work 受机械保护,不可退休", "op": "remove", "target": "设计公司" }
+  ],
+  "expect": [],
+  "avoid": [],
+  "turns": []
+}

@@ -21,9 +21,9 @@
 
 import { generateForLang, putForLang } from './generate';
 import { appendQuotes, readQuotes } from './quotes-store';
-import { PERSONAS, buildChatSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, distillTranscript, parseDistillFacts, parseGesture, parseRemember, parseTag } from './personas';
+import { PERSONAS, buildChatSystem, buildConsolidateSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, consolidateList, distillTranscript, parseConsolidateOps, parseDistillFacts, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
-import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type DistillPayload, type Env, type Lang } from './types';
+import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type ConsolidatePayload, type DistillPayload, type Env, type Lang } from './types';
 import { CORS, clean, json, today } from './util';
 
 // The zh cron expression — must match the second entry in wrangler.toml's
@@ -197,6 +197,31 @@ export default {
         if (!raw || !raw.trim()) return json({ facts: null, provider }); // chain failed — don't spend budget
         await bumpQuota(env, q); // a real extraction pass counts
         return json({ facts: parseDistillFacts(raw, chunk.length, (p.memory || []).length), provider, model });
+      }
+
+      // Periodic memory curation — the app calls this weekly-ish, or when the
+      // fact list nears its cap (see app/src/app/consolidate.ts). Same budget
+      // as chat. Returns { ops: [] } for a healthy list ("change nothing" is
+      // the expected answer); null ops only when the provider chain failed.
+      if (url.pathname === '/consolidate' && request.method === 'POST') {
+        if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
+        const p = (await request.json()) as ConsolidatePayload;
+        const q = await quotaState(env, p.deviceId);
+        if (!q.ok) return json({ limited: true }, 429);
+        const facts = (p.memory || []).filter((m) => m && typeof m.fact === 'string' && m.fact.trim());
+        if (facts.length < 2) return json({ ops: [] }); // nothing to curate
+
+        const cfg = await loadConfig(env);
+        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        // temperature 0.2 — curation wants stability, not creativity
+        const { text: raw, provider, model } = await callLLMChain(env, chain, {
+          system: buildConsolidateSystem(p),
+          messages: [{ role: 'user', content: consolidateList(p) }],
+          maxTokens: 700, temperature: 0.2, json: true, models,
+        });
+        if (!raw || !raw.trim()) return json({ ops: null, provider }); // chain failed — don't spend budget
+        await bumpQuota(env, q); // a real curation pass counts
+        return json({ ops: parseConsolidateOps(raw, facts.length, facts.map((m) => m.kind || 'other')), provider, model });
       }
 
       if (url.pathname === '/golden' && request.method === 'POST') {

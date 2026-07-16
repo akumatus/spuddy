@@ -17,7 +17,7 @@ export function nextMemories(n: number): MemoryFact[] {
   if (!state.usedMemory || state.usedMemory.date !== state.lastDate) {
     state.usedMemory = { date: state.lastDate, used: [] };
   }
-  const all = state.memory;
+  const all = store.activeMemory(state); // attic cards never rotate back up
   if (!all.length) return [];
   let unused = all.filter((m) => !state.usedMemory.used.includes(m.fact));
   if (!unused.length) { state.usedMemory.used = []; unused = all.slice(); } // lapped → reset today's rotation
@@ -56,6 +56,13 @@ export function rememberFact(fact: string, kind: string | undefined, mood: Memor
   const md = mood || (fallbackTag === 'comfort' ? 'rainy' : fallbackTag === 'cheer' || fallbackTag === 'proud' ? 'sunny' : 'plain');
   const twin = state.memory.find((m) => store.factTwin(m.fact, f));
   if (twin) {
+    // saying a retired fact again brings it down from the attic — they
+    // re-affirmed it, so consolidation's "long passed" call no longer holds
+    if (twin.retired) {
+      twin.retired = false;
+      twin.fact = store.normFact(f).length > store.normFact(twin.fact).length ? f : twin.fact;
+      return twin.kind;
+    }
     // the old telling already says this (in equal or richer detail) → skip
     if (store.normFact(f).length <= store.normFact(twin.fact).length) return null;
     // a re-telling that adds detail upgrades the old card instead of adding a

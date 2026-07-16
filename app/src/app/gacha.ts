@@ -4,6 +4,7 @@ import { lang } from '../locale';
 import { quotesPool } from '../quotes';
 import * as remote from '../remote';
 import { sfx } from '../sfx';
+import * as store from '../store';
 import { closeOverlay } from '../ui/overlay';
 import { showCard, showDrawAnim, showWeave, setWeaveLine } from '../ui/popups';
 import { ctx, pp } from './context';
@@ -144,7 +145,7 @@ export async function weaveGolden(): Promise<void> {
   // quote. When it does fire, feed a ROTATING slice of memory (not the same
   // recent facts every time) so consecutive goldens don't read alike.
   // .catch → null so a dropped connection can't leave the weave spinning.
-  const tryLive = ctx.state.memory.length > 0 && Math.random() < GOLDEN_LIVE_CHANCE;
+  const tryLive = store.activeMemory(ctx.state).length > 0 && Math.random() < GOLDEN_LIVE_CHANCE;
   const memory = tryLive ? nextMemories(GOLDEN_MEMORY_FEED) : [];
   const [aiMsg] = await Promise.all([
     tryLive

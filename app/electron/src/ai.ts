@@ -5,6 +5,8 @@
 import { ipcMain } from 'electron';
 import fs from 'node:fs';
 import type {
+  AiConsolidateRequest,
+  AiConsolidateResult,
   AiDistillRequest,
   AiDistillResult,
   AiGoldenRequest,
@@ -40,6 +42,20 @@ export function registerAiIpc(): void {
       if (res.status === 429) return { limited: true }; // daily budget spent
       if (!res.ok) return null; // incl. 404 from a not-yet-deployed server
       return ((await res.json()) as AiDistillResult | null) || null;
+    } catch (e) {
+      return null; // offline / server down
+    }
+  });
+
+  // Periodic memory curation (see src/app/consolidate.ts). Same failure
+  // contract as ai-distill: null / {limited} → the renderer just retries at
+  // the next trigger; nothing is applied until a valid ops array arrives.
+  ipcMain.handle('ai-consolidate', async (_e, p: AiConsolidateRequest): Promise<AiConsolidateResult | null> => {
+    try {
+      const res = await serverFetch('/consolidate', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
+      if (res.status === 429) return { limited: true }; // daily budget spent
+      if (!res.ok) return null; // incl. 404 from a not-yet-deployed server
+      return ((await res.json()) as AiConsolidateResult | null) || null;
     } catch (e) {
       return null; // offline / server down
     }

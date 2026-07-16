@@ -29,9 +29,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { PERSONAS, buildChatSystem, buildDistillSystem, distillTranscript, parseDistillFacts, parseTag, parseGesture, parseRemember } from '../src/personas';
+import { PERSONAS, buildChatSystem, buildConsolidateSystem, buildDistillSystem, consolidateList, distillTranscript, parseConsolidateOps, parseDistillFacts, parseTag, parseGesture, parseRemember } from '../src/personas';
 import { callLLMChain } from '../src/providers';
-import type { Env, ChatPayload, DistillPayload } from '../src/types';
+import type { Env, ChatPayload, ConsolidatePayload, DistillPayload } from '../src/types';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -44,15 +44,22 @@ const ROOT = join(HERE, '..');
 // correction that rewrote the wrong card).
 interface ExpectFact { id: string; kind: string; desc: string; any: string[]; update?: boolean; targets?: string }
 interface AvoidFact { id: string; desc: string; any: string[] }
+// consolidate-mode ground truth: ops the curator should propose (`target`
+// matches any ORIGINAL fact text the op touches) and cards it must leave
+// alone (`op: "remove"` = neither retired nor merged away).
+interface ExpectOp { id: string; desc: string; op: 'merge' | 'reword' | 'retire'; target: string }
+interface AvoidOp { id: string; desc: string; op: 'remove'; target: string }
 interface Fixture {
   name: string;
   note?: string;
   charId: string;
   lang: string;
   day: number;
-  seedMemory?: { fact: string; kind?: string; day?: number }[]; // cards that exist before the replay starts
+  seedMemory?: { fact: string; kind?: string; mood?: string | null; day?: number }[]; // cards that exist before the replay starts
   expect: ExpectFact[];
   avoid: AvoidFact[];
+  expectOps?: ExpectOp[];
+  avoidOps?: AvoidOp[];
   turns: { who: string; text: string }[];
 }
 
@@ -195,6 +202,34 @@ async function distillReplay(env: Env, chain: string[], fx: Fixture): Promise<Ex
   return extracted;
 }
 
+// One /consolidate curation op, resolved to the original texts it touches:
+// touched = every referenced card (into + from + target); removed = only the
+// cards it takes off the quilt (retire target, merge sources).
+interface AppliedOp { op: string; touched: string[]; removed: string[]; fact?: string }
+
+// Consolidate-mode replay: ONE call over the seeded list (no transcript).
+async function consolidateReplay(env: Env, chain: string[], fx: Fixture): Promise<AppliedOp[]> {
+  const payload: ConsolidatePayload = {
+    day: fx.day,
+    lang: fx.lang,
+    memory: (fx.seedMemory || []).map((s) => ({ fact: s.fact, kind: s.kind, mood: s.mood ?? null, day: s.day || 1 })),
+  };
+  const r = await callLLMChain(env, chain, {
+    system: buildConsolidateSystem(payload),
+    messages: [{ role: 'user', content: consolidateList(payload) }],
+    maxTokens: 700, temperature: 0.2, json: true, models: {},
+  });
+  const list = payload.memory || [];
+  const txt = (n: number | undefined): string[] => (n && list[n - 1] ? [list[n - 1].fact || ''] : []);
+  return parseConsolidateOps(r.text || '', list.length, list.map((m) => m.kind || 'other')).map((o) => {
+    if (o.op === 'merge') {
+      const from = o.from.flatMap(txt);
+      return { op: o.op, touched: [...txt(o.into), ...from], removed: from, fact: o.fact };
+    }
+    return { op: o.op, touched: txt(o.target), removed: o.op === 'retire' ? txt(o.target) : [], fact: (o as { fact?: string }).fact };
+  });
+}
+
 interface Scored {
   recall: number;                                    // fraction of expected facts hit at least once across samples
   perExpect: { id: string; desc: string; hitRate: number }[]; // hitRate = samples-with-a-hit / samples
@@ -253,6 +288,51 @@ async function main() {
 
   process.stderr.write(`\nfixture: ${fx.name}  ·  mode: ${mode}  ·  provider: ${provider} (${model})  ·  samples: ${samples}\n`);
   process.stderr.write(`${fx.turns.filter((t) => t.who === 'user').length} user turns · ${fx.expect.length} expected facts\n\n`);
+
+  // ── consolidate mode: its own replay, scoring and report ──
+  if (mode === 'consolidate') {
+    const opRuns: AppliedOp[][] = [];
+    for (let s = 0; s < samples; s++) {
+      process.stderr.write(`curation pass ${s + 1}/${samples} …\n`);
+      opRuns.push(await consolidateReplay(env, chain, fx));
+    }
+    const lines: string[] = [];
+    lines.push(`\n═══ memory-curation eval · ${fx.name} · ${provider}/${model} · ${samples} sample(s) ═══\n`);
+    const perOp = (fx.expectOps || []).map((e) => {
+      let hits = 0;
+      for (const r of opRuns) if (r.some((o) => o.op === e.op && o.touched.some((t) => matchesAny(t, [e.target])))) hits++;
+      return { ...e, hitRate: hits / samples };
+    });
+    lines.push(`EXPECTED OPS: ${perOp.filter((p) => p.hitRate > 0).length}/${perOp.length} proposed at least once`);
+    for (const p of perOp) {
+      const flag = p.hitRate === 0 ? ' ✗ MISS' : p.hitRate < 1 ? ' ~ flaky' : '';
+      lines.push(`  ${bar(p.hitRate)} ${(p.hitRate * 100).toFixed(0).padStart(3)}%  [${p.op}] ${p.desc}${flag}`);
+    }
+    lines.push('');
+    const violations: string[] = [];
+    opRuns.forEach((r, si) => {
+      for (const a of fx.avoidOps || []) {
+        for (const o of r) {
+          if (o.removed.some((t) => matchesAny(t, [a.target]))) violations.push(`  · [${a.desc}] ${o.op} removed "${o.removed.join('; ')}"  (sample ${si + 1})`);
+        }
+      }
+    });
+    lines.push(violations.length ? `SAFETY ⚠  ${violations.length} protected card(s) removed:` : 'SAFETY ✓  no protected card retired or merged away');
+    lines.push(...violations);
+    lines.push('');
+    lines.push('all ops, verbatim:');
+    opRuns.forEach((r, si) => {
+      lines.push(`  sample ${si + 1}: ${r.length} op(s)`);
+      for (const o of r) lines.push(`     ${o.op} → ${o.touched.map((t) => `"${t}"`).join(' + ')}${o.fact ? ` ⇒ "${o.fact}"` : ''}`);
+    });
+    process.stdout.write(lines.join('\n') + '\n');
+    if (outPath) {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(join(ROOT, outPath), JSON.stringify({ fixture: fx.name, mode, provider, model, samples, perOp, violations, opRuns }, null, 2));
+      process.stderr.write(`\nwrote ${outPath}\n`);
+    }
+    return;
+  }
 
   const runs: Extraction[][] = [];
   for (let s = 0; s < samples; s++) {

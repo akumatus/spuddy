@@ -117,7 +117,7 @@ export async function runChat(): Promise<void> {
       charName: ch.name,
       voice: PERS[ch.id].voice,
       day: state.day,
-      memory: state.memory, // the FULL list — dedupe + a consistent picture of them
+      memory: store.activeMemory(state), // the FULL active list — dedupe + a consistent picture of them; attic stays home
       fresh: nextMemories(CHAT_MEMORY_FEED).map((m) => m.fact), // rotated "bring one up" candidates
       messages: state.chat.slice(-12),
       lang: lang(), // picks the matching daily-batch musings server-side

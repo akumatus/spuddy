@@ -10,6 +10,7 @@ import { setSoundEnabled, sfx } from './sfx';
 import * as store from './store';
 import { isOverlayOpen } from './ui/overlay';
 import { $, ctx, pp } from './app/context';
+import { initConsolidate } from './app/consolidate';
 import { installDebugHooks } from './app/debug';
 import { initDistill } from './app/distill';
 import { wireInteractions } from './app/interactions';
@@ -48,6 +49,9 @@ setInterval(() => remote.refresh(), 60 * 60 * 1000);
 // catch up on a transcript tail left undistilled by quitting mid-lull
 // (batch memory extraction — see app/distill.ts)
 initDistill();
+// weekly-ish memory curation, after the distill catch-up settles
+// (merge fragments, refresh aged wording, retire long-passed states)
+initConsolidate();
 
 // ── personality engine (7a) — needs-driven autonomy, ported from lib/spud-brain.js ──
 const per = state.personality || {};
@@ -150,7 +154,7 @@ async function personalGreeting(): Promise<string | null> {
       voice: PERS[ch.id].voice,
       daypart: daypart(),
       day: state.day,
-      memory: state.memory.slice(-6),
+      memory: store.activeMemory(state).slice(-6),
       lang: lang(),
     });
   } catch (e) {

@@ -144,6 +144,7 @@ export function defaultState(): AppState {
     // the record (see main.js). It fills as you actually talk.
     chat: [],
     distilledUpTo: 0, // batch memory-extraction cursor, in absolute chat.jsonl lines (app/distill.ts)
+    consolidatedDay: 0, // friendship day of the last memory-curation pass (app/consolidate.ts)
     active: 'spud',
     unlockedIds: ['spud'],
     buddyNew: false,
@@ -225,7 +226,15 @@ export function load(): AppState {
   const total = chatTotal(s);
   if (typeof s.distilledUpTo !== 'number') s.distilledUpTo = Math.max(0, total - 30);
   s.distilledUpTo = Math.max(0, Math.min(s.distilledUpTo, total));
+  if (typeof s.consolidatedDay !== 'number') s.consolidatedDay = 0; // pre-curation saves
   return s;
+}
+
+// Facts that feed prompts and the quilt — attic (retired) cards stay out.
+// Callers that mutate cards keep going through state.memory; this is the
+// read view for anything the pet says or shows.
+export function activeMemory(s: AppState): MemoryFact[] {
+  return s.memory.filter((m) => !m.retired);
 }
 
 // ── memory cap ──
@@ -235,15 +244,17 @@ export function load(): AppState {
 // Evict kind-aware instead: kinds that expire by nature go first (oldest
 // within the tier), identity kinds only when nothing else is left to give.
 const MEMORY_MAX = 60;
+// the attic (retired cards) gets its own smaller quota — kept for recovery,
+// not worth unbounded growth; oldest-inserted drop first
+const ATTIC_MAX = 40;
 const EVICT_TIERS: MemoryKind[][] = [
   ['other'],
   ['feeling'],
   ['likes', 'goal', 'work'],
   ['people', 'pets', 'milestone'],
 ];
-export function capMemory(mem: MemoryFact[], max = MEMORY_MAX): MemoryFact[] {
-  if (mem.length <= max) return mem;
-  const out = mem.slice();
+function capActive(active: MemoryFact[], max: number): MemoryFact[] {
+  const out = active.slice();
   while (out.length > max) {
     let victim = -1;
     for (const tier of EVICT_TIERS) {
@@ -257,6 +268,16 @@ export function capMemory(mem: MemoryFact[], max = MEMORY_MAX): MemoryFact[] {
     out.splice(victim === -1 ? 0 : victim, 1);
   }
   return out;
+}
+export function capMemory(mem: MemoryFact[], max = MEMORY_MAX): MemoryFact[] {
+  const active = mem.filter((m) => !m.retired);
+  const attic = mem.filter((m) => m.retired);
+  if (active.length <= max && attic.length <= ATTIC_MAX) return mem;
+  const keep = new Set<MemoryFact>([
+    ...capActive(active, max),
+    ...attic.slice(-ATTIC_MAX),
+  ]);
+  return mem.filter((m) => keep.has(m));
 }
 
 export function save(s: AppState): void {
