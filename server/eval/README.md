@@ -63,9 +63,12 @@ something with the model held constant.
 
 ## Fixtures
 
-`fixtures/` is **git-ignored** — fixtures are built from real conversations and
-stay on your machine only. The harness ships without them; create your own to
-run it (the baseline below was measured against a private one).
+`fixtures/` is **git-ignored** — fixtures built from real conversations stay on
+your machine only (the baseline below was measured against a private one).
+Synthetic fixtures containing no real user data are force-added past the
+ignore (`git add -f`): `contradictions.json` ships that way, as a runnable
+example and as the regression for `/distill`'s `updates` corrections
+(seeded cards the conversation then contradicts).
 
 `fixtures/<name>.json`:
 

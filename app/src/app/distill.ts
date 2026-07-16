@@ -23,7 +23,7 @@
 import { lang } from '../locale';
 import * as store from '../store';
 import { ctx, pp } from './context';
-import { rememberFact } from './memory';
+import { rememberFact, updateFact } from './memory';
 
 const LULL_MS = 10 * 60_000; // quiet gap that ends a burst
 const BACKSTOP = 30; // undistilled lines that force an early pass mid-burst
@@ -80,17 +80,23 @@ async function runDistill(): Promise<void> {
   }
   busy = true;
   try {
+    // Snapshot the fact cards before the call: the response's `updates` refs
+    // are indices into THIS list, and chat may append (or the Book delete)
+    // cards while the request is in flight.
+    const memSnapshot = state.memory.slice();
     const res = await pp.ai.distill({
       day: state.day,
       lang: lang(),
-      memory: state.memory,
+      memory: memSnapshot,
       context: state.chat.slice(Math.max(start - CONTEXT_TAIL, 0), start).map((m) => ({ who: m.who, text: m.text })),
       messages: chunk.map((m) => ({ who: m.who, text: m.text })),
     }).catch(() => null);
     // failed chain / offline / over budget → keep the cursor, retry next trigger
     if (!res || res.limited || !Array.isArray(res.facts)) return;
     for (const f of res.facts) {
-      const kind = rememberFact(f.fact, f.kind, f.mood, 'calm');
+      // a correction rewrites its (snapshot-addressed) card; anything else is a new fact
+      const target = typeof f.updates === 'number' && f.updates >= 1 && f.updates <= memSnapshot.length ? memSnapshot[f.updates - 1] : null;
+      const kind = target ? updateFact(target, f.fact, f.kind, f.mood) : rememberFact(f.fact, f.kind, f.mood, 'calm');
       // stitch the "knit into Memory" tag onto the user line that revealed it.
       // Best-effort: a line already flushed to chat.jsonl keeps the tag only
       // until restart (store.ts appends finished turns and never rewrites).

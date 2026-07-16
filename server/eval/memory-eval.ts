@@ -37,7 +37,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 
 // ── ground-truth fixture shape ──
-interface ExpectFact { id: string; kind: string; desc: string; any: string[] }
+// update: this fact must arrive as a CORRECTION of an existing card (the
+// /distill `updates` ref) — scored that strictly in distill mode only; the
+// in-reply path has no update mechanism, so chat mode scores it by pattern.
+// targets: regex the corrected card's original text must match (catches a
+// correction that rewrote the wrong card).
+interface ExpectFact { id: string; kind: string; desc: string; any: string[]; update?: boolean; targets?: string }
 interface AvoidFact { id: string; desc: string; any: string[] }
 interface Fixture {
   name: string;
@@ -45,13 +50,21 @@ interface Fixture {
   charId: string;
   lang: string;
   day: number;
+  seedMemory?: { fact: string; kind?: string; day?: number }[]; // cards that exist before the replay starts
   expect: ExpectFact[];
   avoid: AvoidFact[];
   turns: { who: string; text: string }[];
 }
 
 // One extracted fact from one replay: what the model chose to keep, and where.
-interface Extraction { turn: number; kind: string; mood: string | null; fact: string }
+// updates/target: the correction ref and the original text of the card it
+// rewrote (resolved against the memory list as sent for that call).
+interface Extraction { turn: number; kind: string; mood: string | null; fact: string; updates?: number; target?: string }
+
+// the memory list a replay starts from — seeded cards, oldest first
+function seedMem(fx: Fixture): { fact: string; day: number }[] {
+  return (fx.seedMemory || []).map((s) => ({ fact: s.fact, day: s.day || 1 }));
+}
 
 // ── args ──
 function arg(name: string, def?: string): string | undefined {
@@ -93,7 +106,7 @@ function matchesAny(fact: string, patterns: string[]): boolean {
 // "already known" list, so the model sees the same de-dupe context it sees live.
 async function replay(env: Env, chain: string[], fx: Fixture): Promise<Extraction[]> {
   const persona = PERSONAS[fx.charId] || PERSONAS.spud;
-  const memory: { fact: string; day: number }[] = [];
+  const memory: { fact: string; day: number }[] = seedMem(fx);
   const extracted: Extraction[] = [];
   let userTurn = 0;
 
@@ -137,15 +150,16 @@ async function replay(env: Env, chain: string[], fx: Fixture): Promise<Extractio
 const DISTILL_BACKSTOP = 30;
 const DISTILL_CONTEXT = 6;
 async function distillReplay(env: Env, chain: string[], fx: Fixture): Promise<Extraction[]> {
-  const memory: { fact: string; day: number }[] = [];
+  const memory: { fact: string; day: number }[] = seedMem(fx);
   const extracted: Extraction[] = [];
   let cursor = 0;
   while (cursor < fx.turns.length) {
     const chunk = fx.turns.slice(cursor, cursor + DISTILL_BACKSTOP);
+    const sent = memory.slice(); // the numbered list this call sees — `updates` refs resolve against it
     const payload: DistillPayload = {
       day: fx.day,
       lang: fx.lang,
-      memory: memory.slice(),
+      memory: sent,
       context: fx.turns.slice(Math.max(cursor - DISTILL_CONTEXT, 0), cursor),
       messages: chunk,
     };
@@ -163,10 +177,18 @@ async function distillReplay(env: Env, chain: string[], fx: Fixture): Promise<Ex
       cursor += chunk.length;
       continue;
     }
-    for (const f of parseDistillFacts(raw, chunk.length)) {
+    for (const f of parseDistillFacts(raw, chunk.length, sent.length)) {
       // report `turn` as the absolute transcript line for readability
-      extracted.push({ turn: f.turn ? cursor + f.turn : 0, kind: f.kind, mood: f.mood, fact: f.fact });
-      if (!memory.some((m) => m.fact === f.fact)) memory.push({ fact: f.fact, day: fx.day });
+      const target = f.updates ? sent[f.updates - 1] : undefined;
+      extracted.push({ turn: f.turn ? cursor + f.turn : 0, kind: f.kind, mood: f.mood, fact: f.fact, updates: f.updates, target: target?.fact });
+      if (target) {
+        // mirror the app: a correction rewrites its card in place
+        const live = memory.find((m) => m.fact === target.fact);
+        if (live) live.fact = f.fact;
+        else if (!memory.some((m) => m.fact === f.fact)) memory.push({ fact: f.fact, day: fx.day });
+      } else if (!memory.some((m) => m.fact === f.fact)) {
+        memory.push({ fact: f.fact, day: fx.day });
+      }
     }
     cursor += chunk.length;
   }
@@ -181,13 +203,21 @@ interface Scored {
 }
 
 // Score N replays against the fixture. An expected fact is "hit" in a sample if
-// ANY extraction that sample matched its patterns. avoid/novel are judged only on
-// extractions that matched no expected id, so overlapping tokens (空调) don't
-// double-count.
-function score(fx: Fixture, samples: Extraction[][]): Scored {
+// ANY extraction that sample matched its patterns — and, for update-expected
+// facts in distill mode, arrived as a correction of the right card (the
+// in-reply path has no update mechanism, so chat mode scores those by pattern
+// alone). avoid/novel are judged only on extractions that matched no expected
+// id, so overlapping tokens (空调) don't double-count.
+function score(fx: Fixture, samples: Extraction[][], mode: string): Scored {
+  const satisfies = (x: Extraction, e: ExpectFact): boolean => {
+    if (!matchesAny(x.fact, e.any)) return false;
+    if (!e.update || mode !== 'distill') return true;
+    if (x.updates === undefined) return false; // arrived as a new card, not a correction
+    return !e.targets || matchesAny(x.target || '', [e.targets]); // corrected the right card
+  };
   const perExpect = fx.expect.map((e) => {
     let hits = 0;
-    for (const s of samples) if (s.some((x) => matchesAny(x.fact, e.any))) hits++;
+    for (const s of samples) if (s.some((x) => satisfies(x, e))) hits++;
     return { id: e.id, desc: e.desc, hitRate: hits / samples.length };
   });
   const avoidHits: Scored['avoidHits'] = [];
@@ -229,7 +259,7 @@ async function main() {
     process.stderr.write(`replay ${s + 1}/${samples} …\n`);
     runs.push(mode === 'distill' ? await distillReplay(env, chain, fx) : await replay(env, chain, fx));
   }
-  const sc = score(fx, runs);
+  const sc = score(fx, runs, mode);
 
   // ── report ──
   const lines: string[] = [];
@@ -257,7 +287,7 @@ async function main() {
   lines.push('all extractions, verbatim:');
   runs.forEach((r, si) => {
     lines.push(`  sample ${si + 1}: ${r.length} fact(s)`);
-    for (const x of r) lines.push(`     t${x.turn} [${x.kind}|${x.mood ?? '-'}] ${x.fact}`);
+    for (const x of r) lines.push(`     t${x.turn} [${x.kind}|${x.mood ?? '-'}] ${x.fact}${x.updates ? `  ⟲ updates "${x.target}"` : ''}`);
   });
   const report = lines.join('\n');
   process.stdout.write(report + '\n');

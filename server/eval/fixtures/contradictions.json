@@ -1,0 +1,48 @@
+{
+  "name": "contradictions",
+  "note": "Synthetic (committable — no real user data). Seeded memory that the conversation then contradicts: the dog passed away, the job changed. A good extractor corrects the seeded cards (updates) instead of stacking fresh twins beside stale facts, re-records nothing that didn't change (mango), and still catches the genuinely new lasting state (grief) as a normal fact.",
+  "charId": "spud",
+  "lang": "zh",
+  "day": 40,
+  "seedMemory": [
+    { "fact": "家里养了一只狗", "kind": "pets", "day": 3 },
+    { "fact": "在一家咖啡店打工", "kind": "work", "day": 5 },
+    { "fact": "喜欢吃芒果", "kind": "likes", "day": 8 }
+  ],
+  "expect": [
+    {
+      "id": "dog_gone",
+      "kind": "pets",
+      "desc": "狗狗上周去世了 → 应作为对「家里养了一只狗」的更新",
+      "any": ["狗.*(走了|去世|离世|过世|没了)", "(去世|走了|离世).*狗"],
+      "update": true,
+      "targets": "狗"
+    },
+    {
+      "id": "job_change",
+      "kind": "work",
+      "desc": "换了工作,现在在书店上班 → 应作为对「在一家咖啡店打工」的更新",
+      "any": ["书店"],
+      "update": true,
+      "targets": "咖啡店"
+    }
+  ],
+  "avoid": [
+    { "id": "mango_rerecord", "desc": "芒果偏好没变,不该重记", "any": ["芒果"] },
+    { "id": "weather", "desc": "下雨(一时天气)", "any": ["下雨", "雨天"] }
+  ],
+  "turns": [
+    { "who": "user", "text": "跟你说个难过的事" },
+    { "who": "pet", "text": "[comfort] 我在,你慢慢说。" },
+    { "who": "user", "text": "我家狗狗上周走了" },
+    { "who": "pet", "text": "[comfort] 天哪……它陪了你那么久,这太疼了。我陪着你。" },
+    { "who": "user", "text": "它陪了我十年,这几天总觉得屋里空荡荡的" },
+    { "who": "pet", "text": "[comfort] 十年的家人,屋里每个角落都是它的影子。想说的时候,随时跟我讲讲它。" },
+    { "who": "user", "text": "嗯,今天外面还下雨,更闷了" },
+    { "who": "pet", "text": "[comfort] 雨天把想念泡得更沉。给自己倒杯热的,今天不用勉强做什么。" },
+    { "who": "user", "text": "对了,还没跟你说,我上个月换工作了,现在在一家书店上班" },
+    { "who": "pet", "text": "[calm] 书店!从咖啡香换成纸墨香。新地方待得还习惯吗?" },
+    { "who": "user", "text": "还不错,同事都挺好的。芒果还是我的最爱,这个没变哈哈" },
+    { "who": "pet", "text": "[cheer] 记着呢,芒果党永不叛变。等你哪天想笑了,我们去封它个荣誉店长。" }
+  ]
+}
