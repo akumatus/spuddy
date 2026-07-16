@@ -11,11 +11,18 @@ extractions appear, you see it here instead of in users' memory quilts.
 ## Run
 
 ```bash
-npm run eval                              # new prompt, prod model (openai/gpt-5.6-luna), 1 sample
+npm run eval                              # chat mode, prod model (openai/gpt-5.6-luna), 1 sample
+npm run eval -- --mode distill            # batch /distill path instead of in-reply notes
 npm run eval -- --samples 3               # 3 replays, per-fact hit-rate averaged (temp is nonzero)
 npm run eval -- --provider anthropic      # score on Claude instead
 npm run eval -- --fixture 2026-07-16-heavy --out eval/out/new.json
 ```
+
+Modes mirror the two extraction paths: `chat` replays turn by turn and parses
+the reply's `[[remember]]` note (what pre-distill app builds get); `distill`
+replays in backstop-sized chunks through `buildDistillSystem` (the batch path —
+worst-case chunking, since lull boundaries can't be simulated without
+timestamps). A distill sample is ~3 calls instead of ~33.
 
 Needs `server/.dev.vars` (the same keys `wrangler dev` uses). Calls the LLM
 directly — **no Worker, no per-device quota** — but it does spend real API
@@ -80,23 +87,15 @@ facts buried in small talk) — that's where extraction is hardest.
 
 ## Baseline (2026-07-16)
 
-`2026-07-16-heavy`, openai/gpt-5.6-luna, 1 sample — the change that widened
-extraction discipline (a fact buried in small talk / a heavy conversation still
-counts; a family member's milestone counts):
+`2026-07-16-heavy`, openai/gpt-5.6-luna, 1 sample each:
 
-| prompt | recall | precision |
-|---|---|---|
-| deployed (HEAD) | 45% (5/11) | clean |
-| this change | 91% (10/11) | clean |
+| path | recall | precision | notes |
+|---|---|---|---|
+| in-reply, pre-discipline-fix | 45% (5/11) | clean | missed the whole heavy stretch + the milestone |
+| in-reply, widened rules | 91% (10/11) | clean | "new AC" flaky; held at 91% after the shared-rules refactor |
+| batch /distill | **100% (11/11)** | clean | 9 tight cards — related details merge (gecko name+age, milestone+name) |
 
-The deployed prompt missed the entire heavy stretch (postpartum, in-laws, the
-dialect barrier, the husband-as-relay) and the daughter's milestone; the change
-catches all of them with no new junk. The lone remaining miss ("got a new AC")
-is flaky on both — a genuinely trivial fact.
-
-## Extending to the batch extractor (plan A)
-
-When memory extraction moves out of the chat reply into its own call, keep this
-fixture and scorer; swap only the "how facts are produced" step in
-`memory-eval.ts` (`replay()`) for a call to the new endpoint. The ground truth
-and the numbers stay comparable across the architecture change.
+The batch path also sheds ~760 prompt tokens from every chat call (the reply
+prompt drops its extraction rules when the app sends `distill: true`), and it
+reads whole chunks at once — reply-writing pressure, safety-mode replies, and
+the one-note-per-reply cap no longer suppress extraction.

@@ -29,9 +29,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { PERSONAS, buildChatSystem, parseTag, parseGesture, parseRemember } from '../src/personas';
+import { PERSONAS, buildChatSystem, buildDistillSystem, distillTranscript, parseDistillFacts, parseTag, parseGesture, parseRemember } from '../src/personas';
 import { callLLMChain } from '../src/providers';
-import type { Env, ChatPayload } from '../src/types';
+import type { Env, ChatPayload, DistillPayload } from '../src/types';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -128,6 +128,51 @@ async function replay(env: Env, chain: string[], fx: Fixture): Promise<Extractio
   return extracted;
 }
 
+// Replay via the batch /distill path instead: chunks of BACKSTOP messages with
+// a CONTEXT_TAIL overlap — the client's forced-cut behavior (app/src/app/
+// distill.ts). Lull boundaries can't be simulated (the fixture has no
+// timestamps), so this scores the WORST chunking the app would ever produce;
+// live lull-aligned chunks only give the model cleaner topic edges. Memory
+// accumulates across chunks exactly as on-device.
+const DISTILL_BACKSTOP = 30;
+const DISTILL_CONTEXT = 6;
+async function distillReplay(env: Env, chain: string[], fx: Fixture): Promise<Extraction[]> {
+  const memory: { fact: string; day: number }[] = [];
+  const extracted: Extraction[] = [];
+  let cursor = 0;
+  while (cursor < fx.turns.length) {
+    const chunk = fx.turns.slice(cursor, cursor + DISTILL_BACKSTOP);
+    const payload: DistillPayload = {
+      day: fx.day,
+      lang: fx.lang,
+      memory: memory.slice(),
+      context: fx.turns.slice(Math.max(cursor - DISTILL_CONTEXT, 0), cursor),
+      messages: chunk,
+    };
+    let raw = '';
+    try {
+      // mirror the /distill route: low temperature, JSON mode
+      const r = await callLLMChain(env, chain, {
+        system: buildDistillSystem(payload),
+        messages: [{ role: 'user', content: distillTranscript(payload) }],
+        maxTokens: 700, temperature: 0.2, json: true, models: {},
+      });
+      raw = r.text || '';
+    } catch (e) {
+      process.stderr.write(`  chunk @${cursor}: LLM error ${(e as Error).message}\n`);
+      cursor += chunk.length;
+      continue;
+    }
+    for (const f of parseDistillFacts(raw, chunk.length)) {
+      // report `turn` as the absolute transcript line for readability
+      extracted.push({ turn: f.turn ? cursor + f.turn : 0, kind: f.kind, mood: f.mood, fact: f.fact });
+      if (!memory.some((m) => m.fact === f.fact)) memory.push({ fact: f.fact, day: fx.day });
+    }
+    cursor += chunk.length;
+  }
+  return extracted;
+}
+
 interface Scored {
   recall: number;                                    // fraction of expected facts hit at least once across samples
   perExpect: { id: string; desc: string; hitRate: number }[]; // hitRate = samples-with-a-hit / samples
@@ -169,25 +214,26 @@ async function main() {
   const provider = (arg('provider') || 'openai').toLowerCase();
   const samples = parseInt(arg('samples', '1')!, 10);
   const fixtureName = arg('fixture', '2026-07-16-heavy')!;
+  const mode = arg('mode', 'chat')!; // chat = in-reply [[remember]]; distill = batch /distill path
   const outPath = arg('out');
   const env = loadEnv(provider);
   const chain = [provider]; // force ONE backend — an eval must hold the model fixed, no fallback
   const model = (env as unknown as Record<string, string>)[`${provider.toUpperCase()}_MODEL`] || '(default)';
   const fx: Fixture = JSON.parse(readFileSync(join(ROOT, 'eval/fixtures', `${fixtureName}.json`), 'utf8'));
 
-  process.stderr.write(`\nfixture: ${fx.name}  ·  provider: ${provider} (${model})  ·  samples: ${samples}\n`);
+  process.stderr.write(`\nfixture: ${fx.name}  ·  mode: ${mode}  ·  provider: ${provider} (${model})  ·  samples: ${samples}\n`);
   process.stderr.write(`${fx.turns.filter((t) => t.who === 'user').length} user turns · ${fx.expect.length} expected facts\n\n`);
 
   const runs: Extraction[][] = [];
   for (let s = 0; s < samples; s++) {
     process.stderr.write(`replay ${s + 1}/${samples} …\n`);
-    runs.push(await replay(env, chain, fx));
+    runs.push(mode === 'distill' ? await distillReplay(env, chain, fx) : await replay(env, chain, fx));
   }
   const sc = score(fx, runs);
 
   // ── report ──
   const lines: string[] = [];
-  lines.push(`\n═══ memory-extraction eval · ${fx.name} · ${provider}/${model} · ${samples} sample(s) ═══\n`);
+  lines.push(`\n═══ memory-extraction eval · ${fx.name} · ${mode} · ${provider}/${model} · ${samples} sample(s) ═══\n`);
   lines.push(`RECALL: ${(sc.recall * 100).toFixed(0)}%  (${sc.perExpect.filter((p) => p.hitRate > 0).length}/${fx.expect.length} expected facts caught at least once)\n`);
   lines.push('per expected fact  (hit-rate across samples):');
   for (const p of sc.perExpect) {
@@ -217,7 +263,7 @@ async function main() {
   process.stdout.write(report + '\n');
 
   if (outPath) {
-    const payload = { fixture: fx.name, provider, model, samples, recall: sc.recall, perExpect: sc.perExpect, avoidHits: sc.avoidHits, novel: sc.novel, runs };
+    const payload = { fixture: fx.name, mode, provider, model, samples, recall: sc.recall, perExpect: sc.perExpect, avoidHits: sc.avoidHits, novel: sc.novel, runs };
     const { writeFileSync } = await import('node:fs');
     writeFileSync(join(ROOT, outPath), JSON.stringify(payload, null, 2));
     process.stderr.write(`\nwrote ${outPath}\n`);
