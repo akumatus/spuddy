@@ -345,7 +345,7 @@ export function wireInteractions(): void {
   // potato himself, while the chat input holds focus (mid-message), or while
   // the ⚙ settings popover is open — all of these mean the human is around.
   function panelPinned(): boolean {
-    return panelHover || onPotato || settingsOpen || document.activeElement === $('chatInput');
+    return panelHover || onPotato || settingsOpen || ctx.chatFocused;
   }
   function showPanel(): void {
     clearTimeout(hovT);
@@ -516,8 +516,9 @@ export function wireInteractions(): void {
     chatInput.classList.toggle('zh', !!v && hasHan(v));
     chatInput.classList.toggle('latin', !!v && !hasHan(v));
   });
-  chatInput.addEventListener('focus', () => { ctx.brain.interrupt(); ctx.anim().setMode('lean'); }); // 04 · Listen Lean
+  chatInput.addEventListener('focus', () => { ctx.chatFocused = true; ctx.brain.interrupt(); ctx.anim().setMode('lean'); }); // 04 · Listen Lean
   chatInput.addEventListener('blur', () => {
+    ctx.chatFocused = false; // clear before hidePanelSoon so panelPinned() sees the input released
     if (!ctx.chatBusy && !ctx.weaving) ctx.anim().setMode('idle');
     hidePanelSoon(); // focus no longer pins the panel — hide it unless the pointer still holds it
   });

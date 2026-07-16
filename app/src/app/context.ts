@@ -22,6 +22,11 @@ class AppContext {
 
   chatBusy = false;
   weaving = false;
+  // the chat input holds focus (mid-message). Tracked off its focus/blur events
+  // rather than read from document.activeElement: when the window loses OS focus
+  // (you click onto the desktop) the input fires blur but activeElement keeps
+  // pointing at it, which used to pin the hover panel open forever.
+  chatFocused = false;
   // the global cursor is on a different display than the pet — park all idle
   // behavior (mutters, routines, knocks, dozes) until it comes back (watchers.ts)
   otherDisplay = false;

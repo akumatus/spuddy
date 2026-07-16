@@ -61,7 +61,7 @@ ctx.brain = new SpudBrain({
   canAct: () =>
     !state.immersive && !ctx.anim().docked && !ctx.otherDisplay &&
     !ctx.anim().tucked && !isOverlayOpen() && !ctx.chatBusy && !ctx.weaving &&
-    document.visibilityState !== 'hidden' && document.activeElement !== $('chatInput'),
+    document.visibilityState !== 'hidden' && !ctx.chatFocused,
   // the active buddy's daily flavor mutters — its accent, mixed into the
   // shared pools at a low rate (brain FLAVOR_CHANCE)
   flavor: () => remote.flavor(ctx.activeChar().id, 'mutter'),
