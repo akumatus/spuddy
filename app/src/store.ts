@@ -146,6 +146,7 @@ export function defaultState(): AppState {
     drawn: false,
     draws: 0, // draws taken today; limit is main.js DAILY_DRAW_LIMIT
     pity: 0, // draws since last golden, used for golden pity/smoothing; persists across days, see main.js drawToday
+    weavePity: 0, // goldens since the last delivered live weave — forces a weave attempt at the limit (gacha.ts)
     rare: false,
     msg: '',
     msgSrc: '', // attribution of the held card when it's a famous quote
@@ -202,6 +203,7 @@ export function load(): AppState {
   s.keptToday = false;
   if (typeof s.draws !== 'number') s.draws = s.drawn ? 1 : 0; // migrate old saves
   if (typeof s.pity !== 'number') s.pity = 0; // golden pity counter persists across days, not reset on day rollover
+  if (typeof s.weavePity !== 'number') s.weavePity = 0; // pre-weave-pity saves
   if (s.lang !== 'en' && s.lang !== 'zh') s.lang = 'auto'; // pre-i18n saves + bad values
   if (s.petSize !== 'sm' && s.petSize !== 'md' && s.petSize !== 'lg') s.petSize = 'md'; // absent in older saves / bad values
   if (typeof s.immersive !== 'boolean') s.immersive = false; // absent in older saves

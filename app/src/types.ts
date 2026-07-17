@@ -87,6 +87,7 @@ export interface AppState {
   drawn: boolean;
   draws: number; // draws taken today; limit is gacha.ts DAILY_DRAW_LIMIT
   pity: number; // draws since last golden, used for golden pity/smoothing; persists across days
+  weavePity: number; // goldens since the last delivered live weave; at the limit the next golden skips the roll and attempts the weave (gacha.ts)
   rare: boolean;
   msg: string;
   msgSrc: string; // attribution of the held card when it's a famous quote; '' otherwise

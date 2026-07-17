@@ -39,6 +39,15 @@ const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 // with the app, so a golden always lands even fully offline.
 const GOLDEN_LIVE_CHANCE = 0.2;
 
+// Live-weave pity. A flat 20% roll leaves long all-quote streaks (0.8^10 ≈ 11%)
+// that read as "the weave never happens". state.weavePity counts goldens since
+// the last DELIVERED weave; at the limit the next golden skips the roll and
+// attempts the weave outright. Misses count too (offline, over budget), so a
+// dry stretch keeps trying every golden until one lands. It also accrues while
+// no memory exists yet — the first golden after his first memory then weaves
+// right away, which is exactly the moment it should feel personal.
+const WEAVE_PITY_LIMIT = 4; // quote-goldens in a row before a weave is forced
+
 // How many memory facts a single live weave is fed. Kept small on purpose: the
 // weave references one concrete memory, so feeding the whole set every time
 // makes consecutive goldens circle the same fact and read alike. We rotate
@@ -140,12 +149,15 @@ export async function weaveGolden(): Promise<void> {
   const ch = ctx.activeChar();
   // The live weave only earns its token when there's memory to personalize it —
   // with nothing remembered yet it degrades to a generic "keep it universal"
-  // line, which a curated famous quote beats for free. So gate the call on BOTH
-  // having memory and a GOLDEN_LIVE_CHANCE roll; otherwise skip straight to the
-  // quote. When it does fire, feed a ROTATING slice of memory (not the same
-  // recent facts every time) so consecutive goldens don't read alike.
+  // line, which a curated famous quote beats for free. So gate the call on
+  // having memory AND (a GOLDEN_LIVE_CHANCE roll OR the weave pity maturing);
+  // otherwise skip straight to the quote. When it does fire, feed a ROTATING
+  // slice of memory (not the same recent facts every time) so consecutive
+  // goldens don't read alike.
   // .catch → null so a dropped connection can't leave the weave spinning.
-  const tryLive = store.activeMemory(ctx.state).length > 0 && Math.random() < GOLDEN_LIVE_CHANCE;
+  const tryLive =
+    store.activeMemory(ctx.state).length > 0 &&
+    (ctx.state.weavePity >= WEAVE_PITY_LIMIT || Math.random() < GOLDEN_LIVE_CHANCE);
   const memory = tryLive ? nextMemories(GOLDEN_MEMORY_FEED) : [];
   const [aiMsg] = await Promise.all([
     tryLive
@@ -163,8 +175,10 @@ export async function weaveGolden(): Promise<void> {
   let gMsg: string;
   let gSrc = '';
   if (aiMsg) {
+    ctx.state.weavePity = 0; // a weave actually landed — the pity clock restarts
     gMsg = aiMsg; // personalized weave — his own words, no attribution
   } else {
+    ctx.state.weavePity++; // quote golden (not rolled, or the live call missed)
     const pick = pickQuote(quotesPool());
     gMsg = pick.q;
     // A curated line with no known author (a genuinely anonymous internet quote)
