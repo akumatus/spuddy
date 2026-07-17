@@ -100,8 +100,8 @@
     </div>
     <div style="display:flex;align-items:center;gap:30px">
       <span class="nav-mid" style="display:flex;align-items:center;gap:30px">
-        <a class="navlink" href="#a-what" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">What it does</a>
         <a class="navlink" href="#a-cards" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">Cards</a>
+        <a class="navlink" href="#a-what" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">What it does</a>
         <a class="navlink" href="#a-buddies" style="text-decoration:none;color:#6B5C48;font-weight:700;font-size:15px">Buddies</a>
       </span>
       <a class="gh-icon" href="https://github.com/akumatus/spuddy" target="_blank" rel="noopener" title="View source on GitHub" aria-label="Spuddy on GitHub" style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;color:#3E3226;text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.05.14 3 .4 2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.49 5.93.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58C20.57 22.29 24 17.79 24 12.5 24 5.87 18.63.5 12 .5z"/></svg></a>
@@ -136,8 +136,40 @@
     </div>
   </div>
 
+  <!-- daily card + golden -->
+  <div id="a-cards" class="section-pad" style="background:linear-gradient(180deg,#F3E7CD,#EFDFC0);padding:100px 40px">
+    <div class="split split-cards" style="max-width:1080px;margin:0 auto">
+      <div>
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">A card, whenever you need one</div>
+        <h2 style="font-size:44px;font-weight:900;letter-spacing:-0.02em;margin:0 0 18px;color:#2E251B;text-wrap:balance">Pull one. Keep the ones that land.</h2>
+        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0 0 16px;text-wrap:pretty">Tap the little card in his hands and a fresh line appears — painted right onto the card he holds, never a speech bubble. Pull as many as you like; the good ones don't run out.</p>
+        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0;text-wrap:pretty">Your first pull each day comes back a rare <b style="color:#A9861A">Golden Stitch</b> — usually a famous line it's been saving up for you, and every so often, once it knows you well enough, one it wove itself from the things you've actually talked about.</p>
+      </div>
+      <!-- Transparent cutout, no desk under it (app/shots.html, `yarn shots`):
+           the card floats straight on the section the way it floats on your
+           wallpaper. No frame either — a border and shadow with no fill behind
+           them would just outline empty space, and the card brings its own
+           shadow. -->
+      <div><img src="assets/golden.png" alt="A rare Golden Stitch card, signed by Spud: 'You are not behind. You are exactly here, and here is where the good stuff starts.'" style="width:100%;display:block"></div>
+    </div>
+  </div>
+
+  <!-- chat -->
+  <div class="section-pad" style="background:#FBF6EA;padding:100px 40px">
+    <div class="split split-chat" style="max-width:1080px;margin:0 auto">
+      <!-- Same bare cutout as the golden shot above. -->
+      <div class="split-media-first" style="max-width:496px"><img src="assets/chat.png" alt="Chatting with Spud, who replies in character" style="width:100%;display:block"></div>
+      <div>
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">Say what's on your mind</div>
+        <h2 style="font-size:42px;font-weight:900;letter-spacing:-0.02em;margin:0 0 18px;color:#2E251B;text-wrap:balance">It listens — and remembers what matters</h2>
+        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0 0 16px;text-wrap:pretty">Hover over Spuddy to open a little chat and tell it how the day went. It replies in character, keeps it to a warm line or two, and weaves what matters back into your golden cards later.</p>
+        <p style="font-size:15px;line-height:1.55;color:#8A7B66;margin:0">It's not a therapist — if you're really struggling, it'll gently point you toward a human you trust.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- what it does -->
-  <div id="a-what" class="section-pad" style="background:#FBF6EA;padding:100px 40px">
+  <div id="a-what" class="section-pad" style="background:#F5EAD5;padding:100px 40px">
     <div style="max-width:1120px;margin:0 auto">
       <div style="text-align:center;margin-bottom:56px">
         <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">What it does</div>
@@ -173,41 +205,6 @@
             <p style="font-size:14.5px;line-height:1.5;color:#6B5C48;margin:0">Fling it sideways and it spins with real momentum, then springs upright. Nudge it to a screen edge and it curls up for a nap.</p>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- daily card + golden -->
-  <div id="a-cards" class="section-pad" style="background:linear-gradient(180deg,#F3E7CD,#EFDFC0);padding:100px 40px">
-    <div class="split split-cards" style="max-width:1080px;margin:0 auto">
-      <div>
-        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">A card, whenever you need one</div>
-        <h2 style="font-size:44px;font-weight:900;letter-spacing:-0.02em;margin:0 0 18px;color:#2E251B;text-wrap:balance">Pull one. Keep the ones that land.</h2>
-        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0 0 16px;text-wrap:pretty">Tap the little card in his hands and a fresh line appears — painted right onto the card he holds, never a speech bubble. Pull as many as you like; the good ones don't run out.</p>
-        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0;text-wrap:pretty">Your first pull each day comes back a rare <b style="color:#A9861A">Golden Stitch</b> — usually a famous line it's been saving up for you, and every so often, once it knows you well enough, one it wove itself from the things you've actually talked about.</p>
-      </div>
-      <!-- The shot is a transparent cutout of both windows (app/shots.html,
-           `yarn shots`), so the desk it sits on is this background, not baked
-           into the PNG — retuning the contrast is a colour here, not a
-           re-shoot. A warm sand: deep enough to hold the popup's cream and to
-           read against this section's tan, without the muddy grey the old
-           wallpaper screenshot dragged in. -->
-      <div style="border-radius:18px;overflow:hidden;border:1px solid rgba(62,50,38,0.12);box-shadow:0 22px 50px rgba(62,50,38,0.2);background:#E2CFA8"><img src="assets/golden.png" alt="A rare Golden Stitch card, signed by Spud: 'You are not behind. You are exactly here, and here is where the good stuff starts.'" style="width:100%;display:block"></div>
-    </div>
-  </div>
-
-  <!-- chat -->
-  <div class="section-pad" style="background:#FBF6EA;padding:100px 40px">
-    <div class="split split-chat" style="max-width:1080px;margin:0 auto">
-      <!-- Same transparent cutout treatment as the golden shot above; this
-           section's paper is lighter, so its desk keeps the warmer cream the
-           old baked-in screenshot used. -->
-      <div class="split-media-first" style="border-radius:20px;overflow:hidden;border:1px solid rgba(62,50,38,0.1);box-shadow:0 18px 44px rgba(62,50,38,0.14);max-width:496px;background:#EFDAC5"><img src="assets/chat.png" alt="Chatting with Spud, who replies in character" style="width:100%;display:block"></div>
-      <div>
-        <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">Say what's on your mind</div>
-        <h2 style="font-size:42px;font-weight:900;letter-spacing:-0.02em;margin:0 0 18px;color:#2E251B;text-wrap:balance">It listens — and remembers what matters</h2>
-        <p style="font-size:17.5px;line-height:1.6;color:#5E5142;margin:0 0 16px;text-wrap:pretty">Hover over Spuddy to open a little chat and tell it how the day went. It replies in character, keeps it to a warm line or two, and weaves what matters back into your golden cards later.</p>
-        <p style="font-size:15px;line-height:1.55;color:#8A7B66;margin:0">It's not a therapist — if you're really struggling, it'll gently point you toward a human you trust.</p>
       </div>
     </div>
   </div>
