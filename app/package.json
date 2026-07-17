@@ -13,6 +13,7 @@
   "scripts": {
     "postinstall": "node scripts/copy-assets.cjs",
     "icon": "node scripts/make-icon.cjs",
+    "shots": "electron scripts/shoot-media.cjs",
     "dev": "node scripts/set-dev-name.cjs && yarn build && electron .",
     "start": "node scripts/set-dev-name.cjs && yarn build && electron .",
     "build": "vite build && yarn build:electron",

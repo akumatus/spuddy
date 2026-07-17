@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Spuddy — media shots</title>
+  <link rel="stylesheet" href="./src/style.css" />
+  <style>
+    /* Transparent shell — every visible pixel comes from the real UI. The
+       driver (scripts/shoot-media.cjs) captures the viewport with a
+       transparent backdrop and crops to the alpha bbox, so nothing here may
+       paint a background. */
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+
+    /* ── popup shots (card / book / buddies) ──
+       Mirrors popup.html's shell so the popups lay out exactly as they do in
+       the real popup window: natural size, centered, with the 90px of
+       transparent headroom --shadow-pop is budgeted against. */
+    body[data-mode='dom'] #proot {
+      min-height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 90px;
+    }
+    body[data-mode='dom'] #proot > * { flex-shrink: 0; }
+    body[data-mode='dom'] #proot #book { max-width: none; max-height: none; }
+
+    /* #book is a fixed 620×500 panel whose list scrolls — deliberate in the app
+       (the panel stays the same size across tabs, so the centered overlay never
+       jumps). In a still that reads as a bug: you'd see four patches and a
+       scrollbar stub. Let it grow to its content so a shot shows the whole
+       thing. The demo data is sized to fill a clean grid — see shot-studio.ts. */
+    body[data-mode='dom'] #proot #book { height: auto; }
+    body[data-mode='dom'] #proot #book .memgrid,
+    body[data-mode='dom'] #proot #book .grid,
+    body[data-mode='dom'] #proot #book .chatlog { overflow: visible; }
+
+    /* Entrance animations would smear a one-frame capture — the popups bounce
+       in (pp-cardin) and the bubbles pop (pp-bubble / pp-mut). Freeze them all
+       at their resting state. */
+    #proot *, #stage *, #hoverpanel * { animation: none !important; }
+
+    /* The staging tree only exists so the popup modules can render into it the
+       way they do in-app; the shot itself is the node we move into #proot. */
+    #modal { display: none; }
+
+    /* Only one composition is live per shot — the other must not paint into the
+       frame (an empty #stage still renders its canvas box). */
+    body[data-mode='dom'] #stage,
+    body[data-mode='dom'] #hoverpanel { display: none; }
+    body[data-mode='pet'] #proot { display: none; }
+
+    /* ── pet shots (hero / chat) ──
+       No overrides: the stage, hover panel and bubbles are positioned against
+       the viewport exactly as in index.html, and the driver uses the real pet
+       window's 720×640 viewport — so the composition is the app's, not a
+       reconstruction. The panel is shown outright instead of on hover. */
+    body[data-mode='pet'] #hoverpanel { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+  <div id="modal"></div>
+  <div id="proot"></div>
+
+  <div id="stage">
+    <div id="bubble" class="hidden"></div>
+    <div id="mutter" class="hidden"></div>
+    <div id="hearts"></div>
+    <div id="emotes"></div>
+    <div id="petclip">
+      <canvas id="pet"></canvas>
+    </div>
+  </div>
+
+  <div id="hoverpanel">
+    <div id="said" class="hidden"></div>
+    <div id="icons">
+      <button id="bookBtn">♥</button>
+      <button id="buddiesBtn"><span class="peekclip"><span class="zzlabel">z z</span><span class="peekhead"></span></span></button>
+      <button id="settingsBtn">
+        <svg class="gear" viewBox="0 0 64 64" aria-hidden="true">
+          <g stroke="#A8905A" stroke-width="9" stroke-linecap="round">
+            <path d="M51 32 L57 32"/><path d="M32 51 L32 57"/><path d="M13 32 L7 32"/><path d="M32 13 L32 7"/>
+            <path d="M45.4 45.4 L49.7 49.7"/><path d="M18.6 45.4 L14.3 49.7"/><path d="M18.6 18.6 L14.3 14.3"/><path d="M45.4 18.6 L49.7 14.3"/>
+          </g>
+          <circle cx="32" cy="32" r="21" fill="#A8905A"/>
+          <circle class="gearHole" cx="32" cy="32" r="8.5"/>
+        </svg>
+      </button>
+    </div>
+    <div id="chatrow">
+      <input id="chatInput" type="text" autocomplete="off" spellcheck="false" />
+      <span class="enter">↵</span>
+    </div>
+  </div>
+
+  <script type="module" src="/src/shot-studio.ts"></script>
+</body>
+</html>
