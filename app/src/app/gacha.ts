@@ -161,7 +161,7 @@ export async function weaveGolden(): Promise<void> {
   const memory = tryLive ? nextMemories(GOLDEN_MEMORY_FEED) : [];
   const [aiMsg] = await Promise.all([
     tryLive
-      ? pp.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, day: ctx.state.day, memory, lang: lang() }).catch(() => null)
+      ? pp?.ai.golden({ charId: ch.id, charName: ch.name, voice: PERS[ch.id].voice, day: ctx.state.day, memory, lang: lang() }).catch(() => null)
       : Promise.resolve(null),
     new Promise((r) => setTimeout(r, 1800)),
   ]);

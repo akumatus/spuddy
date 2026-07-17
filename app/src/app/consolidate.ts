@@ -49,7 +49,7 @@ export async function maybeConsolidate(): Promise<void> {
 }
 
 async function runConsolidate(): Promise<void> {
-  if (busy || !pp.ai.consolidate) return; // older preload — no bridge
+  if (busy || !pp?.ai.consolidate) return; // no bridge (browser dev / older preload)
   const state = ctx.state;
   busy = true;
   try {

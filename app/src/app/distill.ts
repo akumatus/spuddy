@@ -73,7 +73,7 @@ export function initDistill(): void {
 }
 
 async function runDistill(): Promise<void> {
-  if (busy || !pp.ai.distill) return; // older preload: no bridge, server keeps in-reply notes
+  if (busy || !pp?.ai.distill) return; // no bridge (browser dev / older preload) — server keeps in-reply notes
   const state = ctx.state;
   if (undistilled() <= 0) return;
   const total = store.chatTotal(state); // captured end — later arrivals stay undistilled

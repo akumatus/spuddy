@@ -112,7 +112,7 @@ export async function runChat(): Promise<void> {
   while (chatPending.length) {
     const covered = chatPending.slice(); // the notes this reply speaks to
     const ch = ctx.activeChar();
-    const res = await pp.ai.reply({
+    const res = await pp?.ai.reply({
       charId: ch.id,
       charName: ch.name,
       voice: PERS[ch.id].voice,

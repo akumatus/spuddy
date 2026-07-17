@@ -79,8 +79,8 @@ ctx.brain = new SpudBrain({
     speak: (text, ms) => bubble(text, { hold: ms }),
     emote: (g) => spawnEmote(g),
     sfx: (n) => { const f = (sfx as Record<string, (() => void) | undefined>)[n]; if (f) f(); },
-    state: (key, label) => { if (pp.debug) console.log('[brain]', key, label); },
-    log: (e) => { if (pp.debug) console.log('[brain]', e.kind, e.text); },
+    state: (key, label) => { if (pp?.debug) console.log('[brain]', key, label); },
+    log: (e) => { if (pp?.debug) console.log('[brain]', e.kind, e.text); },
   },
 });
 
@@ -94,12 +94,12 @@ wireInteractions();
 
 // ── language switch: the ⚙ settings panel and the tray menu share one path
 // (app/lang.ts applyLangPref); the tray reaches it through this IPC push ──
-pp.on('set-lang', (pref) => applyLangPref(pref));
-pp.lang?.report(state.lang, lang()); // initial sync so the tray matches the saved pref
+pp?.on('set-lang', (pref) => applyLangPref(pref));
+pp?.lang?.report(state.lang, lang()); // initial sync so the tray matches the saved pref
 
 // ── update feedback: the updater's answers come out of the potato's own
 // mouth — macOS may swallow system notifications, but nobody can mute him ──
-pp.on('update-note', (text) => {
+pp?.on('update-note', (text) => {
   if (typeof text === 'string' && text) bubble(text, { hold: 3600 });
 });
 
@@ -142,7 +142,7 @@ setInterval(async () => {
 }, 60000);
 
 // sedentary reminder from the main process (90 min continuous activity)
-pp.on('sedentary', () => {
+pp?.on('sedentary', () => {
   const sd = pool('sedentary');
   presentCare(TXT().ui.careStretch, sd[Math.floor(Math.random() * sd.length)]);
 });
@@ -150,7 +150,7 @@ pp.on('sedentary', () => {
 // ── boot ──
 $('buddiesDot').classList.toggle('hidden', !state.buddyNew);
 ctx.updateCardScreen();
-pp.win.setIgnoreMouse(true);
+pp?.win.setIgnoreMouse(true);
 
 installDebugHooks();
 

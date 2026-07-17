@@ -27,7 +27,7 @@ export function applyLangPref(pref: LangPref): void {
   ctx.updateCardScreen();
   remote.refresh(); // re-pull the daily pool in the new language
   for (const fn of listeners) fn();
-  pp.lang?.report(pref, lang()); // tray checkmark + localized tray labels
+  pp?.lang?.report(pref, lang()); // tray checkmark + localized tray labels
   // the design has him speak along with the switch — his hello, in the new language
   bubble(greet(ctx.state.active), { hold: 3600 });
 }

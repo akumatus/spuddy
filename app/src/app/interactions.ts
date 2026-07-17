@@ -157,7 +157,7 @@ export function dockTo(side: DockSide): void {
   ctx.anim().setDock(side);
   applySoundGate();
   updateGlowEl();
-  void pp.win.dock(side); // tween the window flush against the edge
+  void pp?.win.dock(side); // tween the window flush against the edge
 }
 
 // playful = a tap woke him (pop + squish + lift back down). A grab-and-drag
@@ -374,7 +374,7 @@ export function wireInteractions(): void {
   // settles (and once at boot): parked near the left screen edge the default
   // left-side panel would clip offscreen, so it mirrors to his right.
   async function settlePanelSide(): Promise<void> {
-    panel.classList.toggle('flip', (await pp.win.panelSide()) === 'right');
+    panel.classList.toggle('flip', (await pp?.win.panelSide()) === 'right');
   }
   void settlePanelSide(); // boot: the spawn corner is right, but resolve it anyway
 
@@ -388,7 +388,7 @@ export function wireInteractions(): void {
 
   // the main process streams edge proximity as the window moves — the snap
   // highlight follows the edge line live while a drag holds him in the zone
-  pp.on('edge', (info) => {
+  pp?.on('edge', (info) => {
     edge = info;
     updateGlowEl(!!(drag && drag.moved));
   });
@@ -456,7 +456,7 @@ export function wireInteractions(): void {
       lift -= take;
       winDy -= take;
     }
-    const shortfall = await pp.win.moveBy(dx, winDy, lift); // px the window couldn't move
+    const shortfall = (await pp?.win.moveBy(dx, winDy, lift)) ?? 0; // px the window couldn't move
     if (shortfall > 0) lift = Math.min(lift + shortfall, LIFT_MAX); // pinned under the menu bar
     else if (shortfall < 0) lift = Math.max(lift + shortfall, LIFT_MIN); // held at the floor
     applyLift();
@@ -583,7 +583,7 @@ export function wireInteractions(): void {
       !!drag ||
       onPotato ||
       !!(el && el.closest('[data-interactive]'));
-    pp.win.setIgnoreMouse(!interactive);
+    pp?.win.setIgnoreMouse(!interactive);
   }
 
   document.addEventListener('mousemove', (e) => {
@@ -595,7 +595,7 @@ export function wireInteractions(): void {
     clearTimeout(castTrail);
     onPotato = false;
     lastCast = 0;
-    pp.win.setIgnoreMouse(true);
+    pp?.win.setIgnoreMouse(true);
     hidePanelSoon();
   });
   // He also moves under a parked cursor — hops, skits, edge naps and
@@ -610,7 +610,7 @@ export function wireInteractions(): void {
   // keeps watching even while the pointer roams other windows; eyes lead, head
   // follows (Turn 6). ±420px from his nose = full turn.
   let lastCursor: { x: number; y: number } | null = null;
-  pp.on('cursor', ({ x, y, sameDisplay }) => {
+  pp?.on('cursor', ({ x, y, sameDisplay }) => {
     // presence for the brain: the cursor actually moving means you're there
     if (lastCursor && Math.abs(x - lastCursor.x) + Math.abs(y - lastCursor.y) > 3) ctx.brain.pointerMove();
     lastCursor = { x, y };

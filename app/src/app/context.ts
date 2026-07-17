@@ -10,9 +10,10 @@ import type { AppState, PreloadBridge } from '../types';
 
 export const $ = (id: string): HTMLElement => document.getElementById(id)!;
 
-// preload bridge — present in every packaged/dev build; typed non-null so
-// call sites stay clean
-export const pp: PreloadBridge = window.pp!;
+// preload bridge — absent when the renderer runs outside Electron (browser dev
+// mode: app/dist served over plain HTTP). Typed optional on purpose: every call
+// site must guard, or a top-level `pp.x` throws and kills the whole boot script.
+export const pp: PreloadBridge | undefined = window.pp;
 
 class AppContext {
   // set once in main.ts before any feature module runs
