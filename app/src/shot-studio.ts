@@ -54,10 +54,16 @@ const HERO_MUTTER = 'the lamp hums. i don’t mind it.';
 // airless. Two goldens and two favorites stay in regardless: the shot has to
 // show what the ✦ and the ♥ actually look like, and a golden signed by its
 // source is the common case the Golden Stitch section describes.
+//
+// The normal pool is VOICE-NEUTRAL — every persona draws the same lines (the
+// `daily` pool below, and the server's batch), so `by` records who was on duty
+// when it was drawn, not who wrote it. These stay in that register: warm,
+// sentence case, one breath long. A line in a buddy's own voice is wrong here
+// however good it is — and all-caps sets as a brick in Caveat besides.
 const DEMO_CARDS: AppState['cards'] = [
   { m: 'Rest is productive. Signed, a potato.', rare: false, day: 3, by: 'Spud' },
   { m: 'Look inside yourself. You are more than what you have become.', rare: true, day: 8, by: 'Sprinkles', src: 'The Lion King' },
-  { m: 'EAT THE SNACK. THE SNACK IS THE PLAN.', rare: false, day: 9, by: 'Taco' },
+  { m: 'Water. Snack. Deep breath. In that order. Go.', rare: false, day: 9, by: 'Taco' },
   { m: 'Small steps still face forward.', rare: false, day: 12, by: 'Bloom' },
   { m: 'Leap, and the net will appear.', rare: true, day: 14, by: 'Spud', src: 'John Burroughs', fav: true },
   { m: 'You have survived every single one of your worst days.', rare: false, day: 17, by: 'Leo', fav: true },
