@@ -44,6 +44,21 @@ function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
 
+// Roll the real calendar forward: new day → fresh draws, streak counts
+// consecutive days. Runs at load AND on a runtime tick (main.ts) — a desktop
+// pet routinely stays open across midnight, and without the runtime check
+// day/streak/draws (and the daily first-draw golden) only ever advance on a
+// relaunch. Returns whether a new day started so the tick can persist.
+export function rollDay(s: AppState): boolean {
+  const today = todayStr();
+  if (s.lastDate === today) return false;
+  s.day += 1;
+  s.streak = daysBetween(s.lastDate, today) === 1 ? s.streak + 1 : 1;
+  s.lastDate = today;
+  s.draws = 0;
+  return true;
+}
+
 // ── memory dedupe ──
 // The model re-surfaces the same fact across conversations, often re-told with
 // extra detail ("has a cat named Mochi" → "…Mochi, adopted last spring"). Flatten
@@ -177,15 +192,7 @@ export function load(): AppState {
       delete (s as { journal?: unknown }).journal;
     }
   } catch (e) {}
-  // roll the real calendar forward: new day → fresh draw, streak counts consecutive days
-  const today = todayStr();
-  if (s.lastDate !== today) {
-    const gap = daysBetween(s.lastDate, today);
-    s.day += 1;
-    s.streak = gap === 1 ? s.streak + 1 : 1;
-    s.lastDate = today;
-    s.draws = 0;
-  }
+  rollDay(s);
   // the card in his hands is ephemeral: every launch (and every new day) starts
   // back on "tap me" for a fresh draw — kept cards live on in the Book
   s.drawn = false;

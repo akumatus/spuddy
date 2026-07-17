@@ -106,6 +106,18 @@ pp.on('update-note', (text) => {
 // (the old random idle-hop scheduler is gone — the soul engine (7a) owns
 // autonomous behavior now: boredom routines, dozing, knocking, mutters)
 
+// midnight watch: he stays open for days at a time, so the calendar must roll
+// at runtime too — load()-only rollover would freeze day/streak/draws (and the
+// daily first-draw golden) for as long as he keeps us company. Also catches a
+// sleep→wake gap that jumped the boundary. The held card stays in his hands:
+// clearing it is a per-launch thing, and it'd be jarring mid-session.
+setInterval(() => {
+  if (store.rollDay(state)) {
+    store.save(state);
+    ctx.updateCardScreen(); // the held card's "DAY n" footer
+  }
+}, 60000);
+
 // night care at 23:00 (once per day) — only when he's actually been keeping
 // us company across the 23:00 boundary. If the machine was off or asleep at 11
 // and the app only came up later, we skip tonight's card rather than firing a
