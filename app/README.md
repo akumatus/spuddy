@@ -58,7 +58,8 @@ There's a small potato tray icon in the menu bar: Show / Hide, Quit.
 
 The app never holds a provider key. Chat and Golden Stitch go through the
 Cloudflare Worker gateway in `server/`, which keeps the key server-side and
-routes to a provider (CN → DeepSeek). Point the app at a gateway in
+walks one ordered provider chain (Claude · GPT · Gemini · DeepSeek) until one
+answers. Point the app at a gateway in
 `~/.config/spuddy/config.json`:
 
 ```json

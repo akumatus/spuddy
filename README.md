@@ -4,7 +4,7 @@
 
 # Spuddy
 
-**[spud.cherry.surf](https://spud.cherry.surf)**
+**[spud.cherry.surf](https://spud.cherry.surf)** · **[Download for macOS](https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg)**
 
 **A hand-crocheted potato who lives in the corner of your screen — and hands you a little card of encouragement, one day at a time.**
 
@@ -12,19 +12,14 @@ He's a *real* crocheted doll, 3D-scanned and brought to life on your desktop. He
 
 <br />
 
-![macOS](https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple&logoColor=white)
-![Electron](https://img.shields.io/badge/Electron-2B2E3A?style=flat-square&logo=electron&logoColor=9FEAF9)
-![three.js](https://img.shields.io/badge/three.js-000000?style=flat-square&logo=three.js&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
-![DeepSeek](https://img.shields.io/badge/DeepSeek-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)
-![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?style=flat-square&logo=cloudflareworkers&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple&logoColor=white) ![Electron](https://img.shields.io/badge/Electron-2B2E3A?style=flat-square&logo=electron&logoColor=9FEAF9) ![three.js](https://img.shields.io/badge/three.js-000000?style=flat-square&logo=three.js&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) ![Claude](https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=anthropic&logoColor=white) ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white) ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?style=flat-square&logo=cloudflareworkers&logoColor=white)
 
 </div>
 
 <br />
 
 <div align="center">
-  <img src="docs/media/hero.png" width="760" alt="Spuddy sitting in the corner of the desktop, holding a card that reads 'You don't have to be perfect to be wonderful', muttering 'the lamp hums. i don't mind it.'" />
+  <img src="docs/media/hero.png" width="600" alt="Spuddy sitting in the corner of the desktop, holding a card that reads 'You don't have to be perfect to be wonderful', muttering 'the lamp hums. i don't mind it.'" />
 </div>
 
 <br />
@@ -36,7 +31,7 @@ He's a *real* crocheted doll, 3D-scanned and brought to life on your desktop. He
 ## 🥔 A card a day
 
 <div align="center">
-  <img src="docs/media/daily-card.png" width="300" alt="Today's card popup: 'This little potato believes in you.' — Spud" />
+  <img src="docs/media/daily-card.png" width="300" alt="Today's card popup: 'This little potato believes in you.' — Spud · day 24" />
 </div>
 
 Tap the little white card in his hands and he hands you today's line — something warm, something dry, something you needed to hear.
@@ -46,29 +41,43 @@ Tap the little white card in his hands and he hands you today's line — somethi
 - Every card renders **on the physical card in his hands** — not a speech bubble. The card is the whole point.
 - Works fully offline: a hand-written pool ships in the app, so he's never speechless.
 
+<div align="center">
+  <img src="docs/media/cardbook.png" width="560" alt="The Card Book, Cards tab: nine kept cards in a grid, the golden ones dashed in gold and marked with a ✦, favorites marked with a filled heart, and filter chips for all / golden / favorites" />
+</div>
+
+Everything you keep lands in the **Card Book** — filter it down to just the goldens, or just the ones you loved.
+
 ---
 
 ## ✨ Golden Stitch
 
-<img src="docs/media/golden.png" width="820" alt="A rare Golden Stitch card, hand-woven by the AI, signed by Sprinkles — and the pet holding that very same card in the corner" />
+<div align="center">
+  <img src="docs/media/golden.png" width="300" alt="A rare Golden Stitch card, hand-woven by the AI and signed by Sprinkles: 'You are not behind. You are exactly here, and here is where the good stuff starts.'" />
+</div>
 
-Every so often he goes quiet, takes his time, and **knits a golden card by hand** — woven live by AI from the things you've actually talked about, and signed by whoever's on duty.
+Every so often he goes quiet, takes his time, and **knits a golden card by hand**. Most of them are a famous line he's been saving up, signed by whoever first said it. But once he knows you well enough, now and then he weaves one live instead — out of the things you've actually talked about — and signs that one himself. Rare on purpose. Kept forever.
 
-The card in the popup is the same one he's holding out to you in the corner. Rare on purpose. Kept forever.
+The card in the popup is the same one he's holding out to you in the corner.
 
 ---
 
 ## 💬 He listens — and he remembers
 
 <div align="center">
-  <img src="docs/media/chat.png" width="640" alt="Chat: the user says 'today was a lot', and Bloom replies 'the soil rests after a long rain. would you like to rest beside it for a bit?'" />
+  <img src="docs/media/chat.png" width="640" alt="Bloom, the crocheted flower pot, answering 'today was a lot' with 'the soil rests after a long rain. would you like to rest beside it for a bit?' — the chat box below reads 'tell Bloom what's on your mind.'" />
 </div>
 
-Hover over him and a little chat box slides out. Tell him what's on your mind.
+Hover over him and a little chat box slides out. Tell him what's on your mind — *"today was a lot"* — and he answers in his own voice.
 
 - He replies **in character** — powered by a live LLM, grounded in whoever's currently on duty.
-- He **remembers**. Everything you share lives in a Memory tab you fully control (delete anything, anytime).
-- Each buddy has a genuinely different voice: the gardener above answers a hard day with *soil and rain*; the taco would answer it with snacks and all-caps.
+- Each buddy has a genuinely different voice: the gardener above meets a hard day with *soil and rain*; the taco would meet the same day with snacks and all-caps.
+- He **remembers** — and everything he keeps is yours to unpick, anytime.
+
+<div align="center">
+  <img src="docs/media/memory.png" width="560" alt="The Memory tab: a quilt of patches, each with a little doodled potato wearing the mood — sunny ones dashed in gold, rainy ones dashed in blue with a raindrop — over facts like 'their sister Nell had a baby girl named Wren' and 'quietly worries their mum is lonely in that house alone'" />
+</div>
+
+What he learns about you gets distilled into the **Memory quilt** — one patch per thing, the sunny ones stitched in gold, the rainy ones in blue. It's the whole of what he knows, in one place, and every patch has an × on it.
 
 ---
 
@@ -78,7 +87,7 @@ Hover over him and a little chat box slides out. Tell him what's on your mind.
   <img src="docs/media/buddies.png" width="720" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Leo, Prof — 6 of 6 friends" />
 </div>
 
-Six little souls, each a different kind of comfort. You don't buy them — you **earn** them, through six different kinds of care. Once a friend, always a friend; tap **Set active** to put anyone on duty.
+Six little souls, each a different kind of comfort. Spud comes with the app; the other five you don't buy — you **earn** them, through five different kinds of care: keep · favorite · confide · show up · go gold. Once a friend, always a friend; tap **Set active** to put anyone on duty.
 
 ---
 
@@ -86,7 +95,7 @@ Six little souls, each a different kind of comfort. You don't buy them — you *
 
 Spuddy isn't a screensaver — he has needs and moods, and they drift over time (a small personality engine ticks in the background).
 
-- **Bored?** He entertains himself — chases his tail, hums, flips his card over to re-read it, practices his wave.
+- **Bored?** He entertains himself — chases his tail, hums, tips his card back to re-read it, practices his wave.
 - **Sleepy?** He nods off, jerks upright, and a poke startles him awake.
 - **Missing you?** He taps the glass to get your attention. Respond and he cheers; ignore him and he just wilts for a moment and quietly backs off — he'll never nag.
 - Been away a while? He gives you a little welcome-back.
@@ -111,7 +120,7 @@ Nothing here is a canned clip. Every movement is authored on an eased-curve rig 
   <tr>
     <td width="25%" align="center"><img src="docs/media/motion-chase.gif" width="190" alt="Spuddy chasing his tail" /><br /><b>Chasing his tail</b><br /><sub>four sharp turns (eyes lead by half a beat), then a frustrated 360° spin, settling like a roly-poly</sub></td>
     <td width="25%" align="center"><img src="docs/media/motion-bounceCard.gif" width="190" alt="Spuddy juggling the card" /><br /><b>Juggling the card</b><br /><sub>tosses and catches the card twice, eyes tracking it up and down, body bobbing along</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-wave.gif" width="190" alt="Spuddy waving" /><br /><b>Wave</b><br /><sub>shoulder-hinged hello, three swings on an <code>outBack</code> spring, a little side-lean and a blink</sub></td>
+    <td width="25%" align="center"><img src="docs/media/motion-wave.gif" width="190" alt="Spuddy waving" /><br /><b>Wave</b><br /><sub>shoulder-hinged hello, an <code>outBack</code> spring up then three easy swings, a little side-lean and a blink</sub></td>
     <td width="25%" align="center"><img src="docs/media/motion-cheer.gif" width="190" alt="Spuddy cheering" /><br /><b>Cheering</b><br /><sub>two hops, paws thrown up and waving, elastic landing · confetti + a little chime</sub></td>
   </tr>
   <tr>
@@ -130,7 +139,7 @@ Nothing here is a canned clip. Every movement is authored on an eased-curve rig 
 
 This isn't a sprite. Under the hood:
 
-- **It's a real crocheted doll.** Every buddy started as a physical hand-crocheted amigurumi, photographed, **AI-3D-scanned** (Rodin), then retopologized in Blender + `gltf-transform` down to ~0.5 MB PBR `.glb` files — real yarn fibers, real stitches, lit in real time with image-based lighting and ACES tone mapping in **three.js**.
+- **It's a real crocheted doll.** Every buddy started as a physical hand-crocheted amigurumi, photographed, **AI-3D-scanned** (Rodin), then retopologized in Blender + `gltf-transform` down to 1–3 MB PBR `.glb` files — real yarn fibers, real stitches, lit in real time with image-based lighting and Khronos PBR Neutral tone mapping in **three.js**.
 - **The encouragement lives on the card in his hands** — a live canvas texture painted onto the doll's own held card, not an overlay. The card is the soul of the potato.
 - **His eyes and head follow your cursor** across the whole screen (eyes lead, head trails); left alone, he blinks and glances around on his own.
 - **Grab him and fling him** anywhere — a horizontal throw sets him spinning, and he settles back with an underdamped spring.
@@ -147,7 +156,7 @@ yarn install
 yarn start
 ```
 
-A little potato appears in the bottom-right corner, and a matching one lands in your menu bar (**Show / Hide**, **Quit**). Prefer the packaged app? Grab the [signed DMG](https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg) above.
+A little potato appears in the bottom-right corner, and a matching one lands in your menu bar (**Show / Hide**, **Language**, **Quit**). Prefer the packaged app? Grab the [signed DMG](https://github.com/akumatus/spuddy/releases/latest/download/Spuddy-arm64.dmg) above.
 
 ---
 
@@ -157,7 +166,7 @@ Chat and Golden Stitch talk to an LLM through a tiny **Cloudflare Worker gateway
 
 ```bash
 cd server
-cp .dev.vars.example .dev.vars   # add DEEPSEEK_API_KEY=...
+cp .dev.vars.example .dev.vars   # add OPENAI_API_KEY=... (or Anthropic / Gemini / DeepSeek)
 npm run dev                      # http://localhost:8787
 ```
 
@@ -168,7 +177,7 @@ Then point the app at it:
 { "serverUrl": "http://localhost:8787" }
 ```
 
-The gateway geo-routes to a provider (CN → **DeepSeek**), meters a per-device daily budget, and pre-generates each day's card pools on a cron — so one shared key can safely carry a lot of little potatoes. **With no gateway reachable, he falls back to built-in lines** — everything still works, he just can't answer you in the moment. Full deploy + secrets in [`server/README.md`](server/README.md).
+The gateway starts chat at **GPT** and each day's card pools at **Claude**; either walks on down the same chain (Claude · GPT · Gemini · DeepSeek, skipping any backend you haven't given a key) when one's having an off day, and both primaries flip at runtime from KV with no redeploy. It meters a per-device daily budget and pre-generates each day's card pools on a cron — so one shared key can safely carry a lot of little potatoes. **With no gateway reachable, he falls back to built-in lines** — everything still works, he just can't answer you in the moment. Full deploy + secrets in [`server/README.md`](server/README.md).
 
 ---
 

@@ -1,7 +1,7 @@
 // Spuddy server — Cloudflare Worker.
 //
 //   GET  /cards          today's pre-generated card batch (all personas)
-//   POST /chat           real-time chat reply (geo-routed, per-device quota)
+//   POST /chat           real-time chat reply (provider fallback chain, per-device quota)
 //   POST /distill        batch memory extraction over a transcript chunk (same quota)
 //   POST /golden         real-time personalized golden card (same quota)
 //   POST /greet          real-time personalized open-the-app greeting (same quota)
