@@ -25,6 +25,9 @@ export interface LLMArgs {
   temperature?: number;
   json?: boolean;
   timeoutMs?: number;
+  // wall-clock budget for the WHOLE fallback walk (callLLMChain), not one call —
+  // real-time endpoints set it so the walk always answers before the app hangs up
+  deadlineMs?: number;
   models?: Record<string, string>;
 }
 
@@ -116,15 +119,24 @@ export async function callLLM(env: Env, provider: string, { system, messages, ma
 
 // Walk the provider chain until one backend actually answers. Backends with no
 // configured key are skipped silently; a thrown or empty call falls through to
-// the next. Returns { text, provider, model } naming whichever backend replied
-// (so responses stay self-describing), or { text: '' } if the chain is exhausted
-// with no error. Throws only when every keyed backend errored.
+// the next. `deadlineMs` is a wall-clock budget for the WHOLE walk: each hop's
+// timeout is clamped to the time left, and when under ~2s remains the walk
+// stops and returns empty — for a real-time caller an in-time "no reply" beats
+// a reply the app already gave up waiting for. `failed` names the backends that
+// errored on this walk (fuel for the caller's circuit breaker). Returns
+// { text, provider, model, failed } naming whichever backend replied (so
+// responses stay self-describing), or { text: '' } if the chain is exhausted
+// with no error. Throws only when the full chain was walked (no deadline cut)
+// and every keyed backend errored.
 export async function callLLMChain(
   env: Env,
   chain: string[],
   args: LLMArgs
-): Promise<{ text: string; provider: string | null; model: string | null }> {
+): Promise<{ text: string; provider: string | null; model: string | null; failed: string[] }> {
+  const t0 = Date.now();
+  const failed: string[] = [];
   let lastErr: unknown;
+  let outOfTime = false;
   for (const name of chain) {
     let cfg: ProviderCfg;
     try {
@@ -133,15 +145,21 @@ export async function callLLMChain(
       continue; // unknown provider id — skip it
     }
     if (!cfg.key) continue; // no key for this backend — try the next
+    const left = args.deadlineMs ? args.deadlineMs - (Date.now() - t0) : Infinity;
+    if (left < 2000) {
+      outOfTime = true; // no backend can answer in under ~2s — don't even ask
+      break;
+    }
     try {
-      const text = await callLLM(env, name, args);
-      if (text && text.trim()) return { text, provider: name, model: cfg.model };
+      const text = await callLLM(env, name, { ...args, timeoutMs: Math.min(args.timeoutMs ?? 25000, left) });
+      if (text && text.trim()) return { text, provider: name, model: cfg.model, failed };
     } catch (e) {
-      lastErr = e; // network / non-2xx — fall through to the next provider
+      lastErr = e; // network / non-2xx / timeout — fall through to the next provider
+      failed.push(name);
     }
   }
-  if (lastErr) throw lastErr;
-  return { text: '', provider: null, model: null };
+  if (lastErr && !outOfTime) throw lastErr;
+  return { text: '', provider: null, model: null, failed };
 }
 
 // DeepSeek + OpenAI share the /chat/completions shape.

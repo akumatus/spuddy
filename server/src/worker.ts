@@ -79,6 +79,50 @@ async function bumpQuota(env: Env, q: QuotaState): Promise<void> {
   await env.KV.put(q.key, String(q.used + 1), { expirationTtl: 172800 });
 }
 
+// ── real-time latency budget ──
+// The app's serverFetch gives up at 28s, so a reply landing later than that is
+// indistinguishable from being offline. The endpoints a human actively waits on
+// (/chat, /greet, /golden) therefore cap each provider attempt at 12s (healthy
+// backends answer in 4-7s) and the whole fallback walk at 22s — ~6s of network
+// headroom. Background work (/distill, /consolidate, cron) keeps the roomier
+// providers.ts defaults; nobody is watching those spinners.
+const RT_TIMEOUT_MS = 12000;
+const RT_DEADLINE_MS = 22000;
+
+// ── provider circuit breaker ──
+// A hung provider taxes every walk RT_TIMEOUT_MS before the fallback rescues
+// it, so each walk reports its failures and later walks start from the healthy
+// end: flagged backends move to the BACK of the chain — never removed, so if
+// everything is flagged the order is moot, and expiry retries the primary
+// automatically. One shared KV key; ~5min of demotion per incident report.
+const BAD_KEY = 'providers:bad';
+const BAD_TTL_S = 300;
+
+async function badProviders(env: Env): Promise<string[]> {
+  try {
+    const list = JSON.parse((await env.KV.get(BAD_KEY)) || '[]') as unknown;
+    return Array.isArray(list) ? list.filter((p): p is string => typeof p === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function demoteBad(chain: string[], bad: string[]): string[] {
+  if (!bad.length) return chain;
+  return [...chain.filter((p) => !bad.includes(p)), ...chain.filter((p) => bad.includes(p))];
+}
+
+// Record a walk's failures for later walks (fire-and-forget, off the response
+// path). Single-provider chains are admin A/B pins — probing a flaky backend
+// on purpose shouldn't demote it for real users. The write unions with the
+// previous list (minus whoever just answered) so two flaky backends don't take
+// turns amnestying each other; the TTL re-tries everyone soon enough.
+function reportBad(ctx: ExecutionContext, env: Env, chain: string[], prevBad: string[], failed: string[], winner: string | null): void {
+  if (chain.length < 2 || !failed.length) return;
+  const next = [...new Set([...failed, ...prevBad.filter((p) => p !== winner)])];
+  ctx.waitUntil(env.KV.put(BAD_KEY, JSON.stringify(next), { expirationTtl: BAD_TTL_S }));
+}
+
 // Per-language batch summary for the admin responses (/admin/generate, /admin/put).
 function batchCounts(batch: CardsBatch): Record<string, unknown> {
   // total lines across the shared bubble pools (nested groups + flat arrays)
@@ -122,7 +166,7 @@ async function todaysMusings(env: Env, charId: string | undefined, lang: Lang): 
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
@@ -158,10 +202,11 @@ export default {
           role: m.who === 'user' ? 'user' : 'assistant',
           content: m.text || '',
         }));
-        const cfg = await loadConfig(env);
-        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — warm but coherent; higher tipped non-English replies into word salad
-        const { text: raw, provider, model } = await callLLMChain(env, chain, { system, messages, maxTokens: 300, temperature: 1.0, models });
+        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, { system, messages, maxTokens: 300, temperature: 1.0, models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS });
+        reportBad(ctx, env, chain, bad, failed, provider);
         const out = clean(raw);
         if (!out) return json(null); // whole chain failed/empty — don't spend budget
         await bumpQuota(env, q); // only a real reply counts
@@ -186,14 +231,15 @@ export default {
         if (!chunk.length) return json({ facts: [] });
 
         const system = buildDistillSystem(p);
-        const cfg = await loadConfig(env);
-        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 0.2 — extraction wants stability, not creativity
-        const { text: raw, provider, model } = await callLLMChain(env, chain, {
+        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
           system,
           messages: [{ role: 'user', content: distillTranscript(p) }],
           maxTokens: 700, temperature: 0.2, json: true, models,
         });
+        reportBad(ctx, env, chain, bad, failed, provider);
         if (!raw || !raw.trim()) return json({ facts: null, provider }); // chain failed — don't spend budget
         await bumpQuota(env, q); // a real extraction pass counts
         return json({ facts: parseDistillFacts(raw, chunk.length, (p.memory || []).length), provider, model });
@@ -211,14 +257,15 @@ export default {
         const facts = (p.memory || []).filter((m) => m && typeof m.fact === 'string' && m.fact.trim());
         if (facts.length < 2) return json({ ops: [] }); // nothing to curate
 
-        const cfg = await loadConfig(env);
-        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 0.2 — curation wants stability, not creativity
-        const { text: raw, provider, model } = await callLLMChain(env, chain, {
+        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
           system: buildConsolidateSystem(p),
           messages: [{ role: 'user', content: consolidateList(p) }],
           maxTokens: 700, temperature: 0.2, json: true, models,
         });
+        reportBad(ctx, env, chain, bad, failed, provider);
         if (!raw || !raw.trim()) return json({ ops: null, provider }); // chain failed — don't spend budget
         await bumpQuota(env, q); // a real curation pass counts
         return json({ ops: parseConsolidateOps(raw, facts.length, facts.map((m) => m.kind || 'other')), provider, model });
@@ -232,12 +279,13 @@ export default {
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
         const prompt = buildGoldenPrompt(persona, p);
-        const cfg = await loadConfig(env);
-        const { chain, models } = withOverride(chatProviderChain(env, cfg), request, env, cfg);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — creative but coherent
-        const { text: raw, provider, model } = await callLLMChain(env, chain, {
-          system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200, temperature: 1.0, models,
+        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
+          system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200, temperature: 1.0, models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS,
         });
+        reportBad(ctx, env, chain, bad, failed, provider);
         const out = clean(raw);
         if (!out) return json({ text: null, provider }); // failed — don't spend budget
         await bumpQuota(env, q); // successful weave counts
@@ -255,11 +303,12 @@ export default {
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
         const prompt = buildGreetPrompt(persona, p);
-        const cfg = await loadConfig(env);
-        const chain = chatProviderChain(env, cfg);
-        const { text: raw, provider } = await callLLMChain(env, chain, {
-          system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.0, models: cfg.models,
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const chain = demoteBad(chatProviderChain(env, cfg), bad);
+        const { text: raw, provider, failed } = await callLLMChain(env, chain, {
+          system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.0, models: cfg.models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS,
         });
+        reportBad(ctx, env, chain, bad, failed, provider);
         const out = clean(raw);
         if (!out) return json({ text: null, provider }); // failed — don't spend budget
         await bumpQuota(env, q); // a real greeting counts
