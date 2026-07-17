@@ -15,8 +15,7 @@
        Mirrors popup.html's shell so the popups lay out exactly as they do in
        the real popup window: natural size, centered, with the 90px of
        transparent headroom --shadow-pop is budgeted against. */
-    body[data-mode='dom'] #proot,
-    body[data-mode='both'] #proot {
+    body[data-mode='dom'] #proot {
       position: absolute;
       inset: 0;
       box-sizing: border-box;
@@ -25,8 +24,7 @@
       justify-content: center;
       padding: 90px;
     }
-    body[data-mode='dom'] #proot > *,
-    body[data-mode='both'] #proot > * { flex-shrink: 0; }
+    body[data-mode='dom'] #proot > * { flex-shrink: 0; }
     body[data-mode='dom'] #proot #book { max-width: none; max-height: none; }
 
     /* #book is a fixed 620×500 panel whose list scrolls — deliberate in the app
@@ -53,17 +51,6 @@
     body[data-mode='dom'] #stage,
     body[data-mode='dom'] #hoverpanel { display: none; }
     body[data-mode='pet'] #proot { display: none; }
-
-    /* ── the golden shot: both windows at once ──
-       The one frame that proves the feature — the card in the popup is the same
-       one he's holding out to you. In the app these are two windows: the popup
-       centers itself on the display the potato lives on (centerOnPetDisplay in
-       electron/src/popup.ts) while the pet stays docked in the bottom-right
-       corner. So the popup keeps #proot's centering and only the stage moves,
-       out of its usual window-center to the corner it actually occupies on a
-       real screen. No hover panel — nothing is being hovered. */
-    body[data-mode='both'] #hoverpanel { display: none; }
-    body[data-mode='both'] #stage { right: 0; }
 
     /* ── pet shots (hero / chat) ──
        No overrides: the stage, hover panel and bubbles are positioned against

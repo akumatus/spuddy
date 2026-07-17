@@ -52,7 +52,7 @@ Everything you keep lands in the **Card Book** — filter it down to just the go
 ## ✨ Golden Stitch
 
 <div align="center">
-  <img src="docs/media/golden.png" width="560" alt="A rare Golden Stitch card, hand-woven by the AI and signed by Sprinkles — 'You are not behind. You are exactly here, and here is where the good stuff starts.' — and Sprinkles himself in the corner, holding out that very same card" />
+  <img src="docs/media/golden.png" width="300" alt="A rare Golden Stitch card, hand-woven by the AI and signed by Spud: 'You are not behind. You are exactly here, and here is where the good stuff starts.'" />
 </div>
 
 Every so often he goes quiet, takes his time, and **knits a golden card by hand**. Most of them are a famous line he's been saving up, signed by whoever first said it. But once he knows you well enough, now and then he weaves one live instead — out of the things you've actually talked about — and signs that one himself. Rare on purpose. Kept forever.
@@ -64,13 +64,13 @@ The card in the popup is the same one he's holding out to you in the corner.
 ## 💬 He listens — and he remembers
 
 <div align="center">
-  <img src="docs/media/chat.png" width="420" alt="Bloom, the crocheted flower pot, answering 'today was a lot' with 'the soil rests after a long rain. would you like to rest beside it for a bit?' — the chat box below reads 'tell Bloom what's on your mind.'" />
+  <img src="docs/media/chat.png" width="420" alt="Spuddy answering 'today was a lot' with 'That sounds exhausting, especially with so much already on your plate. No need to make sense of it tonight — what part felt heaviest?' — the chat box below reads 'tell Spud what's on your mind…'" />
 </div>
 
 Hover over him and a little chat box slides out. Tell him what's on your mind — *"today was a lot"* — and he answers in his own voice.
 
 - He replies **in character** — powered by a live LLM, grounded in whoever's currently on duty.
-- Each buddy has a genuinely different voice: the gardener above meets a hard day with *soil and rain*; the taco would meet the same day with snacks and all-caps.
+- Each buddy has a genuinely different voice: Spud above takes your side and leaves one easy handle to pick back up; the gardener would meet the same day with *soil and rain*, the taco with snacks and all-caps.
 - He **remembers** — and everything he keeps is yours to unpick, anytime.
 
 <div align="center">

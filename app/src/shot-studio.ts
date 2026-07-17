@@ -32,14 +32,9 @@ const PET_VIEW = { w: 720, h: 640 };
 // Popup shots are cropped to their alpha bbox, so these only need to be big
 // enough that nothing touches an edge (the tallest is the card book).
 const DOM_VIEW = { w: 1100, h: 1000 };
-// The golden shot holds a centered popup and a corner-docked pet in one frame,
-// so unlike the others this viewport is load-bearing: it sets the gap between
-// them. Roughly a screen's proportions, which is what the two windows are
-// actually spaced against.
-const BOTH_VIEW = { w: 1240, h: 780 };
 
 interface Shot {
-  mode: 'pet' | 'dom' | 'both';
+  mode: 'pet' | 'dom';
   view: { w: number; h: number };
   render: () => Promise<void>;
 }
@@ -191,29 +186,31 @@ const SHOTS: Record<string, Shot> = {
     },
   },
 
-  // The live chat: his reply in a solid bubble, with the chat box open under it.
-  // Bloom is on duty — the README's point is that the gardener answers a hard
-  // day with soil and rain, so the shot has to actually be the gardener.
+  // The live chat: what you said still hanging in his handwriting, his reply in
+  // a solid bubble. Spud is on duty, like every other shot — the reply has to be
+  // his Desk Dramatist voice (PERS.spud): take their side, no advice, leave one
+  // easy handle. This is a real generated reply, not one written for the shot.
   //
-  // #said (the echo of what you just typed) is deliberately left out. It's bare
-  // text — #6b5537 with only a soft white glow behind it — which is fine over
-  // the light desktop it was designed for, but on a transparent PNG it lands on
-  // whatever the reader's theme is, and on GitHub's dark one it degrades into an
-  // unreadable smudge. The bubble and the placeholder carry the exchange; the
-  // README prose supplies the line the human said.
+  // #said (the echo of what you typed) is the one overhead element with no paper
+  // fill, so it lands straight on whatever is behind the transparent PNG. That
+  // used to make it unusable here — a single soft blur left it a smudge on a
+  // dark README — but its halo now carries the line over any backdrop
+  // (style.css #said), so the shot shows the whole exchange again.
   chat: {
     mode: 'pet',
     view: PET_VIEW,
     async render() {
-      const state = demoState({ active: 'bloom' });
-      await petScene('bloom', {
+      const state = demoState();
+      await petScene('spud', {
         top: '· · ♥ · ·',
         main: 'Small steps still face forward.',
         footL: TXT().ui.dayShort(state.day),
-        footR: `— Bloom`,
+        footR: `— Spud`,
       });
-      show('bubble', 'the soil rests after a long rain. would you like to rest beside it for a bit?');
-      ($('chatInput') as HTMLInputElement).placeholder = TXT().ui.placeholder('Bloom');
+      show('bubble', 'That sounds exhausting, especially with so much already on your plate. No need to make sense of it tonight — what part felt heaviest?');
+      // exactly how chatSend() dresses it — curly quotes around what you typed
+      show('said', '“today was a lot”');
+      ($('chatInput') as HTMLInputElement).placeholder = TXT().ui.placeholder('Spud');
     },
   },
 
@@ -229,26 +226,21 @@ const SHOTS: Record<string, Shot> = {
     },
   },
 
-  // The rare one, hand-woven and signed by whoever was on duty — shown as both
-  // windows at once, because the point of the section is that the card in the
-  // popup is the very one he's holding out to you in the corner. Same string
-  // feeds the popup and the card texture on the doll, so they cannot drift.
+  // The rare one, hand-woven and signed by whoever was on duty. Just the card:
+  // it reads at a glance next to the daily card it's the counterpart to, and
+  // both surfaces frame it the same way. (That the doll is holding this very
+  // card in the corner is true and worth saying in prose — it just isn't what
+  // this frame shows, so no alt text may claim it.)
   golden: {
-    mode: 'both',
-    view: BOTH_VIEW,
+    mode: 'dom',
+    view: DOM_VIEW,
     async render() {
-      const state = demoState({ active: 'donut', day: 24 });
-      const msg = 'You are not behind. You are exactly here, and here is where the good stuff starts.';
-      // the doll's held card, exactly as updateCardScreen() dresses it for a
-      // drawn golden (see app/context.ts)
-      await petScene('donut', {
-        top: '✦ · ✦ · ✦',
-        gold: true,
-        main: msg,
-        footL: TXT().ui.dayShort(state.day),
-        footR: `— Sprinkles`,
-      });
-      showCard(state, { msg, rare: true, keptToday: false }, { onKeep: () => {}, onLater: () => {} });
+      const state = demoState();
+      showCard(state, {
+        msg: 'You are not behind. You are exactly here, and here is where the good stuff starts.',
+        rare: true,
+        keptToday: false,
+      }, { onKeep: () => {}, onLater: () => {} });
       stageToRoot();
     },
   },
