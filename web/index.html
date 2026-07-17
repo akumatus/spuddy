@@ -55,13 +55,13 @@
     .wrap{max-width:1200px;margin:0 auto}
     .hero-grid{display:grid;grid-template-columns:1.02fr 0.98fr;gap:24px;align-items:center}
     .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-    /* minmax(0,…) lets cards shrink below their min-content (the 138px
-       vignette + 26px padding), which otherwise drags out a horizontal
-       scrollbar on narrow screens; the vignette scales along (the !important
-       overrides win over the cards' inline styles) */
-    .buddies-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
-    .buddies-grid>div>div:first-child{width:min(138px,100%)!important;height:auto!important;aspect-ratio:1}
-    .buddies-grid>div>div:first-child img{width:78%!important}
+    /* All six in one row (compact roster). minmax(0,…) lets the cards shrink
+       below their min-content so no horizontal scrollbar; the avatar vignette
+       scales with them (!important beats the cards' inline width). Drops to 3
+       then 2 columns as it narrows — see the media queries below. */
+    .buddies-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}
+    .buddies-grid>div>div:first-child{width:min(94px,100%)!important;height:auto!important;aspect-ratio:1}
+    .buddies-grid>div>div:first-child img{width:80%!important}
     .split{display:grid;gap:56px;align-items:center}
     .split-cards{grid-template-columns:0.92fr 1.08fr}
     .split-chat{grid-template-columns:1.05fr 0.95fr}
@@ -72,6 +72,10 @@
       .hero-stage{height:400px!important}
       .split{grid-template-columns:1fr!important;gap:34px}
       .split .split-media-first{order:-1}
+    }
+    @media (max-width:900px){
+      /* six across gets cramped before the phone breakpoint — half it to 3 */
+      .buddies-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
     }
     @media (max-width:760px){
       /* two feature cards need ~640px of content (136px thumb + prose each);
@@ -212,47 +216,40 @@
   <!-- buddies -->
   <div id="a-buddies" class="section-pad" style="background:#EFE1C6;padding:100px 40px">
     <div style="max-width:1120px;margin:0 auto">
-      <div style="text-align:center;margin-bottom:48px">
+      <div style="text-align:center;margin-bottom:40px">
         <div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#B79A5E;margin-bottom:12px">Meet the buddies</div>
-        <h2 style="font-size:46px;font-weight:900;letter-spacing:-0.02em;margin:0 0 14px;color:#2E251B;text-wrap:balance">Six friends, each for a different kind of care</h2>
-        <p style="font-size:18px;color:#6B5C48;max-width:540px;margin:0 auto;text-wrap:pretty">Each has its own voice and its own way in. Once a friend, always a friend.</p>
+        <h2 style="font-size:46px;font-weight:900;letter-spacing:-0.02em;margin:0;color:#2E251B;text-wrap:balance">Unlock six friends, each for a different kind of care</h2>
       </div>
       <div class="buddies-grid">
-        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
-          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/spud.png" alt="Spud" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
-          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Spud</h3>
-          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Steady Friend</div>
-          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">starts with you</div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.07);border-radius:18px;padding:20px 10px;text-align:center;box-shadow:0 6px 16px rgba(62,50,38,0.05)">
+          <div style="width:94px;height:94px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/spud.png" alt="Spud" style="width:80%;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:17px;font-weight:900;margin:0 0 2px;color:#2E251B">Spud</h3>
+          <div style="font-size:12px;font-weight:700;color:#B07C3B">the Steady Friend</div>
         </div>
-        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
-          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/taco.png" alt="Taco" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
-          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Taco</h3>
-          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Hype Gremlin</div>
-          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">keep 2 cards</div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.07);border-radius:18px;padding:20px 10px;text-align:center;box-shadow:0 6px 16px rgba(62,50,38,0.05)">
+          <div style="width:94px;height:94px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/taco.png" alt="Taco" style="width:80%;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:17px;font-weight:900;margin:0 0 2px;color:#2E251B">Taco</h3>
+          <div style="font-size:12px;font-weight:700;color:#B07C3B">the Hype Gremlin</div>
         </div>
-        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
-          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/sprinkles.png" alt="Sprinkles" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
-          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Sprinkles</h3>
-          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Sweet Talker</div>
-          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">mark 3 favorites</div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.07);border-radius:18px;padding:20px 10px;text-align:center;box-shadow:0 6px 16px rgba(62,50,38,0.05)">
+          <div style="width:94px;height:94px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/sprinkles.png" alt="Sprinkles" style="width:80%;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:17px;font-weight:900;margin:0 0 2px;color:#2E251B">Sprinkles</h3>
+          <div style="font-size:12px;font-weight:700;color:#B07C3B">the Sweet Talker</div>
         </div>
-        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
-          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/bloom.png" alt="Bloom" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
-          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Bloom</h3>
-          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Quiet Gardener</div>
-          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">tell him 5 things</div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.07);border-radius:18px;padding:20px 10px;text-align:center;box-shadow:0 6px 16px rgba(62,50,38,0.05)">
+          <div style="width:94px;height:94px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/bloom.png" alt="Bloom" style="width:80%;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:17px;font-weight:900;margin:0 0 2px;color:#2E251B">Bloom</h3>
+          <div style="font-size:12px;font-weight:700;color:#B07C3B">the Quiet Gardener</div>
         </div>
-        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
-          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/leo.png" alt="Leo" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
-          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Leo</h3>
-          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Brave Heart</div>
-          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">reach a 7-day streak</div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.07);border-radius:18px;padding:20px 10px;text-align:center;box-shadow:0 6px 16px rgba(62,50,38,0.05)">
+          <div style="width:94px;height:94px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/leo.png" alt="Leo" style="width:80%;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:17px;font-weight:900;margin:0 0 2px;color:#2E251B">Leo</h3>
+          <div style="font-size:12px;font-weight:700;color:#B07C3B">the Brave Heart</div>
         </div>
-        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.09);border-radius:22px;padding:26px;text-align:center;box-shadow:0 2px 0 rgba(62,50,38,0.04)">
-          <div style="width:138px;height:138px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/prof.png" alt="Prof" style="width:108px;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
-          <h3 style="font-size:23px;font-weight:900;margin:0 0 3px;color:#2E251B">Prof</h3>
-          <div style="font-size:14px;font-weight:700;color:#B07C3B;margin-bottom:14px">the Tenured Tuber</div>
-          <div style="display:inline-block;font-size:12.5px;font-weight:800;color:#6B5C48;background:#F3E7CD;padding:6px 13px;border-radius:999px">keep 3 golden cards</div>
+        <div style="background:#FFFDF6;border:1px solid rgba(62,50,38,0.07);border-radius:18px;padding:20px 10px;text-align:center;box-shadow:0 6px 16px rgba(62,50,38,0.05)">
+          <div style="width:94px;height:94px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#F6ECD6,#EEDFC0);display:flex;align-items:flex-end;justify-content:center;overflow:hidden"><img src="assets/char/prof.png" alt="Prof" style="width:80%;height:auto;object-fit:contain;filter:drop-shadow(0 6px 8px rgba(62,50,38,0.16))"></div>
+          <h3 style="font-size:17px;font-weight:900;margin:0 0 2px;color:#2E251B">Prof</h3>
+          <div style="font-size:12px;font-weight:700;color:#B07C3B">the Tenured Tuber</div>
         </div>
       </div>
     </div>
