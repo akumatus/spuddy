@@ -110,12 +110,21 @@ And the small stuff: 90 minutes glued to your chair and he'll ask you to stretch
 
 Nothing here is a canned clip. Every movement is authored on an eased-curve rig where **the origin is always the contact point**, **squash preserves volume** (`sx·sy ≈ 1`), springs overshoot on a `cubic-bezier(.34, 1.56, .64, 1)`, and each one is paired with a soft synth blip. The long, self-directed ones — humming to himself, dozing off, reading his own card — are the ones I sweated the most.
 
+<!-- 2 across, not 4. GitHub wraps animated GIFs in its own <animated-image>
+     player and pins our width= on it as a hard `width`, not a `max-width` — so
+     unlike the PNGs above, these four cannot shrink to fit. Four of them need
+     4 × (190 + 27) = 869px and the README column on the repo page is only 838
+     (the About sidebar takes the rest), so a 4-across row scrolls sideways at
+     every window size. Two across needs 434, which survives down to a phone —
+     and gives the captions a 419px cell instead of cramming them into 209. -->
 <table>
   <tr>
-    <td width="25%" align="center"><img src="docs/media/motion-hum.gif" width="190" alt="Spuddy humming" /><br /><b>Humming</b><br /><sub>sways on a 1.32s beat, the card keeping time like a metronome; ♪ drift off, eyes half-lidded and content</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-doze.gif" width="190" alt="Spuddy dozing off" /><br /><b>Dozing off</b><br /><sub>deep 5.8s breaths, lids at 82%, nods down and jerks upright — the nod-and-catch — with little <i>Z</i>'s</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-cardStudy.gif" width="190" alt="Spuddy reading his card" /><br /><b>Reading his card</b><br /><sub>tips the card back and reads it to himself, eyes tracking the line, head tilting ±4° along</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-knock.gif" width="190" alt="Spuddy knocking on the glass" /><br /><b>Knock knock</b><br /><sub>leans in 11°, taps the glass twice, big hopeful eyes — this is how he says he misses you</sub></td>
+    <td width="50%" align="center"><img src="docs/media/motion-hum.gif" width="190" alt="Spuddy humming" /><br /><b>Humming</b><br /><sub>sways on a 1.32s beat, the card keeping time like a metronome; ♪ drift off, eyes half-lidded and content</sub></td>
+    <td width="50%" align="center"><img src="docs/media/motion-doze.gif" width="190" alt="Spuddy dozing off" /><br /><b>Dozing off</b><br /><sub>deep 5.8s breaths, lids at 82%, nods down and jerks upright — the nod-and-catch — with little <i>Z</i>'s</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/media/motion-cardStudy.gif" width="190" alt="Spuddy reading his card" /><br /><b>Reading his card</b><br /><sub>tips the card back and reads it to himself, eyes tracking the line, head tilting ±4° along</sub></td>
+    <td width="50%" align="center"><img src="docs/media/motion-knock.gif" width="190" alt="Spuddy knocking on the glass" /><br /><b>Knock knock</b><br /><sub>leans in 11°, taps the glass twice, big hopeful eyes — this is how he says he misses you</sub></td>
   </tr>
 </table>
 
