@@ -32,9 +32,14 @@ const PET_VIEW = { w: 720, h: 640 };
 // Popup shots are cropped to their alpha bbox, so these only need to be big
 // enough that nothing touches an edge (the tallest is the card book).
 const DOM_VIEW = { w: 1100, h: 1000 };
+// The golden shot holds a centered popup and a corner-docked pet in one frame,
+// so unlike the others this viewport is load-bearing: it sets the gap between
+// them. Roughly a screen's proportions, which is what the two windows are
+// actually spaced against.
+const BOTH_VIEW = { w: 1240, h: 780 };
 
 interface Shot {
-  mode: 'pet' | 'dom';
+  mode: 'pet' | 'dom' | 'both';
   view: { w: number; h: number };
   render: () => Promise<void>;
 }
@@ -224,17 +229,26 @@ const SHOTS: Record<string, Shot> = {
     },
   },
 
-  // The rare one, hand-woven and signed by whoever was on duty.
+  // The rare one, hand-woven and signed by whoever was on duty — shown as both
+  // windows at once, because the point of the section is that the card in the
+  // popup is the very one he's holding out to you in the corner. Same string
+  // feeds the popup and the card texture on the doll, so they cannot drift.
   golden: {
-    mode: 'dom',
-    view: DOM_VIEW,
+    mode: 'both',
+    view: BOTH_VIEW,
     async render() {
       const state = demoState({ active: 'donut', day: 24 });
-      showCard(state, {
-        msg: 'You are not behind. You are exactly here, and here is where the good stuff starts.',
-        rare: true,
-        keptToday: false,
-      }, { onKeep: () => {}, onLater: () => {} });
+      const msg = 'You are not behind. You are exactly here, and here is where the good stuff starts.';
+      // the doll's held card, exactly as updateCardScreen() dresses it for a
+      // drawn golden (see app/context.ts)
+      await petScene('donut', {
+        top: '✦ · ✦ · ✦',
+        gold: true,
+        main: msg,
+        footL: TXT().ui.dayShort(state.day),
+        footR: `— Sprinkles`,
+      });
+      showCard(state, { msg, rare: true, keptToday: false }, { onKeep: () => {}, onLater: () => {} });
       stageToRoot();
     },
   },

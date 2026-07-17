@@ -52,7 +52,7 @@ Everything you keep lands in the **Card Book** — filter it down to just the go
 ## ✨ Golden Stitch
 
 <div align="center">
-  <img src="docs/media/golden.png" width="300" alt="A rare Golden Stitch card, hand-woven by the AI and signed by Sprinkles: 'You are not behind. You are exactly here, and here is where the good stuff starts.'" />
+  <img src="docs/media/golden.png" width="560" alt="A rare Golden Stitch card, hand-woven by the AI and signed by Sprinkles — 'You are not behind. You are exactly here, and here is where the good stuff starts.' — and Sprinkles himself in the corner, holding out that very same card" />
 </div>
 
 Every so often he goes quiet, takes his time, and **knits a golden card by hand**. Most of them are a famous line he's been saving up, signed by whoever first said it. But once he knows you well enough, now and then he weaves one live instead — out of the things you've actually talked about — and signs that one himself. Rare on purpose. Kept forever.
