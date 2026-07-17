@@ -20,6 +20,18 @@
       "port": 5199
     },
     {
+      "name": "readme-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4322"],
+      "port": 4322
+    },
+    {
+      "name": "app-vite",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--port", "5200", "--strictPort"],
+      "port": 5200
+    },
+    {
       "name": "renderer-preview",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4173", "--directory", "app/dist"],

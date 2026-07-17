@@ -6,3 +6,6 @@ web/.wrangler/
 *.p12
 *.p8
 *fonts.html
+# local scratch: README.md rendered through GitHub's own markdown API, to eyeball
+# image sizes and the motion table before pushing. Regenerate, don't commit.
+.readme-preview.html
