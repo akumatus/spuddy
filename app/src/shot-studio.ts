@@ -49,18 +49,18 @@ const $ = (id: string) => document.getElementById(id)!;
 const HERO_CARD = "You don't have to be perfect to be wonderful";
 const HERO_MUTTER = 'the lamp hums. i don’t mind it.';
 
-// Nine cards — the book's grid is 3-wide, so nine fills exactly three rows with
-// no orphan. A gold one and the favorited ones are in on purpose: the shot has
-// to show what the ✦ and the ♥ look like.
+// Seven cards. The grid is 3-wide, so seven runs 3 · 3 · 1 and the short last
+// row keeps the panel from reading as a packed catalogue — a full nine looked
+// airless. Two goldens and two favorites stay in regardless: the shot has to
+// show what the ✦ and the ♥ actually look like, and a golden signed by its
+// source is the common case the Golden Stitch section describes.
 const DEMO_CARDS: AppState['cards'] = [
   { m: 'Rest is productive. Signed, a potato.', rare: false, day: 3, by: 'Spud' },
-  { m: 'You are allowed to be a work in progress and a masterpiece at once.', rare: false, day: 5, by: 'Bloom', fav: true },
   { m: 'Look inside yourself. You are more than what you have become.', rare: true, day: 8, by: 'Sprinkles', src: 'The Lion King' },
   { m: 'EAT THE SNACK. THE SNACK IS THE PLAN.', rare: false, day: 9, by: 'Taco' },
   { m: 'Small steps still face forward.', rare: false, day: 12, by: 'Bloom' },
   { m: 'Leap, and the net will appear.', rare: true, day: 14, by: 'Spud', src: 'John Burroughs', fav: true },
   { m: 'You have survived every single one of your worst days.', rare: false, day: 17, by: 'Leo', fav: true },
-  { m: 'The tomatoes do not rush. Neither should you.', rare: false, day: 19, by: 'Bloom' },
   { m: 'This little potato believes in you.', rare: false, day: 24, by: 'Spud' },
 ];
 

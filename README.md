@@ -42,7 +42,7 @@ Tap the little white card in his hands and he hands you today's line — somethi
 - Works fully offline: a hand-written pool ships in the app, so he's never speechless.
 
 <div align="center">
-  <img src="docs/media/cardbook.png" width="560" alt="The Card Book, Cards tab: nine kept cards in a grid, the golden ones dashed in gold and marked with a ✦, favorites marked with a filled heart, and filter chips for all / golden / favorites" />
+  <img src="docs/media/cardbook.png" width="560" alt="The Card Book, Cards tab: seven kept cards in a grid, the golden ones dashed in gold and marked with a ✦, favorites marked with a filled heart, and filter chips for all / golden / favorites" />
 </div>
 
 Everything you keep lands in the **Card Book** — filter it down to just the goldens, or just the ones you loved.
@@ -84,7 +84,7 @@ What he learns about you gets distilled into the **Memory quilt** — one patch 
 ## 🧵 Meet the crew
 
 <div align="center">
-  <img src="docs/media/buddies.png" width="700" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Leo, Prof — 6 of 6 friends" />
+  <img src="docs/media/buddies.png" width="560" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Leo, Prof — 6 of 6 friends" />
 </div>
 
 Six little souls, each a different kind of comfort. Spud comes with the app; the other five you don't buy — you **earn** them, through five different kinds of care: keep · favorite · confide · show up · go gold. Once a friend, always a friend; tap **Set active** to put anyone on duty.
