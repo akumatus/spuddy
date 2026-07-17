@@ -133,10 +133,19 @@ function renderBuddies(): void {
 }
 
 // ── care cards (scheduler / OS events) ──
-export function presentCare(tag: string, msg: string): void {
+// A care card nobody thanks self-dismisses: care is timely by nature, and one
+// presented just as the human walks away must not sit in the overlay until
+// morning (a "goodnight" at 8am reads as neglect, not care).
+const CARE_LINGER_MS = 10 * 60_000;
+let careSeq = 0;
+
+// Returns whether the card was actually presented — false when he's busy
+// (overlay open) or on quiet duty (tucked/docked), so time-bound callers
+// (night care) can retry while their window lasts instead of losing the card.
+export function presentCare(tag: string, msg: string): boolean {
   // docked: the raise-card choreography would fight the edge pose, and he's on
-  // quiet duty anyway — skip tonight's card rather than yanking him off the edge
-  if (isOverlayOpen() || ctx.anim().tucked || ctx.anim().docked) return;
+  // quiet duty anyway — let the caller decide whether to try again later
+  if (isOverlayOpen() || ctx.anim().tucked || ctx.anim().docked) return false;
   ctx.brain.interrupt();
   sfx.chime();
   ctx.scene.raiseCard();
@@ -144,4 +153,12 @@ export function presentCare(tag: string, msg: string): void {
     sfx.pop();
     closeOverlay();
   });
+  // stamp THIS card and only dismiss it if it's still the one on screen —
+  // silently (no pop): if the timeout fires, nobody was there to hear it
+  const seq = String(++careSeq);
+  document.getElementById('mThanks')?.setAttribute('data-care', seq);
+  setTimeout(() => {
+    if (isOverlayOpen() && document.getElementById('mThanks')?.getAttribute('data-care') === seq) closeOverlay();
+  }, CARE_LINGER_MS);
+  return true;
 }

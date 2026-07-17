@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('pp', {
   lang: {
     report: (pref: string, effective: string) => ipcRenderer.send('lang-changed', { pref, effective }),
   },
+  // seconds since the human last touched keyboard/mouse (system-wide)
+  idleSeconds: () => ipcRenderer.invoke('system-idle-seconds'),
   win: {
     setIgnoreMouse: (v: boolean) => ipcRenderer.send('set-ignore-mouse', v),
     moveBy: (dx: number, dy: number, lift?: number) => ipcRenderer.invoke('move-by', dx, dy, lift),

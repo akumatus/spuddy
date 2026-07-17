@@ -1,8 +1,12 @@
 // Background watchers pushed to the renderer over IPC.
-import { powerMonitor, screen } from 'electron';
+import { ipcMain, powerMonitor, screen } from 'electron';
 import { getWin } from './window';
 
 export function startWatchers(): void {
+  // seconds since the human last touched keyboard/mouse — presence-gated
+  // features (night care) pull this so they can skip an empty chair
+  ipcMain.handle('system-idle-seconds', () => powerMonitor.getSystemIdleTime());
+
   // ── cursor watch: he turns to look at your pointer (Turn 5 followCursor) ──
   // Global poll in the main process — the window is click-through, so the
   // renderer only sees the cursor while it hovers the window itself.

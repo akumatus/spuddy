@@ -321,6 +321,10 @@ export interface PreloadBridge {
     // renderer → main: keeps the tray menu's language checkmark in sync
     report(pref: LangPref, effective: Lang): void;
   };
+  // seconds since the last user input, system-wide (powerMonitor) — presence
+  // gate for features that must not fire at an empty chair. Absent on older
+  // preloads; callers treat that as "present".
+  idleSeconds?(): Promise<number>;
   win: {
     setIgnoreMouse(v: boolean): void;
     // resolves to how many px the window fell short of the requested vertical

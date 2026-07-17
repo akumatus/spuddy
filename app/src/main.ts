@@ -118,26 +118,27 @@ setInterval(() => {
   }
 }, 60000);
 
-// night care at 23:00 (once per day) — only when he's actually been keeping
-// us company across the 23:00 boundary. If the machine was off or asleep at 11
-// and the app only came up later, we skip tonight's card rather than firing a
-// stale catch-up the moment we open.
-let lastCareTick = Date.now();
-setInterval(() => {
-  const now = new Date();
-  const sinceLast = now.getTime() - lastCareTick;
-  const prevHour = new Date(lastCareTick).getHours();
-  lastCareTick = now.getTime();
-
+// night care during the 23:00 hour (once per day) — and only to a human who is
+// actually there. The wall clock alone knows nothing about presence: the old
+// 23:00 edge trigger fired even when the display had been dark for hours (a
+// machine kept awake overnight, or a Power Nap dark-wake straddling 23:00) and
+// the card then sat in the overlay till morning — a "goodnight" at 8am. So gate
+// on input recency instead, and retry through the hour: stepping away right at
+// 23:00 still gets the card on return at 23:20, being busy in a panel gets it
+// once the panel closes, and an empty chair all hour gets no card at all.
+// nightShownDate is stamped only when the card actually presented — the old
+// stamp-then-try lost the card entirely if he happened to be docked at 23:00.
+const NIGHT_IDLE_GATE = 120; // seconds since last input that still count as "there"
+setInterval(async () => {
+  if (new Date().getHours() < 23) return; // past midnight rollDay makes it tomorrow, closing the window
   const today = state.lastDate;
-  const crossedIntoNight = prevHour < 23 && now.getHours() >= 23;
-  const ranThrough = sinceLast < 90_000; // continuous ticks, not a cold boot / wake gap
-  if (crossedIntoNight && ranThrough && state.nightShownDate !== today) {
-    state.nightShownDate = today;
-    store.save(state);
-    const nm = pool('nightMsg');
-    presentCare(TXT().ui.careNight, nm[Math.floor(Math.random() * nm.length)]);
-  }
+  if (state.nightShownDate === today) return;
+  const idle = pp?.idleSeconds ? await pp.idleSeconds().catch(() => 0) : 0; // no bridge (browser dev) → assume present
+  if (idle > NIGHT_IDLE_GATE) return;
+  const nm = pool('nightMsg');
+  if (!presentCare(TXT().ui.careNight, nm[Math.floor(Math.random() * nm.length)])) return; // busy/docked — retry next minute
+  state.nightShownDate = today;
+  store.save(state);
 }, 60000);
 
 // sedentary reminder from the main process (90 min continuous activity)
