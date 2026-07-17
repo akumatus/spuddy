@@ -19,7 +19,7 @@ He's a *real* crocheted doll, 3D-scanned and brought to life on your desktop. He
 <br />
 
 <div align="center">
-  <img src="docs/media/hero.png" width="600" alt="Spuddy sitting in the corner of the desktop, holding a card that reads 'You don't have to be perfect to be wonderful', muttering 'the lamp hums. i don't mind it.'" />
+  <img src="docs/media/hero.png" width="440" alt="Spuddy sitting in the corner of the desktop, holding a card that reads 'You don't have to be perfect to be wonderful', muttering 'the lamp hums. i don't mind it.'" />
 </div>
 
 <br />
@@ -64,7 +64,7 @@ The card in the popup is the same one he's holding out to you in the corner.
 ## 💬 He listens — and he remembers
 
 <div align="center">
-  <img src="docs/media/chat.png" width="640" alt="Bloom, the crocheted flower pot, answering 'today was a lot' with 'the soil rests after a long rain. would you like to rest beside it for a bit?' — the chat box below reads 'tell Bloom what's on your mind.'" />
+  <img src="docs/media/chat.png" width="420" alt="Bloom, the crocheted flower pot, answering 'today was a lot' with 'the soil rests after a long rain. would you like to rest beside it for a bit?' — the chat box below reads 'tell Bloom what's on your mind.'" />
 </div>
 
 Hover over him and a little chat box slides out. Tell him what's on your mind — *"today was a lot"* — and he answers in his own voice.
@@ -84,7 +84,7 @@ What he learns about you gets distilled into the **Memory quilt** — one patch 
 ## 🧵 Meet the crew
 
 <div align="center">
-  <img src="docs/media/buddies.png" width="720" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Leo, Prof — 6 of 6 friends" />
+  <img src="docs/media/buddies.png" width="700" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Leo, Prof — 6 of 6 friends" />
 </div>
 
 Six little souls, each a different kind of comfort. Spud comes with the app; the other five you don't buy — you **earn** them, through five different kinds of care: keep · favorite · confide · show up · go gold. Once a friend, always a friend; tap **Set active** to put anyone on duty.
@@ -115,23 +115,11 @@ Nothing here is a canned clip. Every movement is authored on an eased-curve rig 
     <td width="25%" align="center"><img src="docs/media/motion-hum.gif" width="190" alt="Spuddy humming" /><br /><b>Humming</b><br /><sub>sways on a 1.32s beat, the card keeping time like a metronome; ♪ drift off, eyes half-lidded and content</sub></td>
     <td width="25%" align="center"><img src="docs/media/motion-doze.gif" width="190" alt="Spuddy dozing off" /><br /><b>Dozing off</b><br /><sub>deep 5.8s breaths, lids at 82%, nods down and jerks upright — the nod-and-catch — with little <i>Z</i>'s</sub></td>
     <td width="25%" align="center"><img src="docs/media/motion-cardStudy.gif" width="190" alt="Spuddy reading his card" /><br /><b>Reading his card</b><br /><sub>tips the card back and reads it to himself, eyes tracking the line, head tilting ±4° along</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-stretch.gif" width="190" alt="Spuddy stretching" /><br /><b>Big stretch</b><br /><sub>arms up and over, body lengthens 14% and leans back 7°, eyes squeezed shut</sub></td>
-  </tr>
-  <tr>
-    <td width="25%" align="center"><img src="docs/media/motion-chase.gif" width="190" alt="Spuddy chasing his tail" /><br /><b>Chasing his tail</b><br /><sub>four sharp turns (eyes lead by half a beat), then a frustrated 360° spin, settling like a roly-poly</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-bounceCard.gif" width="190" alt="Spuddy juggling the card" /><br /><b>Juggling the card</b><br /><sub>tosses and catches the card twice, eyes tracking it up and down, body bobbing along</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-wave.gif" width="190" alt="Spuddy waving" /><br /><b>Wave</b><br /><sub>shoulder-hinged hello, an <code>outBack</code> spring up then three easy swings, a little side-lean and a blink</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-cheer.gif" width="190" alt="Spuddy cheering" /><br /><b>Cheering</b><br /><sub>two hops, paws thrown up and waving, elastic landing · confetti + a little chime</sub></td>
-  </tr>
-  <tr>
-    <td width="25%" align="center"><img src="docs/media/motion-present.gif" width="190" alt="Spuddy presenting the card" /><br /><b>Here, for you</b><br /><sub>eases the card out toward you and tips it to the camera with a proud ±2.5° wiggle</sub></td>
     <td width="25%" align="center"><img src="docs/media/motion-knock.gif" width="190" alt="Spuddy knocking on the glass" /><br /><b>Knock knock</b><br /><sub>leans in 11°, taps the glass twice, big hopeful eyes — this is how he says he misses you</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-sulk.gif" width="190" alt="Spuddy wilting" /><br /><b>Wilting</b><br /><sub>everything droops — head, paws, eyelids, even the card — a slow sad ease when he's ignored</sub></td>
-    <td width="25%" align="center"><img src="docs/media/motion-sneeze.gif" width="190" alt="Spuddy sneezing" /><br /><b>Sneeze</b><br /><sub>winds back, "—choo!", head snaps 16° with a squash, and the card flies askew</sub></td>
   </tr>
 </table>
 
-<sub>…and still more under the hood — tap-squish, eye-roll, shy peek, hop, pirouette, look-around, and a horizontal fling that sets him spinning and settles on an underdamped spring.</sub>
+<sub>…and a dozen more under the hood — the big stretch, chasing his tail, juggling the card, waving, cheering into confetti, holding the card out to you, wilting when he's ignored, sneezing it askew, plus tap-squish, eye-roll, shy peek, hop, pirouette, look-around, and a horizontal fling that sets him spinning and settles on an underdamped spring.</sub>
 
 ---
 
