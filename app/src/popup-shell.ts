@@ -176,6 +176,21 @@ shell.onRender((html, _panel, htmlClass) => {
   });
 });
 
+// ── font warm-up ──
+// This window exists from app launch, but #proot stays empty until the first
+// popup renders — so no text references the webfonts and Chromium never
+// fetches them. The first Card Book open then races the fetch and flashes
+// fallback glyphs before Caveat/Xiaolai swap in (font-display: swap). Warm
+// them here instead, while the window is still hidden and idle. One call per
+// family is enough: the variable faces cover every weight used, and a loaded
+// face stays in this renderer's cache for the session. Xiaolai (11MB CJK) is
+// the visible offender for Chinese cards; the Latin faces are pocket change.
+requestIdleCallback(() => {
+  void document.fonts.load('700 24px Caveat');
+  void document.fonts.load('800 16px Nunito');
+  void document.fonts.load('400 16px Xiaolai');
+});
+
 // clicks travel back as a child-index path into the mirrored markup
 root.addEventListener('click', (e) => {
   const n = e.target as Element | null;
