@@ -9,7 +9,10 @@
     html, body { margin: 0; background: transparent; overflow: hidden; }
     /* Transparent headroom around the visible popup: room for the entrance
        animation AND for the card's soft CSS shadow to render without clipping
-       at the window edge (the shadow reaches ~90px below the card). The popup
+       at the window edge. This 90px is the shadow's hard budget — --shadow-pop
+       (style.css) is tuned to die out at 80px; overrun it and the window edge
+       cuts the gradient mid-fade, which reads as a straight line across the
+       wallpaper. popup-shell.ts's `pad` sizes the window to match. The popup
        stays centered in this headroom. */
     #proot {
       min-height: 100vh;
