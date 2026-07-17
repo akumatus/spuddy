@@ -26,13 +26,15 @@ import { maybeConsolidate } from './consolidate';
 import { ctx, pp } from './context';
 import { rememberFact, updateFact } from './memory';
 
-// Quiet gap that ends a burst. Short on purpose: the human who just shared
-// something checks the quilt within minutes, and "not there yet" reads as
-// "didn't listen". Slow trickle chat (a line every few minutes) now distills
-// per exchange instead of deferring to the backstop — more calls, but each is
-// one quota unit and the quilt stays live. Topic threads split by a pause are
-// stitched back by the CONTEXT_TAIL overlap + updates/factTwin merging.
-const LULL_MS = 3 * 60_000;
+// Quiet gap that ends a burst — no sends AND no typing (interactions.ts
+// resets the timer on every input keystroke, so a slow typer mid-composition
+// is never cut; scheduleDistill is the shared reset). Short-ish on purpose:
+// the human who just shared something checks the quilt within minutes, and
+// "not there yet" reads as "didn't listen". Slow trickle chat distills per
+// exchange instead of deferring to the backstop — more calls, each one quota
+// unit. Threads split by a pause are stitched back by the CONTEXT_TAIL
+// overlap + updates/factTwin merging.
+const LULL_MS = 5 * 60_000;
 const BACKSTOP = 30; // undistilled lines that force an early pass mid-burst
 const CONTEXT_TAIL = 6; // already-distilled lines sent as read-only context
 const BOOT_DELAY_MS = 45_000; // let the greeting and card batch land first

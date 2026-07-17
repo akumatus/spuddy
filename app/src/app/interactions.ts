@@ -12,6 +12,7 @@ import { heartsBurst } from '../ui/effects';
 import { isOverlayOpen } from '../ui/overlay';
 import { chatSend } from './chat';
 import { $, ctx, pp } from './context';
+import { scheduleDistill } from './distill';
 import { DAILY_DRAW_LIMIT, drawToday, openCard } from './gacha';
 import { applyLangPref, onLangChange } from './lang';
 import { openBook, openBuddies } from './panels';
@@ -515,6 +516,9 @@ export function wireInteractions(): void {
     const v = chatInput.value;
     chatInput.classList.toggle('zh', !!v && hasHan(v));
     chatInput.classList.toggle('latin', !!v && !hasHan(v));
+    // typing counts as conversation activity: keep the distill lull from
+    // firing under a slow typer mid-composition (see distill.ts LULL_MS)
+    scheduleDistill();
   });
   chatInput.addEventListener('focus', () => { ctx.chatFocused = true; ctx.brain.interrupt(); ctx.anim().setMode('lean'); }); // 04 · Listen Lean
   chatInput.addEventListener('blur', () => {
