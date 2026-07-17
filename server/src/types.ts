@@ -137,7 +137,7 @@ export const ROUTINE_KEYS = [
 ] as const;
 export const SPEAK_KEYS = ['greet', 'knock', 'delight'] as const;
 export const DAYPARTS = ['morning', 'afternoon', 'evening', 'night'] as const;
-export const BUBBLE_FLAT = ['poke', 'retap', 'drawLines', 'weaveLines', 'cardHint', 'sedentary', 'nightMsg'] as const;
+export const BUBBLE_FLAT = ['poke', 'retap', 'drawLines', 'weaveLines', 'cardHint', 'sedentary', 'nightMsg', 'landing'] as const;
 
 export interface Bubbles {
   mutter?: Record<string, string[]>;
@@ -151,6 +151,7 @@ export interface Bubbles {
   cardHint?: string[];
   sedentary?: string[];
   nightMsg?: string[];
+  landing?: string[];
 }
 
 // A curated famous line (film / series / book / speech / internet). Lives in a

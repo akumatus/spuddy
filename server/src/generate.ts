@@ -116,7 +116,7 @@ async function generateBubbles(env: Env, opts: GenOpts): Promise<Bubbles> {
         const { text } = await callLLMChain(env, opts.genChain, {
           system: '',
           messages: [{ role: 'user', content: prompt }],
-          maxTokens: 5000, // ~90-130 short JSON lines per part — headroom against truncation
+          maxTokens: 7000, // ~66 (social) to ~172 (voice) short JSON lines per part — headroom against truncation
           temperature: 0.95, // absurdity comes from the prompt; hotter corrupts JSON mode
           timeoutMs: 240000,
           json: true,

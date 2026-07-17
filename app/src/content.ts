@@ -80,7 +80,6 @@ export interface UiText {
   maybeNext: string;
   holding: string;
   knitFresh: string;
-  landing: string;
   unlocked(names: string): string;
   // settings panel (⚙ popover)
   settingsTitle: string;
@@ -106,6 +105,7 @@ export interface TextPack {
   cardHint: string;
   sedentary: string;
   nightMsg: string;
+  landing: string;
   weaveLines: string[];
   chatFallback: Partial<Record<CharId, string[]>>;
   fallbackReply: string;

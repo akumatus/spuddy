@@ -240,7 +240,9 @@ export class SpudBrain {
     const wasAway = this.present() === false;
     this.lastPointer = now;
     if (this.simAway && !force) return;
-    if ((wasAway && wasAwayFor > 30000) || force) this.greetBack();
+    // greet only after a real break — a short step-away (grabbing water, a
+    // quick chat) greeting back every time reads as clingy, not warm
+    if ((wasAway && wasAwayFor > 600000) || force) this.greetBack();
   }
   pointerLeft(): void { this.leftAt = performance.now(); }
   /* returns true when the brain consumed the tap (wake / knock reply) */

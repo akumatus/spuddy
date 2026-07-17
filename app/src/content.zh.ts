@@ -100,6 +100,7 @@ export const ZH: TextPack = {
   cardHint: '今天的卡准备好了——白色那张。戳一下。♥',
   sedentary: '在椅子上坐了90分钟啦！土豆都知道翻个身。跟我一起伸展一下？',
   nightMsg: '11点多了。世界可以等到明天早上。睡吧，亲爱的人类。',
+  landing: '哇——好。着陆。',
 
   weaveLines: [
     '正在为你织一张卡…',
@@ -416,7 +417,6 @@ export const ZH: TextPack = {
     maybeNext: '那就下次。♥',
     holding: '这张我给你拿着。♥',
     knitFresh: '刚织好的，只给你。',
-    landing: '哇——好。着陆。',
     unlocked: (names) => `解锁新伙伴：${names}！去“伙伴”里打个招呼。`,
     settingsTitle: '设置',
     langLabel: '语言',

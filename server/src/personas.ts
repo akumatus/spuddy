@@ -556,9 +556,9 @@ export function buildBubblesPrompt(part: BubblePart, lang: Lang = 'en'): string 
       `{"mutter":{"watch":[...],"alone":[...],"lonely":[...],"sleepy":[...],"ignored":[...],"wake":[...]},` +
       `"routines":{"chaseStart":[...],"chaseEnd":[...],"juggleEnd":[...],"studyStart":[...],"studyEnd":[...],"practiceStart":[...],"practiceEnd":[...],"humEnd":[...],"stretchEnd":[...],"sneezeEnd":[...]}}. ` +
       `mutter counts: watch 20 (quietly supervising them work), alone 20 (idling to yourself), ` +
-      `lonely 20 (they stepped away, gently missing them — never clingy), sleepy 8 (drifting off), ` +
-      `ignored 8 (knocked, no reply — mild sulk, self-soothing), wake 8 (just poked awake, groggy). ` +
-      `routines: 4 lines per key, matching the moment — chaseStart/chaseEnd bracket chasing your own tail, ` +
+      `lonely 20 (they stepped away, gently missing them — never clingy), sleepy 4 (drifting off), ` +
+      `ignored 4 (knocked, no reply — mild sulk, self-soothing), wake 4 (just poked awake, groggy). ` +
+      `routines: 10 lines per key (these replay many times a day — variety matters most here), matching the moment — chaseStart/chaseEnd bracket chasing your own tail, ` +
       `juggleEnd after juggling your card, studyStart/studyEnd around studying the card intently, ` +
       `practiceStart/practiceEnd around practicing your wave, humEnd after humming, stretchEnd after a stretch, sneezeEnd after a sneeze.` +
       zhBatchBlock(lang, 18)
@@ -570,18 +570,19 @@ export function buildBubblesPrompt(part: BubblePart, lang: Lang = 'en'): string 
     `Return ONLY minified JSON of the exact shape ` +
     `{"speak":{"greet":[...],"knock":[...],"delight":[...]},` +
     `"hi":{"morning":[...],"afternoon":[...],"evening":[...],"night":[...]},` +
-    `"poke":[...],"retap":[...],"drawLines":[...],"weaveLines":[...],"cardHint":[...],"sedentary":[...],"nightMsg":[...]}. ` +
-    `Counts and moments: speak.greet 8 (they came back after being away — welcome them), ` +
+    `"poke":[...],"retap":[...],"drawLines":[...],"weaveLines":[...],"cardHint":[...],"sedentary":[...],"nightMsg":[...],"landing":[...]}. ` +
+    `Counts and moments: speak.greet 12 (they came back after a real break, 10+ minutes away — welcome them back), ` +
     `speak.knock 8 (you knock for attention — a light "hey, over here"), ` +
-    `speak.delight 8 (they answered your knock — small joy), ` +
-    `hi 6 per daypart (opening hello matched to morning/afternoon/evening/night, each nudging them to poke you for today's card), ` +
+    `speak.delight 4 (they answered your knock — small joy), ` +
+    `hi 2 per daypart (the open-the-app hello matched to morning/afternoon/evening/night, each nudging them to poke you for today's card), ` +
     `poke 8 (reaction to being poked — squishy, good-humored), ` +
     `retap 8 (they poke again wanting another card — tease that there are always more), ` +
     `drawLines 8 (you just handed them a fresh card), ` +
     `weaveLines 4 (progress lines while you knit a golden card, e.g. picking the right words), ` +
     `cardHint 4 (today's card is ready — nudge them to tap the white card), ` +
     `sedentary 4 (they've sat for 90 minutes — invite a stretch, gently), ` +
-    `nightMsg 4 (it's past 11pm — the world can wait, walk them to bed).` +
+    `nightMsg 2 (it's past 11pm — the world can wait, walk them to bed), ` +
+    `landing 4 (they just dragged you across the desk and let go — a small breathless "whee, ok, landed" as you squish down).` +
     zhBatchBlock(lang, 20)
   );
 }

@@ -2,7 +2,7 @@
 // the feature modules together. All feature logic lives under src/app/;
 // rendering under src/scene/; popup markup under src/ui/.
 import { SpudBrain } from './brain';
-import { CHARS, PERS, TXT, daypart, greet, pool } from './content';
+import { CHARS, TXT, greet, pool } from './content';
 import { lang, setLangPref } from './locale';
 import * as remote from './remote';
 import { PetScene } from './scene/scene';
@@ -154,44 +154,14 @@ pp.win.setIgnoreMouse(true);
 
 installDebugHooks();
 
-// Open-the-app greeting: a fresh, personalized hello from the LLM, coloured by
-// what he remembers and the time of day. Falls back to a built-in daypart line
-// when the LLM is unreachable / over budget. Returns null on any failure.
-async function personalGreeting(): Promise<string | null> {
-  if (!pp?.ai?.greet) return null; // no bridge (older preload)
-  const ch = ctx.activeChar();
-  try {
-    return await pp.ai.greet({
-      charId: ch.id,
-      charName: ch.name,
-      voice: PERS[ch.id].voice,
-      daypart: daypart(),
-      day: state.day,
-      memory: store.activeMemory(state).slice(-6),
-      lang: lang(),
-    });
-  } catch (e) {
-    return null;
-  }
-}
-
-// Fire the greeting request at launch so it's usually ready by the time he
-// speaks — no built-in-then-swap flicker.
-const greetingReq = personalGreeting();
-
-// … but not before the model is actually on screen: with the load running in
+// Open-the-app greeting: today's daypart line from the daily pool (with the
+// built-in pack line as offline fallback) — no LLM round-trip at boot.
+// But not before the model is actually on screen: with the load running in
 // the background, a fixed timer alone could have him wave and speak into an
 // empty stage on a slow disk / first launch
 const bootBeat = new Promise((r) => setTimeout(r, 900));
-Promise.all([modelReady, bootBeat]).then(async () => {
+Promise.all([modelReady, bootBeat]).then(() => {
   ctx.anim().play(scene.hasRig() ? 'wave' : 'hop'); // time-of-day greeting
   if (state.drawn) return;
-  // prefer the personalized line, but never leave him silent: fall back to the
-  // built-in daypart greeting if the LLM is slow / offline / over budget
-  const line = await Promise.race([
-    greetingReq,
-    new Promise<string | null>((r) => setTimeout(() => r(null), 2200)),
-  ]);
-  if (state.drawn) return;
-  bubble(line || greet(state.active), { hold: 5200 });
+  bubble(greet(state.active), { hold: 5200 });
 });

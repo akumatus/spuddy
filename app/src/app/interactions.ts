@@ -479,7 +479,8 @@ export function wireInteractions(): void {
         if (lift < 0) liftTo(0); // dropped half-sunk but shy of the snap zone — surface
         ctx.anim().play('bigSquish');
         sfx.boing();
-        bubble(TXT().ui.landing);
+        const ld = pool('landing');
+        bubble(ld[Math.floor(Math.random() * ld.length)]!);
       }
       return;
     }

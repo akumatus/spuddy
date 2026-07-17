@@ -10,7 +10,6 @@ import type {
   AiDistillRequest,
   AiDistillResult,
   AiGoldenRequest,
-  AiGreetRequest,
   AiReplyRequest,
   AiReplyResult,
   CardsBatch,
@@ -66,20 +65,6 @@ export function registerAiIpc(): void {
     try {
       const res = await serverFetch('/golden', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
       if (!res.ok) return null; // incl. 429 → renderer falls back to a pool line
-      const data = (await res.json()) as { text?: string | null } | null;
-      return data && data.text ? data.text : null;
-    } catch (e) {
-      return null;
-    }
-  });
-
-  // Personalized greeting — knit server-side from memory + time of day, spoken
-  // when the app opens. Returns null on any failure so the renderer speaks its
-  // built-in daypart greeting instead.
-  ipcMain.handle('ai-greet', async (_e, p: AiGreetRequest): Promise<string | null> => {
-    try {
-      const res = await serverFetch('/greet', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
-      if (!res.ok) return null; // incl. 429 → renderer falls back to a built-in line
       const data = (await res.json()) as { text?: string | null } | null;
       return data && data.text ? data.text : null;
     } catch (e) {

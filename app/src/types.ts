@@ -155,6 +155,7 @@ export interface Bubbles {
   cardHint?: string[];
   sedentary?: string[];
   nightMsg?: string[];
+  landing?: string[];
 }
 
 export interface CardsBatch {
@@ -258,16 +259,6 @@ export interface AiGoldenRequest {
   lang?: Lang; // 'zh' → the card is written in Chinese
 }
 
-export interface AiGreetRequest {
-  charId: CharId;
-  charName: string;
-  voice: string;
-  daypart: Daypart;
-  day: number;
-  memory: MemoryFact[];
-  lang?: Lang; // 'zh' → the greeting is spoken in Chinese
-}
-
 // ── preload bridge (window.pp) ──
 
 export type EdgeSide = 'left' | 'right' | 'top' | 'bottom' | null;
@@ -298,7 +289,6 @@ export interface PreloadBridge {
     distill?(payload: AiDistillRequest): Promise<AiDistillResult | null>; // absent on older preloads
     consolidate?(payload: AiConsolidateRequest): Promise<AiConsolidateResult | null>; // absent on older preloads
     golden(payload: AiGoldenRequest): Promise<string | null>;
-    greet(payload: AiGreetRequest): Promise<string | null>;
   };
   cards: {
     today(lang?: Lang): Promise<CardsBatch | null>;

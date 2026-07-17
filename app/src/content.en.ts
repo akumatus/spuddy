@@ -104,6 +104,7 @@ export const EN: TextPack = {
   cardHint: "today's card is ready — the white one. give it a tap. ♥",
   sedentary: '90 minutes in that chair! Even potatoes roll over sometimes. Stretch with me?',
   nightMsg: "It's past 11. The world can wait till morning. Sleep, dear human.",
+  landing: 'wheee— ok. landing.',
 
   weaveLines: [
     'knitting a card just for you…',
@@ -428,7 +429,6 @@ export const EN: TextPack = {
     maybeNext: 'Maybe next time. ♥',
     holding: 'Holding this one for you. ♥',
     knitFresh: 'Knit fresh, just for you.',
-    landing: 'wheee— ok. landing.',
     unlocked: (names) => `Unlocked: ${names}! Say hi in Buddies.`,
     settingsTitle: 'settings',
     langLabel: 'language',

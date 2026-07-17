@@ -42,7 +42,7 @@ Read the **exact current prompts and persona voices** from
   `part = 'voice'` (idle mutters for all six moods + the ten routine step
   pools) and `part = 'social'` (speak greet/knock/delight, `hi` daypart
   greetings, poke/retap reactions, draw/weave lines, and the cardHint /
-  sedentary / nightMsg care lines). Follow the counts and moment descriptions
+  sedentary / nightMsg / landing care lines). Follow the counts and moment descriptions
   spelled out in each prompt; the two JSON objects merge into one `bubbles`
   field.
 - `buildFlavorPrompt(lang)` — per-persona FLAVOR lines, one small call covering
@@ -87,12 +87,12 @@ add fewer rather than inventing or stretching — quality bar over hitting 60.
 {
   "normal": ["…180 neutral lines…"],
   "bubbles": {
-    "mutter":   { "watch": ["…20…"], "alone": ["…20…"], "lonely": ["…20…"], "sleepy": ["…8…"], "ignored": ["…8…"], "wake": ["…8…"] },
-    "routines": { "chaseStart": ["…4…"], "chaseEnd": ["…4…"], "juggleEnd": ["…4…"], "studyStart": ["…4…"], "studyEnd": ["…4…"], "practiceStart": ["…4…"], "practiceEnd": ["…4…"], "humEnd": ["…4…"], "stretchEnd": ["…4…"], "sneezeEnd": ["…4…"] },
-    "speak":    { "greet": ["…8…"], "knock": ["…8…"], "delight": ["…8…"] },
-    "hi":       { "morning": ["…6…"], "afternoon": ["…6…"], "evening": ["…6…"], "night": ["…6…"] },
+    "mutter":   { "watch": ["…20…"], "alone": ["…20…"], "lonely": ["…20…"], "sleepy": ["…4…"], "ignored": ["…4…"], "wake": ["…4…"] },
+    "routines": { "chaseStart": ["…10…"], "chaseEnd": ["…10…"], "juggleEnd": ["…10…"], "studyStart": ["…10…"], "studyEnd": ["…10…"], "practiceStart": ["…10…"], "practiceEnd": ["…10…"], "humEnd": ["…10…"], "stretchEnd": ["…10…"], "sneezeEnd": ["…10…"] },
+    "speak":    { "greet": ["…12…"], "knock": ["…8…"], "delight": ["…4…"] },
+    "hi":       { "morning": ["…2…"], "afternoon": ["…2…"], "evening": ["…2…"], "night": ["…2…"] },
     "poke": ["…8…"], "retap": ["…8…"], "drawLines": ["…8…"], "weaveLines": ["…4…"],
-    "cardHint": ["…4…"], "sedentary": ["…4…"], "nightMsg": ["…4…"]
+    "cardHint": ["…4…"], "sedentary": ["…4…"], "nightMsg": ["…2…"], "landing": ["…4…"]
   },
   "cards": {
     "spud":  { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
