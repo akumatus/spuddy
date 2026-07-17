@@ -358,7 +358,20 @@ html, body {
   font-size: 18px;
   line-height: 1.15;
   color: #6b5537;
-  text-shadow: 0 1px 8px rgba(255, 253, 246, 0.9);
+  /* The echo is the one overhead element with no paper fill behind it, so this
+     dark ink sits straight on the wallpaper. A single soft blur washes out over
+     anything dark and the line turns into a smudge; the fix stays a halo rather
+     than a card because the echo should read as handwriting, not UI. Tight
+     near-opaque rings first (they hug the glyph and keep the thin Caveat
+     strokes crisp), then a wider falloff to lift it off busy pixels. Keep the
+     inner radii ≤ 3px — past that the halo blooms and starts reading as a
+     sticker. */
+  text-shadow:
+    0 0 1px rgba(255, 253, 246, 1),
+    0 0 2px rgba(255, 253, 246, 1),
+    0 0 3px rgba(255, 253, 246, 0.98),
+    0 0 6px rgba(255, 253, 246, 0.9),
+    0 1px 10px rgba(255, 253, 246, 0.75);
   animation: pp-bubble 0.4s ease-out;
 }
 #icons { display: flex; gap: 8px; align-items: center; }
