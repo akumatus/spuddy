@@ -220,6 +220,27 @@ const SHOTS: Record<string, Shot> = {
     },
   },
 
+  // Same exchange in Bloom's voice — the Quiet Gardener answering a hard day
+  // with soil and rain. The site's chat section leads with this one (the README
+  // keeps Spud, whose prose names him); having both means the roster's range is
+  // visible across the two surfaces instead of one buddy everywhere.
+  'chat-bloom': {
+    mode: 'pet',
+    view: PET_VIEW,
+    async render() {
+      const state = demoState({ active: 'bloom' });
+      await petScene('bloom', {
+        top: '· · ♥ · ·',
+        main: 'Small steps still face forward.',
+        footL: TXT().ui.dayShort(state.day),
+        footR: `— Bloom`,
+      });
+      show('bubble', 'the soil rests after a long rain. would you like to rest beside it for a bit?');
+      show('said', '“today was a lot”');
+      ($('chatInput') as HTMLInputElement).placeholder = TXT().ui.placeholder('Bloom');
+    },
+  },
+
   // Today's draw, mid-offer.
   'daily-card': {
     mode: 'dom',

@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Spuddy — memory shot</title>
+  <link rel="stylesheet" href="./src/style.css" />
+  <style>
+    /* mirrors popup.html's shell so the book lays out exactly as it does in
+       the real popup window */
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    #proot {
+      min-height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 90px;
+    }
+    #proot > * { flex-shrink: 0; }
+    #proot #book { max-width: none; max-height: none; }
+    #modal { display: none; }
+    /* the entrance bounce would smear a screenshot */
+    #proot #book { animation: none; }
+  </style>
+</head>
+<body>
+  <div id="modal"></div>
+  <div id="proot"></div>
+  <script type="module">
+    import { showBook } from '/src/ui/book.ts';
+    import { setLangPref } from '/src/locale.ts';
+
+    setLangPref('en');
+
+    // ── FABRICATED DEMO DATA (README screenshot only) ──
+    // Phrasing follows the real distill contract (server/src/personas.ts):
+    // third-person, no trailing period, they/their, true weeks later.
+    const memory = [
+      { day: 2, fact: 'has a tabby called Biscuit who supervises every video call', kind: 'pets', mood: 'sunny' },
+      { day: 3, fact: 'works from home for a small design studio, in on Tuesdays', kind: 'work', mood: 'plain' },
+      { day: 6, fact: 'bakes sourdough on Saturdays and names every loaf', kind: 'likes', mood: 'sunny' },
+      { day: 9, fact: 'calls their mum every Sunday, and it always runs long', kind: 'people', mood: 'sunny' },
+      { day: 12, fact: 'lost their dad a few years back; keeps his shed just as it was', kind: 'people', mood: 'rainy' },
+      { day: 14, fact: 'quietly worries their mum is lonely in that house alone', kind: 'feeling', mood: 'rainy' },
+      { day: 17, fact: 'is growing tomatoes on the balcony for the first time', kind: 'goal', mood: 'plain' },
+      { day: 21, fact: 'their sister Nell had a baby girl named Wren', kind: 'milestone', mood: 'sunny' },
+      { day: 24, fact: 'keeps the kitchen window open when it rains, for the sound', kind: 'other', mood: 'plain' },
+    ];
+
+    const state = {
+      cards: new Array(14).fill({ m: '', day: 1, by: 'Spud' }),
+      chat: [],
+      memory,
+      active: 'spud',
+      day: 24,
+    };
+
+    const noop = () => {};
+    showBook(state, 'mem', 'all', {
+      onClose: noop, onTab: noop, onFilter: noop, onApply: noop, onFav: noop,
+      onDel: noop, onDelMem: noop, onClearMem: noop, onClearChat: noop,
+      onClearCards: noop, onOlderChat: () => 0, chatHasMore: false,
+    });
+
+    document.getElementById('proot').appendChild(document.getElementById('book'));
+    window.__ready = true;
+  </script>
+</body>
+</html>

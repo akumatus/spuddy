@@ -19,7 +19,7 @@ routes = [
 # had all day to run) generates English; 14:20 generates Chinese (the worker maps
 # the expression via CRON_ZH — keep these in sync with src/worker.ts).
 [triggers]
-crons = ["0 14 * * *", "20 14 * * *"]
+crons = []
 
 # KV: daily card batches (cards:current) + per-device quota counters (q:*) +
 # live provider/model config (config:current, set via POST /admin/config).

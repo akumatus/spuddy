@@ -25,7 +25,7 @@ const SCALE = 2; // README images are 2x — see the existing docs/media/*.png
 const PAD = 24; // transparent breathing room around the alpha bbox, in output px
 
 // Keep this list in sync with SHOTS in src/shot-studio.ts.
-const ALL = ['hero', 'chat', 'daily-card', 'golden', 'cardbook', 'memory', 'buddies'];
+const ALL = ['hero', 'chat', 'chat-bloom', 'daily-card', 'golden', 'cardbook', 'memory', 'buddies'];
 
 const wanted = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const shots = wanted.length ? wanted : ALL;
