@@ -203,6 +203,21 @@ six PNGs through the `/__char-save` dev-server middleware (see
   into the body instead of leaving them as separate meshes (bloom, leo), no eye
   mesh is rigged and the painted-on eyes stay fixed — no blink/dart, same as the
   legacy single-mesh look.
+
+  Spud's 2026-07-21 scan (glasses as their own `trim` part) builds with a
+  per-character recipe — the scan's albedo is lighter than the 07-04 crew the AO
+  defaults were tuned on, and the wire glasses render as gunmetal instead of
+  yarn:
+
+  ```bash
+  # app model (AO'd):
+  AO_ALBEDO_FLOOR=0.58,0.44,0.33 AO_OCCLUSION_STRENGTH=0.6 ALBEDO_SATURATION=1.06 \
+  TRIM_SILVER=1 TRIM_SILVER_COLOR=0.45,0.45,0.47 TRIM_SILVER_ROUGH=0.2 \
+  node scripts/process_rodin_pbr.mjs <dir>/base_basic_pbr.glb public/models/spud.glb /tmp/spud-card.json
+  # website model (../web/assets/models/spud-pbr.glb): same, but skip the AO knobs
+  # and point AO_ATLAS at a missing file — the site's lighting has no AO
+  # compensation, baked crevices read as dirt there.
+  ```
 - `public/models/cards.json` — per-character card-plane calibration: part-rigged
   characters are emitted by `process_rodin_pbr.mjs`, single-mesh characters by
   `scripts/detect_cards.py`.

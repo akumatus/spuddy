@@ -22,10 +22,12 @@ loader.setDRACOLoader(draco);
 const cache = new Map();
 
 /* Characters with real PBR exports (Draco geometry + webp textures, compressed
-   by the user). Others still use the baked-shaded glbs. Spud's six parts come
-   back named root.0…root.5 (GLTFLoader sanitizes the dots away → root0…root5,
-   same order as the old part glb) — rename them so rigParts() can still find
-   body / card / handL / handR / eyeL / eyeR. */
+   by the user). Others still use the baked-shaded glbs. spud-pbr.glb is the
+   app pipeline's output (process_rodin_pbr.mjs): parts arrive already named
+   body / card / handL / handR / eyeL / eyeR (+ decorative 'trim'), so rigParts()
+   finds them directly. Legacy compress-only exports carry root.0…root.N names
+   (GLTFLoader sanitizes the dots away → root0…rootN, order = the old six-part
+   glb) — those still go through the rename map. */
 const PBR_IDS = new Set(['spud', 'taco', 'donut', 'grad']);
 const SPUD_RENAME = { root0: 'body', root1: 'card', root2: 'handR', root3: 'handL', root4: 'eyeR', root5: 'eyeL' };
 
@@ -36,9 +38,10 @@ function modelUrl(id) {
 async function loadModel(id) {
   if (!cache.has(id)) {
     cache.set(id, loader.loadAsync(modelUrl(id)).then((gltf) => {
+      const named = !!gltf.scene.getObjectByName('body');
       gltf.scene.traverse((o) => {
         if (o.isMesh && o.material && o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
-        if (id === 'spud') {
+        if (id === 'spud' && !named) {
           const rn = SPUD_RENAME[(o.name || '').replace(/[^a-z0-9]/gi, '')];
           if (rn) o.name = rn;
         }

@@ -46,6 +46,26 @@ export function installDebugHooks(): void {
     mutter: showMutter,
     setChar: (id: CharId) => ctx.scene.setCharacter(id).then(() => ctx.updateCardScreen()),
     sceneObj: ctx.scene,
+    // live-tune the trim (glasses) metal: trim(0.24, 0.45) — linear gray, same
+    // units as the pipeline's TRIM_SILVER_COLOR / TRIM_SILVER_ROUGH; or a
+    // '#rrggbb' sRGB hex. No args = read the current values back.
+    trim: (color?: string | number, rough?: number) => {
+      let out: { linear: number[]; hex: string; roughness: number } | null = null;
+      ctx.scene.scene.traverse((o) => {
+        const mesh = o as import('three').Mesh;
+        if (!(mesh as { isMesh?: boolean }).isMesh || mesh.name !== 'trim') return;
+        const mat = mesh.material as import('three').MeshStandardMaterial;
+        if (typeof color === 'number') mat.color.setRGB(color, color, color * 1.08);
+        else if (typeof color === 'string') mat.color.set(color);
+        if (rough !== undefined) mat.roughness = rough;
+        out = {
+          linear: mat.color.toArray().map((v) => +(v as number).toFixed(3)),
+          hex: '#' + mat.color.getHexString(),
+          roughness: +mat.roughness.toFixed(2),
+        };
+      });
+      return out;
+    },
     cardProbe: () => {
       const planes: { pos: number[]; parent: string | undefined }[] = [];
       ctx.scene.scene.traverse((o) => {

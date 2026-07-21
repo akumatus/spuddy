@@ -19,6 +19,15 @@
 //      BAKED_DIFFUSE=1 — opt into the baked-diffuse hybrid experiment (needs
 //      ao_all.png + base_basic_shaded.glb next to the input).
 //      SIMPLIFY_ERROR=0.001 (default) — meshopt error bound; raise for smaller files.
+//      ALBEDO_SATURATION / ALBEDO_BRIGHTNESS (default 1 = off) — global albedo grade,
+//      for scans whose texture bake drifts from the reference doll.
+//      AO_ALBEDO_GAMMA=0.5 AO_ALBEDO_FLOOR=0.48,0.33,0.24 AO_OCCLUSION_STRENGTH=0.7 —
+//      how hard the baked AO darkens (albedo multiply curve / aoMap weight); the
+//      defaults were tuned on the warmer 2026-07-04 scans, lighter bakes may want
+//      a gentler floor.
+//      TRIM_SILVER=1 — render the 'trim' part as bare polished metal (spud's wire
+//      glasses): flat silver base, metallic 1, no sheen/AO/textures, so the IBL
+//      supplies the shine. Leave unset for yarn trims (taco's shell, grad's cap).
 // Then merge the card JSON into public/models/cards.json under the character id.
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, KHRMaterialsSheen } from '@gltf-transform/extensions';
@@ -263,6 +272,21 @@ function waveFill(buf, hole, W, H) {
   }
 }
 
+// ---- optional albedo grade (saturation / brightness, 1 = no-op) ----
+// The whole crew shares one atlas per texture slot, so this grades everything;
+// eyes (near-black) and the card (near-white) barely move at small factors.
+{
+  const SAT = Number(process.env.ALBEDO_SATURATION || 1);
+  const BRI = Number(process.env.ALBEDO_BRIGHTNESS || 1);
+  if (SAT !== 1 || BRI !== 1) {
+    for (const tex of new Set(root.listMaterials().map((m) => m.getBaseColorTexture()).filter(Boolean))) {
+      tex.setImage(await sharp(tex.getImage()).modulate({ saturation: SAT, brightness: BRI }).png().toBuffer());
+      tex.setMimeType('image/png');
+    }
+    console.log(`albedo grade: saturation ${SAT}, brightness ${BRI}`);
+  }
+}
+
 // ---- simplify to ~80k total ----
 await doc.transform(
   weld(),
@@ -371,12 +395,13 @@ console.log('total tris after simplify:', total);
       tex.setImage(await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer());
       tex.setMimeType('image/png');
     }
+    const occlusionStrength = Number(process.env.AO_OCCLUSION_STRENGTH || 0.7);
     for (const m of root.listMaterials()) {
       const mr = m.getMetallicRoughnessTexture();
       if (mr) m.setOcclusionTexture(mr);
       // the albedo below carries the same AO — at full aoMap strength the
       // crevices would be deducted twice and the whole doll turns murky
-      m.setOcclusionStrength(0.7);
+      m.setOcclusionStrength(occlusionStrength);
     }
     console.log('AO atlas merged into ORM R channel:', aoPath);
 
@@ -388,8 +413,8 @@ console.log('total tris after simplify:', total);
     // in linear space (baseColor is sRGB): for a per-texel constant factor,
     // (linear·f)^(1/2.2) = encoded·f^(1/2.2), so a 256-entry LUT of encoded
     // multipliers per channel is exact.
-    const AO_ALBEDO_GAMMA = 0.5;                 // softens the AO curve (lower = lighter mids); 1 = raw
-    const AO_ALBEDO_FLOOR = [0.48, 0.33, 0.24];  // multiplier at full occlusion
+    const AO_ALBEDO_GAMMA = Number(process.env.AO_ALBEDO_GAMMA || 0.5); // softens the AO curve (lower = lighter mids); 1 = raw
+    const AO_ALBEDO_FLOOR = (process.env.AO_ALBEDO_FLOOR || '0.48,0.33,0.24').split(',').map(Number); // multiplier at full occlusion
     const lut = [0, 1, 2].map((c) => {
       const t = new Float32Array(256);
       for (let a = 0; a < 256; a++) {
@@ -486,6 +511,33 @@ console.log('total tris after simplify:', total);
     }
   } else if (process.env.BAKED_DIFFUSE === '1') {
     console.warn('baked-diffuse hybrid requested but skipped — need ao.png + ao_all.png + base_basic_shaded.glb next to the input');
+  }
+}
+
+// ---- trim as polished metal (TRIM_SILVER=1) ----
+// The scanned albedo paints spud's wire glasses near-black, and the yarn
+// treatment (sheen + AO multiply) buries them further. Real thin wire reads
+// silver because it mirrors the environment, not because its surface is
+// light — so drop every texture from the trim material and let a bare
+// metallic BRDF + the scene IBL do the work.
+if (process.env.TRIM_SILVER === '1') {
+  // TRIM_SILVER_COLOR tints the metal (F0): bright chrome ~0.72, gunmetal ~0.25.
+  // TRIM_SILVER_ROUGH softens the glints as it rises.
+  const tint = (process.env.TRIM_SILVER_COLOR || '0.72,0.73,0.75').split(',').map(Number);
+  const rough = Number(process.env.TRIM_SILVER_ROUGH || 0.35);
+  for (const p of parts) {
+    if (p.node.getName() !== 'trim') continue;
+    const mat = p.prim.getMaterial();
+    if (!mat) continue;
+    mat.setBaseColorTexture(null);
+    mat.setBaseColorFactor([...tint, 1]);
+    mat.setMetallicRoughnessTexture(null);
+    mat.setMetallicFactor(1);
+    mat.setRoughnessFactor(rough);
+    mat.setNormalTexture(null);
+    mat.setOcclusionTexture(null);
+    mat.setExtension('KHR_materials_sheen', null);
+    console.log(`trim -> metal (tint ${tint.join(',')} / rough ${rough})`);
   }
 }
 
