@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spud dress-up · try-on</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #262220; color: #ece4d8;
+    font: 13px/1.45 ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #c:active { cursor: grabbing; }
+  #panel { position: fixed; top: 0; left: 0; bottom: 0; width: 268px; padding: 14px 16px;
+    background: rgba(20,17,15,.82); backdrop-filter: blur(8px); overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,.08); }
+  h1 { font-size: 14px; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { opacity: .55; margin: 0 0 14px; font-size: 11px; }
+  .acc { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
+    margin-bottom: 4px; background: rgba(255,255,255,.04); }
+  .acc.active { background: rgba(240,190,90,.16); outline: 1px solid rgba(240,190,90,.4); }
+  .acc label.name { flex: 1; cursor: pointer; user-select: none; }
+  .acc input[type=radio] { cursor: pointer; }
+  .acc .sw { cursor: pointer; font-size: 11px; opacity: .8; }
+  .group { margin-top: 14px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; }
+  .group h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .5;
+    margin: 0 0 10px; }
+  .row { display: grid; grid-template-columns: 20px 1fr 52px; align-items: center; gap: 8px;
+    margin-bottom: 7px; }
+  .row span.k { opacity: .7; }
+  .row input[type=range] { width: 100%; }
+  .row span.v { text-align: right; font-variant-numeric: tabular-nums; opacity: .85; }
+  .btns { display: flex; gap: 8px; margin-top: 12px; }
+  button { flex: 1; padding: 7px 8px; border-radius: 7px; border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06); color: inherit; cursor: pointer; font: inherit; }
+  button:hover { background: rgba(255,255,255,.12); }
+  textarea { width: 100%; box-sizing: border-box; height: 120px; margin-top: 10px; resize: vertical;
+    background: #14110f; color: #d8cfc0; border: 1px solid rgba(255,255,255,.1); border-radius: 7px;
+    padding: 8px; font: 11px/1.4 ui-monospace, monospace; }
+  #err { position: fixed; bottom: 10px; left: 284px; color: #ff9c8a; font-size: 12px; }
+  .hint { position: fixed; bottom: 10px; right: 12px; opacity: .45; font-size: 11px; }
+</style>
+
+<div id="stage"><canvas id="c"></canvas></div>
+<div id="panel">
+  <h1>Spud dress-up</h1>
+  <p class="sub">Toggle a piece, pick it as active, drag the sliders to fit it to Spud's head. Values are world-space offsets from each accessory's own scan position.</p>
+  <div id="accList"></div>
+
+  <div class="group">
+    <h2>Active piece transform</h2>
+    <div id="sliders"></div>
+    <div class="btns">
+      <button id="reset">Reset piece</button>
+      <button id="copy">Copy all</button>
+    </div>
+    <textarea id="out" readonly></textarea>
+  </div>
+</div>
+<div id="err"></div>
+<div class="hint">drag = orbit · wheel = zoom</div>
+
+<script type="module">
+import * as THREE from '/web/lib/three.module.js';
+import { GLTFLoader } from '/web/lib/GLTFLoader.js';
+import { DRACOLoader } from '/web/lib/DRACOLoader.js';
+import { applyEnvironment } from '/web/lib/spud-pbr.js';
+
+const err = (m) => { document.getElementById('err').textContent = m ? '⚠ ' + m : ''; };
+
+// ---- accessories + seeded transforms (offset from each piece's native scan pose) ----
+const ACCESSORIES = [
+  { id: 'glasses', label: '🥔 Spud glasses', file: '/app/public/models/accessories/spud-glasses.glb', on: true },
+  { id: 'taco',    label: '🌮 Taco hat',     file: '/app/public/models/accessories/taco-hat.glb',     on: false },
+  { id: 'leo',     label: '🦁 Leo hair',     file: '/app/public/models/accessories/leo-hair.glb',     on: false },
+  { id: 'prof',    label: '🎓 Prof cap',     file: '/app/public/models/accessories/prof-hat.glb',     on: false },
+];
+// tuned on Spud's head in this viewer — nudge live and hit "Copy all" to keep
+const DEFAULTS = {
+  glasses: { px: 0,    py: 0,     pz: 0,     s: 1,    rx: 0, ry: 0, rz: 0 },  // native — same doll, fits at 0
+  taco:    { px: 0,    py: 0.31,  pz: -0.05, s: 1.1,  rx: 0, ry: 0, rz: 0 },
+  leo:     { px: 0,    py: 0.475, pz: 0,     s: 1.17, rx: 0, ry: 0, rz: 0 },
+  prof:    { px: 0.18, py: 0.245, pz: 0,     s: 1.06, rx: 0, ry: 0, rz: 0 },
+};
+const XF = JSON.parse(JSON.stringify(DEFAULTS));
+const SLIDERS = [
+  { k: 'px', label: 'X', min: -1.5, max: 1.5, step: 0.005 },
+  { k: 'py', label: 'Y', min: -1.0, max: 2.0, step: 0.005 },
+  { k: 'pz', label: 'Z', min: -1.5, max: 1.5, step: 0.005 },
+  { k: 's',  label: 'Scale', min: 0.3, max: 2.0, step: 0.01 },
+  { k: 'rx', label: 'RotX', min: -180, max: 180, step: 1 },
+  { k: 'ry', label: 'RotY', min: -180, max: 180, step: 1 },
+  { k: 'rz', label: 'RotZ', min: -180, max: 180, step: 1 },
+];
+let active = 'taco';
+
+// ---- three.js scene ----
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.12;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x262220);
+applyEnvironment(renderer, scene);
+
+const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
+const TARGET = new THREE.Vector3(0, 1.05, 0);
+let az = 0, pol = 1.42, rad = 6.2;               // spherical orbit
+function placeCamera() {
+  camera.position.set(
+    TARGET.x + rad * Math.sin(pol) * Math.sin(az),
+    TARGET.y + rad * Math.cos(pol),
+    TARGET.z + rad * Math.sin(pol) * Math.cos(az),
+  );
+  camera.lookAt(TARGET);
+}
+
+const loader = new GLTFLoader();
+const draco = new DRACOLoader();
+draco.setDecoderPath('/web/lib/draco/');
+loader.setDRACOLoader(draco);
+
+const holders = {};   // id -> { holder, center }
+
+function makeHolder(gltf) {
+  const obj = gltf.scene;
+  const box = new THREE.Box3().setFromObject(obj);
+  const center = box.getCenter(new THREE.Vector3());
+  const inner = new THREE.Group();
+  obj.position.sub(center);       // recenter geometry on its own bbox center
+  inner.add(obj);
+  const holder = new THREE.Group();
+  holder.add(inner);
+  holder.position.copy(center);   // holder origin = native world center
+  scene.add(holder);
+  return { holder, center };
+}
+
+function applyXform(id) {
+  const h = holders[id]; if (!h) return;
+  const x = XF[id];
+  h.holder.position.set(h.center.x + x.px, h.center.y + x.py, h.center.z + x.pz);
+  h.holder.scale.setScalar(x.s);
+  h.holder.rotation.set(x.rx * Math.PI / 180, x.ry * Math.PI / 180, x.rz * Math.PI / 180);
+  h.holder.visible = ACCESSORIES.find((a) => a.id === id).on;
+}
+
+Promise.all([
+  loader.loadAsync('/app/public/models/spud.glb'),
+  ...ACCESSORIES.map((a) => loader.loadAsync(a.file)),
+]).then(([spud, ...accs]) => {
+  scene.add(spud.scene);
+  // hide Spud's blank held card (runtime-painted noise) and his fused-in glasses
+  // ('trim') — glasses are now supplied by the toggleable spud-glasses accessory
+  spud.scene.traverse((o) => { if (/card|trim/i.test(o.name || '')) o.visible = false; });
+  accs.forEach((g, i) => {
+    holders[ACCESSORIES[i].id] = makeHolder(g);
+    applyXform(ACCESSORIES[i].id);
+  });
+  err('');
+  window.__ready = true;
+}).catch((e) => err(e.message || String(e)));
+
+// ---- UI ----
+const accList = document.getElementById('accList');
+for (const a of ACCESSORIES) {
+  const el = document.createElement('div');
+  el.className = 'acc' + (a.id === active ? ' active' : '');
+  el.dataset.id = a.id;
+  el.innerHTML =
+    `<input type="radio" name="active" ${a.id === active ? 'checked' : ''} title="edit this piece">` +
+    `<label class="name">${a.label}</label>` +
+    `<span class="sw">${a.on ? '👁 on' : '· off'}</span>`;
+  el.querySelector('input').onchange = () => setActive(a.id);
+  el.querySelector('.name').onclick = () => setActive(a.id);
+  el.querySelector('.sw').onclick = () => {
+    a.on = !a.on;
+    el.querySelector('.sw').textContent = a.on ? '👁 on' : '· off';
+    if (a.on) setActive(a.id);
+    applyXform(a.id);
+  };
+  accList.appendChild(el);
+}
+
+const slidersEl = document.getElementById('sliders');
+const ctrls = {};
+for (const s of SLIDERS) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<span class="k">${s.label}</span>` +
+    `<input type="range" min="${s.min}" max="${s.max}" step="${s.step}">` +
+    `<span class="v"></span>`;
+  const input = row.querySelector('input');
+  const val = row.querySelector('.v');
+  input.oninput = () => { XF[active][s.k] = parseFloat(input.value); val.textContent = fmt(s.k, input.value); applyXform(active); writeOut(); };
+  ctrls[s.k] = { input, val };
+  slidersEl.appendChild(row);
+}
+const fmt = (k, v) => (k === 'rx' || k === 'ry' || k === 'rz') ? Math.round(v) + '°' : parseFloat(v).toFixed(3);
+
+function syncSliders() {
+  for (const s of SLIDERS) {
+    ctrls[s.k].input.value = XF[active][s.k];
+    ctrls[s.k].val.textContent = fmt(s.k, XF[active][s.k]);
+  }
+}
+function setActive(id) {
+  active = id;
+  document.querySelectorAll('.acc').forEach((el) => el.classList.toggle('active', el.dataset.id === id));
+  document.querySelector(`.acc[data-id="${id}"] input[type=radio]`).checked = true;
+  syncSliders();
+}
+function writeOut() {
+  const round = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 1000) / 1000]));
+  document.getElementById('out').value = JSON.stringify(
+    Object.fromEntries(ACCESSORIES.map((a) => [a.id, round(XF[a.id])])), null, 2);
+}
+document.getElementById('reset').onclick = () => { XF[active] = { ...DEFAULTS[active] }; applyXform(active); syncSliders(); writeOut(); };
+document.getElementById('copy').onclick = () => navigator.clipboard?.writeText(document.getElementById('out').value);
+
+// ---- orbit / zoom ----
+let drag = false, lx = 0, ly = 0;
+canvas.addEventListener('pointerdown', (e) => { drag = true; lx = e.clientX; ly = e.clientY; });
+addEventListener('pointerup', () => drag = false);
+addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  az -= (e.clientX - lx) * 0.008;
+  pol = Math.max(0.35, Math.min(2.7, pol - (e.clientY - ly) * 0.008));
+  lx = e.clientX; ly = e.clientY;
+});
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); rad = Math.max(2.5, Math.min(14, rad + e.deltaY * 0.003)); }, { passive: false });
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+setActive(active); writeOut();
+
+// programmatic tuning handle (used for offset dial-in / screenshots)
+window.__tune = {
+  XF, ACCESSORIES,
+  set(id, patch) {
+    Object.assign(XF[id], patch);
+    const a = ACCESSORIES.find((x) => x.id === id); if (a) a.on = true;
+    document.querySelector(`.acc[data-id="${id}"] .sw`).textContent = '👁 on';
+    applyXform(id); if (active === id) syncSliders(); writeOut();
+  },
+  only(id) { ACCESSORIES.forEach((a) => { a.on = (a.id === id || a.id === 'glasses'); applyXform(a.id);
+    document.querySelector(`.acc[data-id="${a.id}"] .sw`).textContent = a.on ? '👁 on' : '· off'; }); },
+  view(a, p, r) { if (a != null) az = a; if (p != null) pol = p; if (r != null) rad = r; },
+};
+
+renderer.setAnimationLoop(() => { placeCamera(); renderer.render(scene, camera); });
+</script>
+</html>
