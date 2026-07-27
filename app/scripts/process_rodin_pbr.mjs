@@ -91,14 +91,22 @@ parts.sort((a, c) => c.vol - a.vol);
 // blink / dart) — which is fine, that's how the legacy single-mesh crew looks.
 const body = parts[0];
 const rest = parts.slice(1);
-const card = rest.reduce((best, p) => {
-  const flat = Math.min(...p.b.size) / Math.max(...p.b.size);
-  const bestFlat = Math.min(...best.b.size) / Math.max(...best.b.size);
-  return p.b.size[0] > 0.5 && flat < bestFlat ? p : best;
-});
+const flatRatio = (p) => Math.min(...p.b.size) / Math.max(...p.b.size);
+// Both the card and the hands sit clearly IN FRONT of the body center (the
+// board faces the camera, the paws reach out to hold it). Props mounted on
+// the torso — a grad tassel hanging to one side, a sash — sit level with or
+// behind the body and must not compete: a vertical tassel can be flatter than
+// the card AND sort more lateral than a paw, hijacking both slots. Gate card
+// and hand candidates on being forward; fall back to the ungated set if
+// nothing qualifies so single-prop scans keep working.
+const forward = (p) => p.b.center[2] > body.b.center[2] + 0.15;
+const wide = rest.filter((p) => p.b.size[0] > 0.5);
+const cardPool = wide.filter(forward).length ? wide.filter(forward) : (wide.length ? wide : rest);
+const card = cardPool.reduce((best, p) => (flatRatio(p) < flatRatio(best) ? p : best));
 const pool = rest.filter((p) => p !== card);
-const byX = [...pool].sort((a, c) => a.b.center[0] - c.b.center[0]);
-const hands = pool.length >= 2 ? [byX[0], byX[byX.length - 1]] : [];
+const handSource = pool.filter(forward).length >= 2 ? pool.filter(forward) : pool;
+const byX = [...handSource].sort((a, c) => a.b.center[0] - c.b.center[0]);
+const hands = handSource.length >= 2 ? [byX[0], byX[byX.length - 1]] : [];
 const eyeCand = pool.filter((p) => !hands.includes(p)).sort((a, c) => a.vol - c.vol).slice(0, 2);
 // eye-sized = under 5% of the body's bbox volume; a real bead pair clears this
 // by orders of magnitude, a stray body/topping never does.

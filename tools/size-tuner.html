@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spuddy · size tuner</title>
+<style>
+  :root { color-scheme: light dark; --bg:#faf6ec; --ink:#2e251b; --sub:#7a6b54; --gold:#9a7b2d; --line:rgba(62,50,38,.16); --cell:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#241f17; --ink:#ede5d6; --sub:#b3a78f; --gold:#d9b24d; --line:rgba(237,229,214,.16); --cell:#1b1712; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family: ui-rounded, -apple-system, "PingFang SC", system-ui, sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); padding:16px 22px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  h1 { font-size:19px; font-weight:800; margin:0; letter-spacing:-.01em; }
+  .hint { font-size:13px; color:var(--sub); }
+  .spacer { flex:1; }
+  button { font:inherit; font-size:14px; font-weight:600; color:var(--ink); background:var(--cell); border:1px solid var(--line); border-radius:9px; padding:8px 14px; cursor:pointer; }
+  button:hover { border-color:var(--gold); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; padding:20px 22px 60px; max-width:1200px; margin:0 auto; }
+  .cell { background:var(--cell); border:1px solid var(--line); border-radius:14px; padding:12px 12px 14px; display:flex; flex-direction:column; align-items:center; }
+  canvas { width:100%; height:300px; display:block; border-radius:10px; }
+  .name { font-weight:700; font-size:15px; margin:8px 0 2px; }
+  .row { width:100%; display:flex; align-items:center; gap:10px; margin-top:4px; }
+  input[type=range] { flex:1; accent-color:var(--gold); }
+  output { font-variant-numeric:tabular-nums; font-weight:700; min-width:44px; text-align:right; font-size:14px; }
+  .reset { font-size:12px; color:var(--sub); background:none; border:none; padding:2px 4px; cursor:pointer; }
+  .reset:hover { color:var(--gold); }
+  #out { position:sticky; bottom:0; background:var(--cell); border-top:1px solid var(--line); padding:12px 22px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; white-space:pre; overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Size tuner</h1>
+  <span class="hint">拖滑杆调每个模型的放大率（= scene.ts 的 <code>SIZE_TWEAK</code>）。归一化逻辑和 app 一致：先按总高归一到 1.5，再乘这个系数。</span>
+  <span class="spacer"></span>
+  <button id="copy">复制 SIZE_TWEAK</button>
+</header>
+<div class="grid" id="grid"></div>
+<div id="out"></div>
+
+<script type="module">
+import * as THREE from '../web/lib/three.module.js';
+import { GLTFLoader } from '../web/lib/GLTFLoader.js';
+import { DRACOLoader } from '../web/lib/DRACOLoader.js';
+import { applyEnvironment } from '../web/lib/spud-pbr.js';
+
+// character id (= model filename = cards.json key = CharId) → display name
+const CHARS = [
+  ['spud', 'Spud'], ['taco', 'Taco'], ['donut', 'Sprinkles'],
+  ['bloom', 'Bloom'], ['mochi', 'Mochi'], ['grad', 'Prof'],
+];
+// current scene.ts SIZE_TWEAK values so the sliders start where the app is
+const INITIAL = { grad: 1.04 };
+const MODEL_H = 1.5; // must match scene.ts
+
+const draco = new DRACOLoader();
+draco.setDecoderPath('../web/lib/draco/');
+const loader = new GLTFLoader();
+loader.setDRACOLoader(draco);
+
+const state = {}; // id → { holder, value }
+const views = [];
+
+function makeView(id, label) {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  const canvas = document.createElement('canvas');
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = `${label} · ${id}`;
+  const row = document.createElement('div');
+  row.className = 'row';
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '0.70'; slider.max = '1.30'; slider.step = '0.01';
+  slider.value = String(INITIAL[id] ?? 1.0);
+  const val = document.createElement('output');
+  const reset = document.createElement('button');
+  reset.className = 'reset';
+  reset.textContent = '↺';
+  reset.title = '回到 1.00';
+  cell.append(canvas, name, row);
+  row.append(slider, val, reset);
+  document.getElementById('grid').appendChild(cell);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+
+  const scene = new THREE.Scene();
+  applyEnvironment(renderer, scene);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8175, 0.35));
+  const key = new THREE.DirectionalLight(0xffffff, 0.7);
+  key.position.set(2, 3, 5);
+  scene.add(key);
+
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  const size = () => { const r = canvas.getBoundingClientRect(); return [r.width || 230, 300]; };
+  function resize() {
+    const [w, h] = size();
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  // frame feet(y=0) .. top(~1.95 at 1.3x): look at mid, sit back far enough
+  camera.position.set(0, 0.9, 4.6);
+  camera.lookAt(0, 0.9, 0);
+
+  const holder = new THREE.Group();
+  scene.add(holder);
+  state[id] = { holder, value: Number(slider.value) };
+
+  const apply = () => {
+    const v = Number(slider.value);
+    holder.scale.setScalar(v);
+    val.textContent = v.toFixed(2);
+    state[id].value = v;
+    writeOut();
+  };
+  slider.addEventListener('input', apply);
+  reset.addEventListener('click', () => { slider.value = '1.00'; apply(); });
+
+  loader.loadAsync(`../app/public/models/${id}.glb`).then((gltf) => {
+    const model = gltf.scene;
+    model.traverse((o) => { if (o.isMesh && o.material && o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace; });
+    // normalize by total height to MODEL_H, feet at y=0, centered in x/z —
+    // exactly what scene.ts setCharacter does before SIZE_TWEAK
+    let box = new THREE.Box3().setFromObject(model);
+    const sz = box.getSize(new THREE.Vector3());
+    model.scale.setScalar(MODEL_H / sz.y);
+    box = new THREE.Box3().setFromObject(model);
+    const c = box.getCenter(new THREE.Vector3());
+    model.position.x -= c.x;
+    model.position.z -= c.z;
+    model.position.y -= box.min.y;
+    holder.add(model);
+    apply();
+  }).catch((e) => { name.textContent = `${label} · ${id} — load failed`; console.error(id, e); });
+
+  views.push({ renderer, scene, camera, resize });
+  resize();
+}
+
+for (const [id, label] of CHARS) makeView(id, label);
+
+function writeOut() {
+  const parts = CHARS.map(([id]) => `${id}: ${state[id] ? state[id].value.toFixed(2) : '1.00'}`);
+  document.getElementById('out').textContent =
+    `// paste into scene.ts (drop the ones you want left at 1.0)\nconst SIZE_TWEAK: Partial<Record<CharId, number>> = { ${parts.join(', ')} };`;
+}
+writeOut();
+
+document.getElementById('copy').addEventListener('click', () => {
+  navigator.clipboard.writeText(document.getElementById('out').textContent).then(() => {
+    const b = document.getElementById('copy');
+    const t = b.textContent; b.textContent = '已复制 ✓';
+    setTimeout(() => { b.textContent = t; }, 1200);
+  });
+});
+
+addEventListener('resize', () => views.forEach((v) => v.resize()));
+function tick() {
+  for (const v of views) v.renderer.render(v.scene, v.camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

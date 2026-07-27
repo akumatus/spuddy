@@ -218,6 +218,27 @@ six PNGs through the `/__char-save` dev-server middleware (see
   # and point AO_ATLAS at a missing file — the site's lighting has no AO
   # compensation, baked crevices read as dirt there.
   ```
+
+  The 2026-07-23 re-scans of prof (grad) and taco are fresh geometry with a
+  prop hanging off one side and slightly behind the body — a grad tassel, the
+  taco shell. The part-ID gate ("card and hands must sit forward of the body
+  center", process_rodin_pbr.mjs) keeps those in `trim`; no per-scan code was
+  needed. Both are denser than the old crew, so meshopt hits its topology floor
+  before the ratio target — `SIMPLIFY_ERROR=0.01` trims ~0.3 MB with no visible
+  loss (0.03/0.05 do nothing more). Prof's cream body also needs the AO lifted
+  and neutralised or the crevices read black under his neutral-white studio:
+
+  ```bash
+  # prof / grad — cream body, lift + neutralise the AO:
+  SIMPLIFY_ERROR=0.01 AO_ALBEDO_FLOOR=0.70,0.66,0.60 AO_OCCLUSION_STRENGTH=0.45 \
+  node scripts/process_rodin_pbr.mjs <dir>/base_basic_pbr.glb public/models/grad.glb /tmp/grad-card.json
+  # taco — warm crew, AO defaults are fine; just cap the size:
+  SIMPLIFY_ERROR=0.01 node scripts/process_rodin_pbr.mjs <dir>/base_basic_pbr.glb public/models/taco.glb /tmp/taco-card.json
+  ```
+
+  On-screen size is balanced per character in `src/scene/scene.ts` (`SIZE_TWEAK`,
+  hand-tuned in `tools/size-tuner.html`); prof also gets `CARD_GROW` since his
+  scanned diploma is small relative to his body.
 - `public/models/cards.json` — per-character card-plane calibration: part-rigged
   characters are emitted by `process_rodin_pbr.mjs`, single-mesh characters by
   `scripts/detect_cards.py`.

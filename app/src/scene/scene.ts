@@ -69,6 +69,21 @@ const CARD_DRAW_ZONE = 0.3;
 // the dock-pose geometry leans on it to know where his eyes are.
 const MODEL_H = 1.5;
 
+// Per-character size trim, applied on top of the height normalization. Prof's
+// flat mortarboard eats a big slice of the total height (the cap is all
+// crown, no body), so normalizing by total height leaves his body reading
+// smaller than the rest of the crew — nudge him up a touch to match. Keep it
+// modest: the head still has to stay clear of the speech bubble.
+const SIZE_TWEAK: Partial<Record<CharId, number>> = { grad: 1.04 };
+
+// Per-character card enlargement. The card is a rig pivot group hinged at its
+// bottom edge, so scaling it grows the card up and outward while the edge the
+// hands grip stays put. Prof's scanned diploma is small relative to his body
+// (calibrated width ~0.81 vs ~1.0+ for the rest), so give it a bump. The
+// animator only writes the group's position/quaternion, never its scale, so
+// this survives every clip.
+const CARD_GROW: Partial<Record<CharId, number>> = { grad: 1.15 };
+
 // ── edge-dock pose tuning ──
 // Fraction of his height left visible while docked, measured from the top of
 // the head: 0.42 keeps the eyes (at roughly 0.6–0.65 of most buddies' height)
@@ -240,7 +255,7 @@ export class PetScene {
     const TARGET_H = MODEL_H;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
-    const scale = TARGET_H / size.y;
+    const scale = (TARGET_H / size.y) * (SIZE_TWEAK[id] ?? 1);
     model.scale.setScalar(scale);
     const box2 = new THREE.Box3().setFromObject(model);
     const center = box2.getCenter(new THREE.Vector3());
@@ -253,6 +268,8 @@ export class PetScene {
     this.cardScreen.attach(model, cardData);
     const rig = rigParts(model, this.scene);
     this.animator.attachRig(rig);
+    const cardGrow = CARD_GROW[id];
+    if (cardGrow && rig?.card) rig.card.g.scale.setScalar(cardGrow);
     this.cardScreen.rigDriven = !!(rig && rig.card);
   }
 
