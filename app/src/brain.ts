@@ -375,9 +375,11 @@ export class SpudBrain {
 
     /* decisions, roughly by priority */
     if (N.energy < 15 + P.sleepy * 24) { this.startDoze(); return; }
-    // knocking on the "glass" is the most attention-demanding thing he does
-    // (it comes with a knock sfx), so the bar is set high and the buildup slow
-    if (N.social > 92 - P.clingy * 22 && this.nearBy() && (this.clock - this.lastKnockClock) > 38 * this.knockBackoff) {
+    // knocking on the "glass" is the most attention-demanding thing he does,
+    // so the bar is set high and the buildup slow — he'd rather wait quietly
+    // than pester. Threshold ~86 at default clinginess (was ~79), and a long
+    // cooldown so a single knock doesn't turn into repeated tapping.
+    if (N.social > 96 - P.clingy * 16 && this.nearBy() && (this.clock - this.lastKnockClock) > 70 * this.knockBackoff) {
       this.startKnock(); return;
     }
     if (N.boredom > 64 - P.drama * 18) {
@@ -447,7 +449,7 @@ export class SpudBrain {
     this.log('act', forced ? 'knock (manually triggered)' : `missing-you meter ${Math.round(this.needs.social)} maxed → knocking`);
     this.runSteps([
       { clip: 'peek', wait: 1100 },
-      { clip: 'knock', sfx: 'knock', wait: 700 },
+      { clip: 'knock', wait: 700 },
       { speak: () => pool('speak', 'knock'), wait: 1300 },
     ], () => {
       this.busy = false;

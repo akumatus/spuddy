@@ -35,7 +35,7 @@ function tone(f0: number, f1: number, dur: number, type: OscillatorType = 'sine'
 }
 
 export type SfxName =
-  | 'pop' | 'boing' | 'draw' | 'chime' | 'low' | 'knock' | 'whoosh' | 'sneeze' | 'catch';
+  | 'pop' | 'boing' | 'draw' | 'chime' | 'low' | 'whoosh' | 'sneeze' | 'catch';
 
 export const sfx: Record<SfxName, () => void> = {
   pop: () => tone(420, 190, 0.1, 'sine', 0.14),
@@ -50,11 +50,8 @@ export const sfx: Record<SfxName, () => void> = {
     tone(1100, 1100, 0.36, 'sine', 0.07, 0.28);
   },
   low: () => tone(220, 160, 0.4, 'sine', 0.07),
-  // turn 7 · soul engine (design t7Sfx map)
-  knock: () => {
-    tone(195, 140, 0.05, 'square', 0.07);
-    tone(175, 120, 0.05, 'square', 0.07, 0.12);
-  },
+  // turn 7 · soul engine (design t7Sfx map). The knock beat is deliberately
+  // silent — the rapping sound read as intrusive, so it stays a mime.
   whoosh: () => tone(680, 180, 0.3, 'sine', 0.05),
   sneeze: () => tone(880, 210, 0.16, 'triangle', 0.11),
   catch: () => tone(300, 250, 0.06, 'sine', 0.045),
