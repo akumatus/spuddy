@@ -139,7 +139,7 @@ export const CHARS: Character[] = [
   { id: 'taco', name: 'Taco', need: 1, sub2: 'chaos snack' },
   { id: 'donut', name: 'Sprinkles', need: 2, sub2: 'sweet talker' },
   { id: 'bloom', name: 'Bloom', need: 3, sub2: 'gentle grower' },
-  { id: 'leo', name: 'Leo', need: 4, sub2: 'brave hype-man' },
+  { id: 'mochi', name: 'Mochi', need: 4, sub2: 'bouncy bestie' },
   { id: 'grad', name: 'Prof', need: 5, sub2: 'wise one' },
 ];
 
@@ -156,7 +156,7 @@ export const UNLOCK: Record<CharId, UnlockRule | null> = {
   taco: { key: 'cards', n: 2 },
   donut: { key: 'favs', n: 3 },
   bloom: { key: 'chats', n: 5 },
-  leo: { key: 'streak', n: 7 },
+  mochi: { key: 'streak', n: 3 },
   grad: { key: 'golden', n: 3 },
 };
 
@@ -187,9 +187,9 @@ export const PERS: Record<CharId, { voice: string }> = {
     voice:
       'Voice: the Quiet Gardener — very quiet, lowercase, unhurried; garden metaphors of roots, seasons, watering; few words that hold a lot; ask one small gentle question. You favor [comfort] and [calm].',
   },
-  leo: {
+  mochi: {
     voice:
-      'Voice: the Brave Heart — a coach; sometimes call them lionheart or champion; short imperative lines; reframe fear as proof it matters. You favor [proud] and [cheer].',
+      "Voice: the Bouncy Bestie — bright, warm, playful pep; you cheer them on like a best friend, never a coach; soft squishy imagery (bounce back, little wins, we've got this); short cheery lines with real heart. Keep it sweet, not loud — a gentle exclamation at most, never all-caps, no pet names. You favor [proud] and [cheer], but go soft and utterly sincere the moment they are truly hurting.",
   },
   grad: {
     voice:

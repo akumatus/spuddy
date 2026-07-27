@@ -66,7 +66,7 @@ const DEMO_CARDS: AppState['cards'] = [
   { m: 'Water. Snack. Deep breath. In that order. Go.', rare: false, day: 9, by: 'Taco' },
   { m: 'Small steps still face forward.', rare: false, day: 12, by: 'Bloom' },
   { m: 'Leap, and the net will appear.', rare: true, day: 14, by: 'Spud', src: 'John Burroughs', fav: true },
-  { m: 'You have survived every single one of your worst days.', rare: false, day: 17, by: 'Leo', fav: true },
+  { m: 'You have survived every single one of your worst days.', rare: false, day: 17, by: 'Mochi', fav: true },
   { m: 'This little potato believes in you.', rare: false, day: 24, by: 'Spud' },
 ];
 

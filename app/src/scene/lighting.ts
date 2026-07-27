@@ -110,7 +110,7 @@ export const LIGHT_TWEAKS: Partial<Record<CharId, Partial<LightRig>>> = {
   },
   // the reference is bright mustard gold — keep the warm studio but push
   // brightness, and bring the key head-on so the mane overhang can't dim the face
-  leo: {
+  mochi: {
     exposure: 1.16,
     env: 1.15,
     ambient: { color: 0xffedd0, intensity: 0.24 },

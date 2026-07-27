@@ -1,7 +1,7 @@
 // Chinese (Simplified) text pack — a hand-written in-voice localization of
 // content.en.ts, not a literal translation. Voice anchors follow the zh
 // few-shot examples in server/src/personas.ts: Spud 平实冷幽默、Taco 混乱食物梗、
-// Sprinkles 甜心/嘻、Bloom 轻声园丁、Leo 狮子教练、Prof 未发表的研究。
+// Sprinkles 甜心/嘻、Bloom 轻声园丁、Mochi 蹦蹦好友、Prof 未发表的研究。
 // When adding lines to the English pack, add the matching lines here.
 import type { TextPack } from './content';
 
@@ -137,12 +137,12 @@ export const ZH: TextPack = {
       '轻轻地，接着说。我就扎根在你旁边。',
       '再说说。有些话需要说两遍，我不介意。',
     ],
-    leo: [
-      '我听着呢，勇士。直说——我就在你这个角落。',
-      '说吧，冠军。不管是什么，你不用一个人扛。',
-      '我给你压阵。接着说——我哪儿也不去。',
-      '说吧，勇敢的心。每个字我都接着。',
-      '放下来吧，冠军。我在听，而且我站你这边。',
+    mochi: [
+      '我在呢，听着——一点都不急，慢慢说。',
+      '哦快说，我全神贯注。不管是什么，咱俩一起。',
+      '嗯嗯，继续。我哪儿也不去，保证。',
+      '多说点！每一小句我都挂在心上。',
+      '我在。想怎么说就怎么说——有我呢。',
     ],
     grad: [
       '我在听——注意，是全部的、毫不分心的注意力。请讲。',
@@ -160,7 +160,7 @@ export const ZH: TextPack = {
     taco: '好了，我的小脑瓜今天已经装满情绪了。明天同一时间？我带零食。',
     donut: '甜心，我今天聊得糖霜都要掉了——让我歇歇我的小彩糖，明天接着说，嗯？',
     bloom: '今天的话浇得够多了。让它们沉淀一晚上；我明天还在这儿。',
-    leo: '今天打得漂亮，冠军。拳手也要休息——明天再集合，我在你的角落里。',
+    mochi: '今天聊得可真够多够好啦。让它先沉淀一下，明天接着聊——我还在这儿，元气满满。',
     grad: '根据我的笔记，今天的词汇配额已达上限。研究明日继续。下课，带着暖意。',
   },
 
@@ -201,13 +201,13 @@ export const ZH: TextPack = {
         night: '很晚了。连园子都睡了。我们也歇了吧？',
       },
     },
-    leo: {
-      p: '大嗓门的勇气',
+    mochi: {
+      p: '蹦蹦的元气',
       hi: {
-        morning: '早上好，勇士！今天的卡很勇敢。',
-        afternoon: '过半了，冠军。稳住——这张卡很勇敢。',
-        evening: '晚上好，勇士！这一天你扛下来了。来领你的卡。',
-        night: '守夜呢，冠军。一张勇敢的卡，然后休息。你挣来的。',
+        morning: '早呀！新卡新元气——来看看？♡',
+        afternoon: '过半啦，你超棒的。今天的卡甜甜的——戳我？',
+        evening: '晚上好！一整天你都走完啦。这张卡是开心的——戳我？',
+        night: '还没睡呀？来一张软软的卡，然后我们休息。今天你已经很努力啦。',
       },
     },
     grad: {
@@ -226,7 +226,7 @@ export const ZH: TextPack = {
     taco: { verb: '张卡已收', how: '收下 2 张卡' },
     donut: { verb: '个收藏', how: '在卡册里给 3 张卡标上 ♥' },
     bloom: { verb: '次谈心', how: '跟他说 5 句心里话' },
-    leo: { verb: '天连续见面', how: '连续见面 7 天' },
+    mochi: { verb: '天连续见面', how: '连续见面 3 天' },
     grad: { verb: '张金卡', how: '收下 3 张金卡' },
   },
 

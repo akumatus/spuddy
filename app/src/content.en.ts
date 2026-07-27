@@ -143,12 +143,12 @@ export const EN: TextPack = {
       "keep going, softly. i'm rooted right here beside you.",
       "tell me more. some things need saying twice; i won't mind.",
     ],
-    leo: [
-      "i'm listening, lionheart. say it plain — i'm right here in your corner.",
-      "go on, champion. whatever it is, you don't carry it alone.",
-      "i've got your back. tell me more — i'm not going anywhere.",
-      "speak, brave heart. i'm here for every word of it.",
-      "lay it down, champion. i'm listening, and i'm on your side.",
+    mochi: [
+      "i'm right here, listening. tell me everything — no rush at all.",
+      "ooh go on, i'm all ears. whatever it is, we've got it together.",
+      "mm-hm, keep going. i'm not going anywhere, promise.",
+      "tell me more! i'm hanging on every little bit.",
+      "i'm here. say it however it comes out — i've got you.",
     ],
     grad: [
       "i'm listening — with, i'll note, my full and undivided attention. go on.",
@@ -169,7 +169,7 @@ export const EN: TextPack = {
     taco: "ok my little brain is FULL of feelings for one day. same time tomorrow? i'll bring snacks.",
     donut: "sugar, i've been chatting my glaze off — let me rest my sprinkles and we'll talk more tomorrow, hm?",
     bloom: "we've watered enough words today. let them settle overnight; i'll be right here tomorrow.",
-    leo: "great rounds today, champion. even fighters rest — regroup with me tomorrow, i'm in your corner.",
+    mochi: "we did so much good talking today. let's let it settle and pick it up again tomorrow — i'll be right here, bouncy as ever.",
     grad: "per my notes, we've reached today's word quota. the research resumes tomorrow. class dismissed, warmly.",
   },
 
@@ -210,13 +210,13 @@ export const EN: TextPack = {
         night: "it's late. even the garden's asleep. shall we rest too?",
       },
     },
-    leo: {
-      p: 'loud courage',
+    mochi: {
+      p: 'bouncy cheer',
       hi: {
-        morning: "MORNING, LIONHEART. today's card is brave.",
-        afternoon: 'halfway, champion. hold the line — this card is brave.',
-        evening: 'EVENING, LIONHEART. you carried the day. claim your card.',
-        night: 'late watch, champion. one brave card, then rest. you earned it.',
+        morning: "morning! fresh card, fresh bounce — come see? ♡",
+        afternoon: "halfway there and you're doing great. today's card is a bright one — tap me?",
+        evening: "evening! you made it through the whole day. this card's a happy one — tap me?",
+        night: "still up? one soft little card, then let's rest. you did enough today.",
       },
     },
     grad: {
@@ -235,7 +235,7 @@ export const EN: TextPack = {
     taco: { verb: 'cards kept', how: 'keep 2 cards' },
     donut: { verb: 'favorites', how: 'mark 3 favorites in the Book' },
     bloom: { verb: 'heart-to-hearts', how: 'tell him 5 things' },
-    leo: { verb: 'day streak', how: 'reach a 7-day streak' },
+    mochi: { verb: 'day streak', how: 'reach a 3-day streak' },
     grad: { verb: 'golden cards', how: 'keep 3 golden cards' },
   },
 

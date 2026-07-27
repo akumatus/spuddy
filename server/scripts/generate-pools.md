@@ -99,7 +99,7 @@ add fewer rather than inventing or stretching — quality bar over hitting 60.
     "taco":  { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
     "donut": { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
     "bloom": { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
-    "leo":   { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
+    "mochi":   { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } },
     "grad":  { "flavor": { "mutter": ["…4…"], "greet": ["…4…"] } }
   }
 }

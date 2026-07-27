@@ -2,7 +2,7 @@
 // environment-agnostic (types only) — it doubles as the IPC contract between
 // the preload bridge (window.pp) and the handlers in electron/src.
 
-export type CharId = 'spud' | 'taco' | 'donut' | 'bloom' | 'leo' | 'grad';
+export type CharId = 'spud' | 'taco' | 'donut' | 'bloom' | 'mochi' | 'grad';
 
 // UI / built-in-content language. 'auto' follows the system locale; the
 // resolved language is always a concrete Lang (see locale.ts).

@@ -84,7 +84,7 @@ What he learns about you gets distilled into the **Memory quilt** — one patch 
 ## 🧵 Meet the crew
 
 <div align="center">
-  <img src="docs/media/buddies.png" width="560" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Leo, Prof — 6 of 6 friends" />
+  <img src="docs/media/buddies.png" width="560" alt="The Buddies collection: Spud, Taco, Sprinkles, Bloom, Mochi, Prof — 6 of 6 friends" />
 </div>
 
 Six little souls, each a different kind of comfort. Spud comes with the app; the other five you don't buy — you **earn** them, through five different kinds of care: keep · favorite · confide · show up · go gold. Once a friend, always a friend; tap **Set active** to put anyone on duty.

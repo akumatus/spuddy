@@ -182,6 +182,17 @@ export function load(): AppState {
       | null;
     if (raw && Array.isArray(raw.cards)) {
       s = { ...s, ...raw };
+      // One-time buddy rename leo → mochi: the lion coach became Mochi the
+      // bun potato (content.ts). Remap every persisted CharId so existing
+      // saves keep their active pet, unlocked buddy, and chat authorship.
+      const MOCHI = 'mochi' as AppState['active'];
+      if ((s.active as string) === 'leo') s.active = MOCHI;
+      if (Array.isArray(s.unlockedIds)) {
+        s.unlockedIds = s.unlockedIds.map((id) => ((id as string) === 'leo' ? MOCHI : id));
+      }
+      if (Array.isArray(s.chat)) {
+        for (const m of s.chat) if ((m.char as string) === 'leo') m.char = MOCHI;
+      }
       if (!s.unlockedIds.includes('spud')) s.unlockedIds = ['spud', ...s.unlockedIds];
       if (!Array.isArray(s.chat)) s.chat = [];
       // Long-term memory moved from raw {day, note, reply} chat excerpts to
@@ -223,6 +234,14 @@ export function load(): AppState {
       }
       const r = fs.chatLoad(null, CHAT_TAIL);
       s.chat = parseChatLines(r.lines);
+      // finish the leo → mochi rename in the transcript: the window just
+      // loaded from chat.jsonl can still credit 'leo'. Fix it in memory and,
+      // when so, rewrite the whole file once so older pages migrate too.
+      if (s.chat.some((m) => (m.char as string) === 'leo')) {
+        for (const m of s.chat) if ((m.char as string) === 'leo') m.char = 'mochi' as AppState['active'];
+        const all = fs.chatLoad(null, r.total).lines.map((l) => l.replace(/"char":"leo"/g, '"char":"mochi"'));
+        fs.chatRewrite(all);
+      }
       chatBase = r.total - r.lines.length;
       chatOnDisk = s.chat.length;
       if (legacy) save(s); // rewrites state.json without the chat field

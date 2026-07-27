@@ -37,7 +37,7 @@ There's a small potato tray icon in the menu bar: Show / Hide, Quit.
 - **Hover the potato** — a chat box and icons appear on the left; tell him what's
   on your mind and he'll remember (delete anything anytime in the Memory tab).
 - **Card book (♥ icon)** — three tabs: Cards / Buddies / Memory. Collecting cards
-  unlocks 5 new buddies (Taco, Sprinkles, Bloom, Leo, Prof); once unlocked you
+  unlocks 5 new buddies (Taco, Sprinkles, Bloom, Mochi, Prof); once unlocked you
   can switch who's on duty.
 - **z z icon** — tuck him away for a nap; tap his little head to wake him.
 - **Drag** — drag the whole potato anywhere on screen; a horizontal fling sets
@@ -181,11 +181,11 @@ six PNGs through the `/__char-save` dev-server middleware (see
 - `src/store.ts` · `src/ui/` · `src/sfx.ts` · `src/remote.ts` — persistence,
   popup markup (overlay / cards / book / buddies), sound, and the server
   gateway client. Shared types (state, IPC contract) live in `src/types.ts`.
-- `public/models/*.glb` — the whole crew (spud, donut, taco, grad, bloom, leo) is
+- `public/models/*.glb` — the whole crew (spud, donut, taco, grad, bloom, mochi) is
   part-rigged, exported by Rodin **PBR export** (`base_basic_pbr.glb`) and
   processed by `scripts/process_rodin_pbr.mjs`: part detection (body / card / two
   side hands / the two smallest eyes; extra trim like taco's lettuce shell, the
-  grad cap, or bloom's bouquet + pot and leo's mane is named `trim`, has no rig
+  grad cap, or bloom's bouquet + pot and mochi's buns is named `trim`, has no rig
   slot, and rides the body statically for squash/displace/rotate), albedo
   deep-cavity diffusion fill (eyes and trim are protected along with their UVs —
   their near-black is intentional, don't wipe out the black cap or the bead
@@ -200,7 +200,7 @@ six PNGs through the `/__char-save` dev-server middleware (see
   tinted toward warm brown, so direct light reads the crevices too and shadows
   look like yarn bounce light) and `KHR_materials_sheen` fabric backscatter on
   every yarn part (eyes stay glossy plastic). When an export bakes the bead eyes
-  into the body instead of leaving them as separate meshes (bloom, leo), no eye
+  into the body instead of leaving them as separate meshes (bloom), no eye
   mesh is rigged and the painted-on eyes stay fixed — no blink/dart, same as the
   legacy single-mesh look.
 

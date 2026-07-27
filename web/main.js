@@ -30,7 +30,7 @@ const TAP_POOL = [
   ['@sing', 2.8], ['@sleep', 2.6], ['@dance', 2.6],
 ];
 
-const BUDDY_NAMES = { spud: 'Spud', taco: 'Taco', sprinkles: 'Sprinkles', bloom: 'Bloom', leo: 'Leo', prof: 'Prof' };
+const BUDDY_NAMES = { spud: 'Spud', taco: 'Taco', sprinkles: 'Sprinkles', bloom: 'Bloom', mochi: 'Mochi', prof: 'Prof' };
 
 const stage = document.getElementById('hero-stage');
 const canvas = document.getElementById('hero-canvas');
