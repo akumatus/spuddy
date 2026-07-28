@@ -54,6 +54,7 @@ async function main(): Promise<void> {
     await renderOne(scene, gl, ch.id, ch.name);
   }
   status('saved all portraits to public/chars/ — review them below');
+  window.__ready = true; // headless driver handshake (scripts/shoot-chars.cjs)
 }
 
 async function renderOne(scene: PetScene, gl: HTMLCanvasElement, id: CharId, name: string): Promise<void> {
@@ -115,4 +116,5 @@ function cropAlpha(gl: HTMLCanvasElement): HTMLCanvasElement {
 main().catch((e) => {
   console.error('buddy studio failed', e);
   status('failed: ' + (e instanceof Error ? e.message : String(e)));
+  window.__error = e instanceof Error ? e.stack || e.message : String(e);
 });
