@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spuddy · card tuner</title>
+<style>
+  :root { color-scheme: light dark; --bg:#faf6ec; --ink:#2e251b; --sub:#7a6b54; --gold:#9a7b2d; --line:rgba(62,50,38,.16); --cell:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#241f17; --ink:#ede5d6; --sub:#b3a78f; --gold:#d9b24d; --line:rgba(237,229,214,.16); --cell:#1b1712; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family: ui-rounded, -apple-system, "PingFang SC", system-ui, sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); padding:14px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  h1 { font-size:18px; font-weight:800; margin:0; }
+  .hint { font-size:13px; color:var(--sub); }
+  .spacer { flex:1; }
+  button { font:inherit; font-size:14px; font-weight:600; color:var(--ink); background:var(--cell); border:1px solid var(--line); border-radius:9px; padding:8px 14px; cursor:pointer; }
+  button:hover { border-color:var(--gold); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:14px; padding:18px 20px 40px; max-width:1240px; margin:0 auto; }
+  .cell { background:var(--cell); border:1px solid var(--line); border-radius:14px; padding:10px 12px 12px; display:flex; flex-direction:column; align-items:center; }
+  canvas { width:100%; height:260px; display:block; border-radius:10px; }
+  .name { font-weight:700; font-size:15px; margin:7px 0 4px; }
+  .row { width:100%; display:flex; align-items:center; gap:9px; margin-top:6px; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:6px 9px; }
+  .row .lab { font-size:12px; color:var(--sub); min-width:34px; }
+  input[type=range] { flex:1; accent-color:var(--gold); height:20px; }
+  .val { font-variant-numeric:tabular-nums; font-weight:800; min-width:48px; text-align:right; font-size:14px; color:var(--gold); }
+  #out { position:sticky; bottom:0; background:var(--cell); border-top:1px solid var(--line); padding:12px 20px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; white-space:pre; overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Card tuner</h1>
+  <span class="hint">相机 / 缩放已和真实 app 一致 —— 这里看到的就是 app 效果。卡=大小(1.3 比例)，z=前移(修穿模)，手z=spud/grad 手臂。</span>
+  <span class="spacer"></span>
+  <button id="copy">复制数值</button>
+</header>
+<div class="grid" id="grid"></div>
+<div id="out"></div>
+
+<script type="module">
+import * as THREE from '../web/lib/three.module.js';
+import { GLTFLoader } from '../web/lib/GLTFLoader.js';
+import { DRACOLoader } from '../web/lib/DRACOLoader.js';
+import { applyEnvironment } from '../web/lib/spud-pbr.js';
+
+const CHARS = [
+  ['spud', 'Spud'], ['taco', 'Taco'], ['donut', 'Sprinkles'],
+  ['bloom', 'Bloom'], ['mochi', 'Mochi'], ['grad', 'Prof'],
+];
+// EXACT mirror of app/src/scene/scene.ts
+const MODEL_H = 1.5;
+const SIZE_TWEAK = { grad: 1.04 };
+const CAM_POS = [0, 1.62, 7.4], CAM_LOOK = [0, 1.16, 0], CAM_FOV = 28;
+
+const cards = await fetch('../app/public/models/cards.json', { cache: 'no-store' }).then(r => r.json());
+const draco = new DRACOLoader();
+draco.setDecoderPath('../web/lib/draco/');
+const loader = new GLTFLoader();
+loader.setDRACOLoader(draco);
+
+const state = {};
+const views = [];
+
+function makeView(id, label) {
+  const baseW = cards[id]?.width ?? 1;
+  const nrm = cards[id] ? new THREE.Vector3(...cards[id].normal).normalize() : new THREE.Vector3(0, 0, 1);
+  const upv = cards[id] ? new THREE.Vector3(...cards[id].up).normalize() : new THREE.Vector3(0, 1, 0);
+  state[id] = { baseW, cardScale: 1, cardZ: 0, cardY: 0, handZ: 0 };
+
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  const canvas = document.createElement('canvas');
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = `${label} · ${id}`;
+  cell.append(canvas, name);
+
+  const mkRow = (lab, min, max, step, val) => {
+    const row = document.createElement('div'); row.className = 'row';
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = lab;
+    const s = document.createElement('input'); s.type = 'range'; s.min = min; s.max = max; s.step = step; s.value = val;
+    const v = document.createElement('span'); v.className = 'val';
+    row.append(l, s, v); cell.append(row); s._v = v; return s;
+  };
+  const cardSlider = mkRow('卡', '0.65', '1.45', '0.01', '1.00');
+  const zSlider = mkRow('z', '-0.02', '0.12', '0.005', '0.00');
+  const ySlider = mkRow('y↕', '-0.14', '0.08', '0.005', '0.00');
+  const handSlider = (id === 'grad' || id === 'spud') ? mkRow('手z', '-0.06', '0.16', '0.005', '0.00') : null;
+
+  document.getElementById('grid').appendChild(cell);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  const scene = new THREE.Scene();
+  applyEnvironment(renderer, scene);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8175, 0.35));
+  const key = new THREE.DirectionalLight(0xffffff, 0.7); key.position.set(2, 3, 5); scene.add(key);
+  const camera = new THREE.PerspectiveCamera(CAM_FOV, 1, 0.1, 50);
+  camera.position.set(...CAM_POS); camera.lookAt(...CAM_LOOK);
+  function resize() { const w = canvas.clientWidth || 250, h = 260; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+
+  loader.loadAsync(`../app/public/models/${id}.glb?t=${Date.now()}`).then((gltf) => {
+    const model = gltf.scene;
+    model.traverse((o) => { if (o.isMesh && o.material && o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace; });
+    // app normalization: total-height -> MODEL_H, times SIZE_TWEAK, then recenter
+    let box = new THREE.Box3().setFromObject(model);
+    const sz = box.getSize(new THREE.Vector3());
+    model.scale.setScalar((MODEL_H / sz.y) * (SIZE_TWEAK[id] ?? 1));
+    box = new THREE.Box3().setFromObject(model);
+    const c = box.getCenter(new THREE.Vector3());
+    model.position.x -= c.x; model.position.z -= c.z; model.position.y -= box.min.y;
+    scene.add(model);
+
+    const cardMesh = model.getObjectByName('card');
+    let c0 = new THREE.Vector3();
+    if (cardMesh) {
+      // app paints a white card canvas over this mesh at runtime; the raw glb
+      // UV shows body-texture scraps, so give the preview a plain paper white.
+      cardMesh.material = new THREE.MeshStandardMaterial({ color: 0xf6f1e6, roughness: 0.9, metalness: 0 });
+      cardMesh.geometry.computeBoundingBox(); cardMesh.geometry.boundingBox.getCenter(c0);
+    }
+    const applyCard = () => {
+      const s = Number(cardSlider.value), dz = Number(zSlider.value), dy = Number(ySlider.value);
+      state[id].cardScale = s; state[id].cardZ = dz; state[id].cardY = dy;
+      if (cardMesh) {
+        cardMesh.scale.setScalar(s);
+        // scale about card center, then shove forward (normal) + up/down (up)
+        cardMesh.position.copy(c0).multiplyScalar(1 - s).addScaledVector(nrm, dz).addScaledVector(upv, dy);
+      }
+      cardSlider._v.textContent = (baseW * s).toFixed(3);
+      zSlider._v.textContent = (dz >= 0 ? '+' : '') + dz.toFixed(3);
+      ySlider._v.textContent = (dy >= 0 ? '+' : '') + dy.toFixed(3);
+      writeOut();
+    };
+    cardSlider.addEventListener('input', applyCard);
+    zSlider.addEventListener('input', applyCard);
+    ySlider.addEventListener('input', applyCard);
+    applyCard();
+
+    if (handSlider) {
+      const hands = ['handL', 'handR'].map((n) => model.getObjectByName(n)).filter(Boolean);
+      const baseZ = hands.map((h) => h.position.z);
+      const applyHand = () => {
+        const dz = Number(handSlider.value);
+        state[id].handZ = dz;
+        hands.forEach((h, i) => { h.position.z = baseZ[i] + dz; });
+        handSlider._v.textContent = (dz >= 0 ? '+' : '') + dz.toFixed(3);
+        writeOut();
+      };
+      handSlider.addEventListener('input', applyHand);
+      applyHand();
+    }
+  }).catch((e) => { name.textContent = `${label} · ${id} — load failed`; console.error(id, e); });
+
+  views.push({ renderer, scene, camera, resize });
+  resize();
+}
+
+for (const [id, label] of CHARS) makeView(id, label);
+
+function writeOut() {
+  const lines = CHARS.map(([id]) => {
+    const s = state[id];
+    let l = `${id}: card ${(s.baseW * s.cardScale).toFixed(3)}, z +${s.cardZ.toFixed(3)}, y ${s.cardY >= 0 ? '+' : ''}${s.cardY.toFixed(3)}`;
+    if (id === 'grad' || id === 'spud') l += `, hand +${s.handZ.toFixed(3)}`;
+    return l;
+  });
+  document.getElementById('out').textContent = '// tell me these:\n' + lines.join('\n');
+}
+writeOut();
+
+document.getElementById('copy').addEventListener('click', () => {
+  navigator.clipboard.writeText(document.getElementById('out').textContent).then(() => {
+    const b = document.getElementById('copy'); const t = b.textContent; b.textContent = '已复制 ✓';
+    setTimeout(() => { b.textContent = t; }, 1200);
+  });
+});
+addEventListener('resize', () => views.forEach((v) => v.resize()));
+function tick() { for (const v of views) v.renderer.render(v.scene, v.camera); requestAnimationFrame(tick); }
+tick();
+</script>
+</body>
+</html>
