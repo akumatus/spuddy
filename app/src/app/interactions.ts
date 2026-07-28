@@ -46,9 +46,13 @@ let tapHistory: string[] = [];
 let tapBusyUntil = 0;
 let retapIdx = 0;
 
-export function playTapReaction(): string {
-  const pool = (ctx.scene.hasRig() ? TAP_POOL.concat(TAP_POOL_RIG) : TAP_POOL)
+// `quick` = this tap is cutting a still-playing reaction short (a re-tap): skip
+// the multi-step skits and land a snappy one-shot, so every re-tap shows an
+// immediate motion rather than a skit whose opening beat might be a mutter.
+export function playTapReaction(quick = false): string {
+  let pool = (ctx.scene.hasRig() ? TAP_POOL.concat(TAP_POOL_RIG) : TAP_POOL)
     .filter(([k]) => !tapHistory.includes(k));
+  if (quick) pool = pool.filter(([k]) => k[0] !== '@');
   let r = Math.random() * pool.reduce((s, [, w]) => s + w, 0);
   let name = pool[0][0];
   for (const [k, w] of pool) { r -= w; if (r <= 0) { name = k; break; } }
@@ -101,11 +105,16 @@ export function tapPet(target: PickTarget): void {
     return;
   }
 
-  // debounce: while a reaction (or a click-launched show) plays, further
-  // body taps are swallowed instead of stacking clips on top of each other
-  if (performance.now() < tapBusyUntil) return;
+  // a tap mid-reaction cuts the current motion short and starts a fresh one, so
+  // rapid pokes stay snappy instead of being swallowed. brain.interrupt() aborts
+  // any running skit sequence (and drops the mode back to idle), stopClips()
+  // clears the clip that was mid-play so the new one doesn't stack on top of it.
+  // A re-tap forces a quick one-shot (see playTapReaction); a single tap left
+  // alone still gets to unfold a full skit.
+  const busy = performance.now() < tapBusyUntil;
   ctx.brain.interrupt();
-  const name = playTapReaction();
+  ctx.anim().stopClips();
+  const name = playTapReaction(busy);
   if (name[0] === '@') return; // the show brings its own lines and sfx
   sfx.boing();
   heartsBurst();

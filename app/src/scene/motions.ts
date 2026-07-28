@@ -554,6 +554,11 @@ export class Animator {
     this.actives.push({ clip, start: performance.now() });
   }
 
+  // drop every in-progress one-shot clip at once, so the next play() starts
+  // clean instead of summing on top of it — a re-tap uses this to cut the
+  // current reaction short (see interactions.tapPet)
+  stopClips(): void { this.actives.length = 0; }
+
   playCheer(): void { this.play('cheer'); }
 
   setMode(m: AnimMode): void { if (this.mode !== m) { this.mode = m; this.dozeStart = 0; } }
