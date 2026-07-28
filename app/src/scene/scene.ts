@@ -76,6 +76,12 @@ const MODEL_H = 1.5;
 // modest: the head still has to stay clear of the speech bubble.
 const SIZE_TWEAK: Partial<Record<CharId, number>> = { grad: 1.04 };
 
+// Per-character body girth: a non-uniform horizontal (x+z) stretch on top of the
+// uniform normalization, so a buddy can read fatter (>1) or slimmer (<1) without
+// changing height. The held card is counter-scaled (see setCharacter) so it stays
+// the calibrated 1.3 rectangle instead of squashing with the body.
+const BODY_W: Partial<Record<CharId, number>> = { taco: 0.98, bloom: 1.09, mochi: 1.06 };
+
 // ── edge-dock pose tuning ──
 // Fraction of his height left visible while docked, measured from the top of
 // the head: 0.42 keeps the eyes (at roughly 0.6–0.65 of most buddies' height)
@@ -248,7 +254,8 @@ export class PetScene {
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const scale = (TARGET_H / size.y) * (SIZE_TWEAK[id] ?? 1);
-    model.scale.setScalar(scale);
+    const bw = BODY_W[id] ?? 1;
+    model.scale.set(scale * bw, scale, scale * bw); // non-uniform girth on x/z
     const box2 = new THREE.Box3().setFromObject(model);
     const center = box2.getCenter(new THREE.Vector3());
     model.position.x -= center.x;
@@ -260,6 +267,8 @@ export class PetScene {
     this.cardScreen.attach(model, cardData);
     const rig = rigParts(model, this.scene);
     this.animator.attachRig(rig);
+    // counter the body girth on the card so it keeps its calibrated shape
+    if (bw !== 1 && rig?.card) rig.card.g.scale.set(1 / bw, 1, 1 / bw);
     this.cardScreen.rigDriven = !!(rig && rig.card);
   }
 
