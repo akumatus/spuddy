@@ -9,9 +9,10 @@
     },
     {
       "name": "spuddy-site",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4321", "--directory", "web"],
-      "port": 4321
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "python3 -m http.server \"${PORT:-4321}\" --directory web"],
+      "port": 4321,
+      "autoPort": true
     },
     {
       "name": "icon-studio",
@@ -36,6 +37,13 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4173", "--directory", "app/dist"],
       "port": 4173
+    },
+    {
+      "name": "tryon-preview",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "python3 -m http.server \"${PORT:-4399}\" --directory ."],
+      "port": 4399,
+      "autoPort": true
     }
   ]
 }
