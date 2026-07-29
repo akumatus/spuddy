@@ -31,16 +31,26 @@ Read the **exact current prompts and persona voices** from
 - `buildNormalBatchPrompt(n, lang, genre)` — the shared, voice-neutral normal
   pool, **~180 lines total** (matches `CARDS_PER_DAY`), generated as a GENRE
   MIX: iterate `CARD_GENRES` in `personas.ts` and run **one focused pass of
-  ~20 lines per genre** (award / gossip / fieldnotes / stats / intel / dare /
-  joke / scene / sincere), passing that genre to the builder. Nine different
-  card forms is what makes each tap feel like a fresh gacha pull — never
-  collapse them into one long same-register dump. Each genre's example lines
-  are flavor anchors: match their craft, NEVER copy or lightly rephrase them
-  into the pool (the server drops exact echoes, but don't waste the lines).
-  Follow every other rule in the prompt: opener quota, warm neutral potato
-  voice, no fortune-cookie metaphors, avoid the `BANNED_PHRASES`.
-  `/admin/put` dedupes and caps at `CARDS_PER_DAY`, so a little overshoot is
-  fine.
+  ~14 lines per genre pass**, honoring each genre's `weight` (currently
+  sincere is `weight: 5` → five passes, ~40% of the pool; everything else
+  one) — thirteen passes total across award / gossip / fieldnotes / stats /
+  intel / dare / joke / scene / sincere. Distinct card forms are what make
+  each tap feel like a
+  fresh gacha pull — never collapse them into one long same-register dump.
+  A genre that declares `angles` (currently sincere) additionally gets a
+  fresh random sample of ~12 of them planted into each pass's prompt: most
+  sampled angles get ONE line, none more than 2 (write a second line only
+  when you have a genuinely different concrete situation for it — an angle
+  is a direction to shoot from, never a sentence to restate), and draw a
+  DIFFERENT sample per pass so the sincere passes don't circle the same few
+  moves.
+  Each genre's example lines are flavor anchors: match their craft, NEVER
+  copy, translate, or lightly rephrase them into the pool, in either language
+  — a line that reuses an anchor's image or skeleton is a reject (the server
+  drops exact echoes, but near-copies are on you to catch). Follow every
+  other rule in the prompt: opener quota, warm neutral potato voice, no
+  fortune-cookie metaphors, avoid the `BANNED_PHRASES`. `/admin/put` dedupes
+  and caps at `CARDS_PER_DAY`, so a little overshoot is fine.
 - `buildBubblesPrompt(part, lang)` — the shared daily bubble pools, ONE
   voice-neutral set every persona serves (this REPLACED the old per-persona
   mutters — do not generate those anymore). Run it twice per language:
@@ -65,10 +75,24 @@ pull is strong, so draw fresh seeds and start each `zh` pass from a blank page.
 Generate in a few focused passes rather than one giant dump — short batches keep
 the variety up and stop the lines templating out toward the tail.
 
-**Variety check before POSTing the normal pool:** count opening words. If any
-single opener (especially "You"/"你") starts more than ~20% of the batch, rewrite
-the excess lines to open elsewhere — the deed, the moment, an object, a question,
-a number, the potato itself — before assembling the JSON.
+**Variety check before POSTing the normal pool:** three scans over the full
+batch. (1) Opening words — if any single opener (especially "You"/"你") starts
+more than ~20% of the batch, rewrite the excess lines to open elsewhere: the
+deed, the moment, an object, a question, a number, the potato itself. (2)
+Pet-word concentration — count content-word frequencies in the batch you just
+wrote and look at the top repeats, whatever they turn out to be; any
+distinctive word or image anchoring more than ~4 lines gets its extra
+occurrences rewritten in fresh words. Do NOT keep a blacklist of past
+offenders — yesterday's pet word is a perfectly good word at normal frequency;
+the defect is concentration, not the word, and banning words outright just
+deletes good vocabulary. (3) Same-point scan — this is the one users actually
+feel: repetition of MEANING. The genre passes run independently, so the same
+point can arrive wearing three different costumes (a dare, a field note, and a
+stat can all deliver the identical self-care nudge), and the server only
+dedupes near-identical TEXT — paraphrases are yours to catch. Read the batch
+as one deck: whenever two lines are interchangeable in meaning, keep the
+strongest and re-ground the others in different concrete situations, or cut
+them (a slightly short pool beats a samey one).
 
 ### 2. Famous-quote library — per language (`en` then `zh`)
 

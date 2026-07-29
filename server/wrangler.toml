@@ -68,10 +68,12 @@ MUTTERS_PER_DAY = "16"
 QUOTES_LIB_MAX = "1000"
 # Small generation calls per pool per day — several small batches, each with
 # its own random inspiration seeds, beat one long call that templates out.
-# Scales with CARDS_PER_DAY: ~20 normal lines per call keeps quality up
-# (long single batches template out toward the tail). Only the cron fallback
-# uses this; the membership routine paces itself per the playbook.
-GEN_RUNS = "9"
+# Must match the weight-expanded CARD_GENRES pass count (8 single-pass genres
+# + sincere at weight 5 = 13) so every call lands one focused genre; ~14
+# normal lines per call keeps quality up (long single batches template out
+# toward the tail). Only the cron fallback uses this; the membership routine
+# follows the playbook.
+GEN_RUNS = "13"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:
 #   ANTHROPIC_API_KEY  (primary — chat + cron generation default to anthropic, alias "claude")

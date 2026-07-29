@@ -126,11 +126,15 @@ const SEEDS = [
   'a loose stitch', 'pockets', 'a jar of buttons', 'a wobbly desk leg',
 ];
 
-function pickSeeds(n: number): string {
-  const pool = [...SEEDS];
+function pickFrom(pool: string[], n: number): string[] {
+  const rest = [...pool];
   const out: string[] = [];
-  while (out.length < n && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  return out.join(', ');
+  while (out.length < n && rest.length) out.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+  return out;
+}
+
+function pickSeeds(n: number): string {
+  return pickFrom(SEEDS, n).join(', ');
 }
 
 // Worn-out encouragement wordings every model reaches for at low effort. The
@@ -519,7 +523,10 @@ export function buildMutterPrompt(persona: Persona, n: number, lang: Lang = 'en'
 // one focused pass PER GENRE (production GEN_RUNS matches this list), and
 // consecutive taps keep changing shape — an award, then desk gossip, then a
 // quiet sincere one. Delighted-in-them warmth stays the heart of every genre;
-// the genre is the costume it arrives in.
+// the genre is the costume it arrives in. A genre's `weight` is how many
+// passes it gets (production GEN_RUNS matches the weight-expanded total);
+// sincere carries extra passes — the plain seen-feeling lines are the
+// pool's heart, so they hold roughly 40% of it.
 // The example lines are few-shot flavor anchors — a far stronger style lever
 // than any instruction. zh examples are written natively, never translated
 // from the en ones, so the Chinese pool stops reading like subtitles.
@@ -527,6 +534,8 @@ export function buildMutterPrompt(persona: Persona, n: number, lang: Lang = 'en'
 export interface CardGenre {
   key: string;
   brief: string; // one-sentence writing instruction for the generator
+  weight?: number; // generation passes this genre gets (default 1) — its share of the pool
+  angles?: string[]; // rotating sub-directions — each pass gets a fresh random sample planted into its prompt, so passes (and days) don't converge on the same few moves
   en: string[]; // flavor-anchor examples, ≤16 words each
   zh: string[]; // native zh examples, ≤24 chars each — NOT translations of en
 }
@@ -632,30 +641,76 @@ export const CARD_GENRES: CardGenre[] = [
   },
   {
     key: 'scene',
-    brief: 'Tiny scenes: paint one warm concrete moment — lamp, tea, evening light — and end it tilted gently in their favor.',
+    brief:
+      'Tiny scenes: ONE everyday season-neutral moment that quietly sides with them. Every line is a complete sentence with a clear subject and verb — ' +
+      'NEVER a comma-pile of images, never a one-word tail. The anchor images below are spent — find fresh objects and moments of your own.',
     en: [
       'Lamp on, tea warm, you still upright. Tonight goes in the win column.',
-      'The evening folded in, the list half done, and you stayed kind. Good ending.',
-      'Rain outside, deadline inside, you between them holding steady. Someone should paint this.',
+      'The kettle clicked off like a tiny referee calling it: day, done, yours.',
+      'When you closed the laptop, the room went quiet like soft applause.',
+      'Dinner steamed up the window, and the hard part of today dissolved with it.',
     ],
     zh: [
       '灯还亮着，茶还温着，你还没被打倒。今晚这局算你赢。',
       '泡面才等三分钟。你陪自己慢慢变好，等了这么久。',
-      '窗外天黑了又亮，这么多个来回，你都接住了。',
+      '水开的那一声，像在替你宣布：今天的份，干完了。',
+      '你合上电脑的那一下，屋里安静得像在给你鼓掌。',
     ],
   },
   {
     key: 'sincere',
-    brief: "The quiet one: plain sincere praise with no props and no bit — one specific true-feeling observation that lands like being seen. This is the pool's heart; keep it simple.",
+    brief:
+      "The quiet one: plain sincere lines with no props and no bit — one specific true-feeling observation per line, simple words only. This is the pool's heart.",
+    weight: 5,
+    angles: [
+      'being seen — the invisible effort got witnessed',
+      'permission to rest — rest is allowed, never earned',
+      'effort that counts even when results hide',
+      'self-forgiveness — the mistake is smaller than it feels',
+      'quiet company — they are not alone in this',
+      'distance traveled — how far they have already come',
+      'the inner critic is a bad reporter — its numbers are always wrong',
+      'an ordinary day fully lived is achievement enough',
+      'their pace is valid — slow still arrives',
+      'their kindness to others, quietly reflected back at them',
+      'the weight is real — what they carry is genuinely heavy, so the tiredness makes sense',
+      'asking for help is courage, not weakness',
+      'small wins weigh more than they look — up, fed, one call made',
+      'feelings are allowed — tired or sad without needing to fix it right now',
+      "loved as they are — someone's day is better because they exist",
+      'surviving a bad day is the whole assignment — getting through it counts as done',
+      'comparison is a trap — nobody is keeping the list they measure themselves against',
+      'their past self would be amazed at where they stand now',
+      'trying again after it went wrong is the bravest part',
+      'quiet good deeds ripple further than they will ever see',
+      'allowed to not hold it together — putting the armor down is also strength',
+      'one day this hard patch becomes a story they tell calmly',
+      'the care they put into small things is quietly who they are',
+      'the body carried them all day — it has earned thanks, food, and sleep',
+      'the no they said protected something worth protecting',
+      'they did their part — the rest was never theirs to carry',
+      'being a beginner is allowed — clumsy starts are how every good thing begins',
+      'closing the day is allowed — the undone will wait patiently for morning',
+      'one bad hour does not define the day, let alone them',
+      'still noticing small good things means something in them is doing well',
+    ],
     en: [
       'That hard hour you got through alone, telling no one — I saw. It counted.',
       'You keep every promise you make to others. Keep one to yourself: rest a little.',
       'The undone things say today was hard. They say nothing about you.',
+      'Even on a day nothing got done, you owe the world no apology.',
+      'Others see the results. I saw the quiet nights it took. Both are recorded.',
+      'No rush to be okay. I am right here, and your pace counts.',
+      'That harsh voice in your head is a bad reporter. Check its sources.',
     ],
     zh: [
       '最难的那个钟头你自己熬过去了，谁也没说。我看见了。',
       '你对别人从不食言。这次也对自己守一次约：去歇一会儿。',
       '今天没做到的事，只说明今天很难，不说明你不行。',
+      '就算今天什么都没做成，你也不欠这个世界一句道歉。',
+      '别人看到结果，我看到你悄悄熬过的那些晚上。',
+      '不用急着好起来。我就在这儿，你按你的速度来。',
+      '脑子里那个骂你的声音，消息一向不灵通，别全信。',
     ],
   },
 ];
@@ -667,12 +722,18 @@ export const CARD_GENRES: CardGenre[] = [
 export function buildNormalBatchPrompt(n: number, lang: Lang = 'en', genre?: CardGenre): string {
   const youWord = lang === 'zh' ? '"你"' : `"You"/"Your"`;
   const ex = (g: CardGenre, k: number) => g[lang === 'zh' ? 'zh' : 'en'].slice(0, k).map((l) => `"${l}"`).join(' ');
+  const angleLine = genre?.angles?.length
+    ? `Today's sampled angles — most get ONE line, none gets more than 2: ${pickFrom(genre.angles, 12).join('; ')}. ` +
+      `An angle is a direction to shoot from, never a sentence to restate: when two lines share an angle, ` +
+      `each must stand in its own concrete situation (a different moment, object, or piece of evidence), so neither could replace the other. `
+    : '';
   const genreBlock = genre
     ? `THIS PASS WRITES ONE GENRE — ${genre.key}. ${genre.brief} ` +
-      `Flavor anchors, for register only — NEVER copy, translate, or lightly rephrase them; invent fresh material: ${ex(genre, 3)} ` +
+      `Flavor anchors, for register only — NEVER copy, translate, or lightly rephrase them, in ANY language; a line that shares an anchor's image or skeleton is a reject: ${ex(genre, 8)} ` +
+      angleLine +
       `All ${n} lines live inside this genre, each attacking from a different angle so no two feel like siblings. `
-    : `MIX THESE GENRES roughly evenly across the batch: ` +
-      CARD_GENRES.map((g) => `${g.key} — ${g.brief} e.g. ${ex(g, 1)}`).join(' ') +
+    : `MIX THESE GENRES across the batch (weighted share where marked): ` +
+      CARD_GENRES.map((g) => `${g.key}${(g.weight ?? 1) > 1 ? ` (${g.weight}x share)` : ''} — ${g.brief} e.g. ${ex(g, 1)}`).join(' ') +
       ` Never copy or lightly rephrase the examples — they show flavor only. `;
   return (
     `You are a tiny hand-crocheted potato desktop pet who hands your human little encouragement cards. ` +
@@ -687,7 +748,10 @@ export function buildNormalBatchPrompt(n: number, lang: Lang = 'en', genre?: Car
     `Optional imagery seeds — use in at most a third of the lines, skip freely: ${pickSeeds(4)}. ` +
     `NO fortune-cookie metaphors — if a line reads like a horoscope (the fog holds secrets, let the candle guide you), cut it. ` +
     `Avoid these worn-out phrasings and close variants (${BANNED_PHRASES}) — same warmth, fresh words. ` +
-    `No emojis, no quotation marks inside lines, no numbering, no emotion tags. Vary sentence shapes so none feel templated.` +
+    `No emojis, no quotation marks inside lines, no numbering, no emotion tags. Vary sentence shapes so none feel templated, ` +
+    `and watch pet words — if one distinctive word or image anchors 3 or more lines, rewrite the extras. ` +
+    `MEANING is the real dedupe: no two lines may make the same point in different clothes — ` +
+    `if swapping them would change nothing, keep the better one and re-ground the other in a new concrete situation.` +
     zhBatchBlock(lang, 24)
   );
 }

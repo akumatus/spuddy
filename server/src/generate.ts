@@ -30,6 +30,10 @@ function lineKey(s: string): string {
 // Normalized keys of every genre example line, for the echo filter in storeBatch.
 const EXAMPLE_KEYS = new Set(CARD_GENRES.flatMap((g) => [...g.en, ...g.zh]).map(lineKey));
 
+// Genre list with weights expanded into per-pass slots (sincere runs extra).
+// Production GEN_RUNS matches this length so each slot gets one focused pass.
+const PASS_GENRES: CardGenre[] = CARD_GENRES.flatMap((g) => Array<CardGenre>(g.weight ?? 1).fill(g));
+
 // Near-identical lines across runs collapse to one.
 function dedupeLines(lines: string[]): string[] {
   const seen = new Set<string>();
@@ -50,11 +54,12 @@ function sanitizeList(arr: unknown, max: number): string[] {
 }
 
 // Shared normal pool — one voice-neutral batch that every persona draws from.
-// One focused pass per CARD_GENRES entry when the run budget covers them
-// (production GEN_RUNS matches the genre count), so the pool mixes nine
-// distinct card forms; fewer runs (dev) fall back to the all-genre menu
-// prompt. Small calls also stop long batches templating out toward the tail,
-// and each run draws its own inspiration seeds. Results are merged and deduped.
+// One focused pass per PASS_GENRES slot when the run budget covers them
+// (production GEN_RUNS matches the weight-expanded count), so the pool mixes
+// nine distinct card forms with sincere weighted up; fewer runs (dev) fall
+// back to the all-genre menu prompt. Small calls also stop long batches
+// templating out toward the tail, and each run draws its own seeds. Results
+// merge and dedupe.
 async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
   const per = Math.ceil(opts.nNormal / opts.runs);
   const runOnce = async (genre?: CardGenre): Promise<string[]> => {
@@ -80,7 +85,7 @@ async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
     return [];
   };
   const results = await Promise.all(Array.from({ length: opts.runs }, (_, i) =>
-    runOnce(opts.runs >= CARD_GENRES.length ? CARD_GENRES[i % CARD_GENRES.length] : undefined)));
+    runOnce(opts.runs >= PASS_GENRES.length ? PASS_GENRES[i % PASS_GENRES.length] : undefined)));
   return dedupeLines(results.flat()).slice(0, opts.nNormal);
 }
 
