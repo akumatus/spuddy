@@ -1,10 +1,13 @@
 // Curated Chinese quote pool — the zh sibling of quotes.en.ts: famous lines
-// from Chinese and translated films/series, modern Chinese and translated
-// books, and lines the Chinese internet made famous. Same house rules as the
-// English file (short, warm, no lyrics), plus one more: no classical poetry
-// (古诗词) — modern prose and modern translated poetry only.
+// from literary masters, novels, and films/series (Chinese and translated).
+// Same house rules as the English file (short, warm, no lyrics, every entry
+// attributed), plus one more: no classical Chinese at all — neither 古诗词 nor
+// 文言/古籍 (论语 etc.); the textbook canon has zero discovery value. Modern
+// prose and modern translated poetry only. No 俗语/谚语, no bare 成语.
 // Attribution follows how a line actually circulates (a few beloved lines are
 // commonly credited to authors scholars dispute — charm over scholarship).
+// Sourceless internet-era lines live in server/scripts/internet-lines.zh.txt
+// and feed the daily NORMAL pool instead — golden cards are quotes with names.
 import type { Quote } from './types';
 
 export const QUOTES_ZH: Quote[] = [
@@ -101,25 +104,8 @@ export const QUOTES_ZH: Quote[] = [
   { q: '冬天从这里夺去的，春天会交还给你。', s: '海涅' },
   { q: '纵有疾风起，人生不言弃。', s: '《起风了》' },
 
-  // ── 网络时代 — 社交媒体养大的句子；多数没有确切出处 ──
+  // ── 华语流行文化 ──
   { q: '人生没有白走的路，每一步都算数。', s: '李宗盛' },
   { q: '生活原本沉闷，但跑起来就有风。', s: '韩寒' },
-  { q: '就算没爬到山顶也没关系，山腰的花也很香。' },
-  { q: '允许一切发生。' },
-  { q: '慢慢来，比较快。' },
-  { q: '万事尽头，终将如意。' },
-  { q: '星光不问赶路人，时光不负有心人。' },
-  { q: '你只管努力，剩下的交给天意。' },
-  { q: '热爱可抵岁月漫长。' },
-  { q: '保持热爱，奔赴山海。' },
-  { q: '你要悄悄拔尖，然后惊艳所有人。' },
-  { q: '满怀希望就会所向披靡。' },
-  { q: '记得早点睡，你已经很努力了。' },
-  { q: '关关难过关关过，前路漫漫亦灿灿。' },
-  { q: '生活明朗，万物可爱，人间值得，未来可期。' },
-  { q: '慢慢理解世界，慢慢更新自己。' },
-  { q: '种一棵树最好的时间是十年前，其次是现在。' },
-  { q: '悲观者永远正确，乐观者永远前行。' },
-  { q: '唯有美食与爱不可辜负。' },
   { q: '心之所向，素履以往。', s: '七堇年' },
 ];

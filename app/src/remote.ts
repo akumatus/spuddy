@@ -69,11 +69,21 @@ export function normalPool(charId: CharId): string[] | null {
   return poolOf(charId, 'normal');
 }
 
-// The server's famous-quote library from today's batch, or null → the caller
-// falls back to the app's bundled static pool (see quotes.ts).
+// Today's window of the server's famous-quote library (the server rotates a
+// small daily page over the full library), or null → the caller falls back to
+// the app's bundled static pool (see quotes.ts).
 export function serverQuotes(): Quote[] | null {
   const q = BATCH && BATCH.quotes;
   return Array.isArray(q) && q.length ? q : null;
+}
+
+// Today's window of the server's persistent internet-line pool (circulating
+// 网络/no-source lines) — the normal card's ambient-encouragement source,
+// mixed with the small daily generated batch by gacha.ts. Null → draws use
+// the daily batch (or built-ins) alone; there is no bundled fallback for it.
+export function serverInet(): string[] | null {
+  const arr = BATCH && BATCH.inet;
+  return Array.isArray(arr) && arr.length ? arr : null;
 }
 
 // Today's flavor lines for a persona ('mutter' | 'greet') — a small daily set

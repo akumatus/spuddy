@@ -23,6 +23,9 @@ export interface Env {
   CARDS_PER_DAY?: string;
   MUTTERS_PER_DAY?: string;
   QUOTES_LIB_MAX?: string; // cap on the persistent quote library; oldest drop off past it
+  INET_LIB_MAX?: string; // cap on the persistent internet-line pool (normal-card source)
+  QUOTES_WINDOW?: string; // how many quotes GET /cards serves per day (daily rotating window)
+  INET_WINDOW?: string; // how many internet lines GET /cards serves per day (daily rotating window)
   GEN_RUNS?: string;
 }
 
@@ -55,6 +58,7 @@ export interface ChatPayload {
   lang?: string; // 'zh' → zh prompts + zh daily-batch musings
   memory?: MemoryItem[]; // chat sends the FULL fact list (dedupe + consistency); golden/greet a rotated slice
   fresh?: string[]; // chat only: rotated memory facts to prefer bringing up this turn
+  loops?: string[]; // open threads (pending things) — chat weaves one in, greet asks how one went
   messages?: { who?: string; text?: string }[];
   // client runs the separate /distill pass — omit the in-reply [[remember]]
   // instructions from the chat prompt (absent on older app builds)
@@ -70,6 +74,7 @@ export interface DistillPayload {
   day?: number;
   lang?: string; // 'zh' → facts written in Chinese
   memory?: MemoryItem[]; // FULL current fact list — the "already known" dedupe context
+  loops?: string[]; // current open-thread list — the pass returns the updated one
   context?: { who?: string; text?: string }[]; // already-distilled tail — extract nothing from these
   messages?: { who?: string; text?: string }[]; // the chunk to distill
 }

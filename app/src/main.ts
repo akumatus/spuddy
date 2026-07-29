@@ -2,7 +2,7 @@
 // the feature modules together. All feature logic lives under src/app/;
 // rendering under src/scene/; popup markup under src/ui/.
 import { SpudBrain } from './brain';
-import { CHARS, TXT, greet, pool } from './content';
+import { CHARS, TXT, daypart, greet, pool } from './content';
 import { lang, setLangPref } from './locale';
 import * as remote from './remote';
 import { PetScene } from './scene/scene';
@@ -154,6 +154,31 @@ pp?.win.setIgnoreMouse(true);
 
 installDebugHooks();
 
+// Personalized follow-up hello: when an open thread is pending (yesterday's
+// interview, that stubborn bug), he asks how it went a beat after the pool
+// hello — the canned line lands instantly, the caring question follows once
+// the server answers. Fired only when a thread exists, so quiet days cost no
+// quota; any failure just means the pool hello stands alone.
+async function greetFollowUp(): Promise<void> {
+  const loops = store.activeLoops(state);
+  if (!loops.length || !pp?.ai.greet) return;
+  const minBeat = new Promise((r) => setTimeout(r, 7000)); // let the hello finish its dwell
+  const text = await Promise.all([
+    pp.ai.greet({
+      charId: state.active,
+      day: state.day,
+      daypart: daypart(),
+      memory: store.activeMemory(state),
+      loops,
+      lang: lang(),
+    }).catch(() => null),
+    minBeat,
+  ]).then(([t]) => t);
+  // stand down if the moment passed: they started chatting or drew the card
+  if (!text || ctx.chatBusy || state.drawn || isOverlayOpen()) return;
+  bubble(text, { hold: 8000, type: true });
+}
+
 // Open-the-app greeting: today's daypart line from the daily pool (with the
 // built-in pack line as offline fallback) — no LLM round-trip at boot.
 // But not before the model is actually on screen: with the load running in
@@ -164,4 +189,5 @@ Promise.all([modelReady, bootBeat]).then(() => {
   ctx.anim().play(scene.hasRig() ? 'wave' : 'hop'); // time-of-day greeting
   if (state.drawn) return;
   bubble(greet(state.active), { hold: 5200 });
+  void greetFollowUp();
 });

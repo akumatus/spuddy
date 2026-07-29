@@ -1,14 +1,17 @@
-// Curated English quote pool — famous lines from films, series, books,
-// speeches and the internet, hand-picked to work as encouragement cards.
-// Static content bundled with the app: the golden card's non-live source,
-// always available (offline too). Shipping a new app build is the update flow.
+// Curated English quote pool — famous lines from literary masters, novels,
+// films, series and famous speeches, hand-picked to work as encouragement
+// cards. Static content bundled with the app: the golden card's non-live
+// source, always available (offline too). Shipping a new app build is the
+// update flow.
 //
 // House rules for entries:
 // - one short line each, warm/uplifting — it must read well on a tiny card
 // - no song lyrics, no classical Chinese poetry (see quotes.zh.ts)
-// - `s` is the attribution shown on the card; keep it under ~24 chars so the
-//   card foot doesn't overflow. Omit `s` for internet-era lines with no
-//   meaningful source.
+// - EVERY entry carries `s` — a real, specific attribution shown on the card;
+//   keep it under ~24 chars so the card foot doesn't overflow. No Proverb /
+//   Anonymous / internet shrug-labels: a line whose only honest tag is one of
+//   those belongs in server/scripts/internet-lines.en.txt (the daily normal
+//   pool draws from it), not in the golden pool.
 // - attribution follows common usage, not scholarship — this pool is charm,
 //   not a citation database
 import type { Quote } from './types';
@@ -191,32 +194,4 @@ export const QUOTES_EN: Quote[] = [
   { q: 'Be somebody who makes everybody feel like a somebody.', s: 'Kid President' },
   { q: 'Tomorrow is the first blank page of a 365-page book. Write a good one.', s: 'Brad Paisley' },
   { q: 'Not every day is good, but there is something good in every day.', s: 'Alice Morse Earle' },
-  { q: 'Little by little, a little becomes a lot.', s: 'Tanzanian proverb' },
-
-  // ── internet era — lines the feeds made famous; no meaningful source ──
-  { q: "Don't cry for those who hurt you. Rise and shine." },
-  { q: 'You have survived 100% of your worst days so far.' },
-  { q: 'Slow progress is still progress.' },
-  { q: 'Be the person your dog thinks you are.' },
-  { q: "You can't pour from an empty cup. Take care of yourself first." },
-  { q: 'Bloom where you are planted.' },
-  { q: "It's okay to be a work in progress." },
-  { q: "Rest is not a reward. It's a requirement." },
-  { q: "Be proud of yourself for how hard you're trying." },
-  { q: "Your speed doesn't matter. Forward is forward." },
-  { q: 'Some days you just have to create your own sunshine.' },
-  { q: "If it costs you your peace, it's too expensive." },
-  { q: 'Do it scared.' },
-  { q: 'What if it all works out?' },
-  { q: "You don't have to be perfect to be amazing." },
-  { q: 'One small positive thought in the morning can change your whole day.' },
-  { q: 'Being soft is not a weakness.' },
-  { q: 'The best view comes after the hardest climb.' },
-  { q: 'Throw kindness around like confetti.' },
-  { q: 'Today, just do your best. And let that be enough.' },
-  { q: 'Drink some water. Eat something green. Be gentle with yourself.' },
-  { q: "A year from now, you'll be glad you started today." },
-  { q: 'Falling down is an accident. Staying down is a choice.' },
-  { q: 'Give yourself the same grace you give everyone else.' },
-  { q: "You're doing better than you think you are." },
 ];

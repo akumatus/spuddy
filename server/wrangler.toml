@@ -53,27 +53,42 @@ GEMINI_MODEL = "gemini-3.1-flash-lite"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 # Per-device daily budget for real-time LLM calls (chat + golden weave combined).
 CHAT_DAILY_LIMIT = "100"
-# Pool sizes. CARDS_PER_DAY is the SHARED normal pool (voice-neutral — every
-# persona draws from it). Sized for the app's no-replacement gacha: heavy users
-# burn through the whole pool in a day, so keep it roomy. Also caps how many
-# normal lines /admin/put will store, so the routine's batch must not exceed it.
-# (Goldens are no longer generated here — the app draws them live or from the
-# curated famous-quote pool.)
-CARDS_PER_DAY = "180"
+# Pool sizes. CARDS_PER_DAY is the SHARED generated normal pool (voice-neutral —
+# every persona draws from it). Small since 2026-07: generation covers the
+# three kept genres (dare + joke + one lean sincere pass, ~14 lines each,
+# ~20% of draws combined); the bulk of normal draws comes from the persistent
+# internet-line pool (inet:<lang>), so heavy users lapping this little batch
+# is fine. Also caps how many normal lines /admin/put will store. (Goldens are
+# drawn live or from the curated famous-quote pool.)
+CARDS_PER_DAY = "42"
 # Mutters (private inner-monologue) per mood (watch/alone/lonely) per persona.
 MUTTERS_PER_DAY = "16"
 # Cap on the persistent famous-quote library (quotes:<lang>). The daily routine
-# appends new lines via /admin/quotes; past this many, the oldest drop off so KV
-# and the /cards payload stay bounded while the pool keeps refreshing.
-QUOTES_LIB_MAX = "1000"
+# appends new lines via /admin/quotes; past this many, the oldest drop off.
+# Generous (attributed famous lines are the good stuff — keep them): at the
+# hunt's ~10-20 adds/day this is years of headroom, and /cards only ships a
+# QUOTES_WINDOW slice per day so the payload never grows with the cap.
+QUOTES_LIB_MAX = "5000"
+# Cap on the persistent internet-line pool (inet:<lang>) — the normal card's
+# ambient-encouragement source. The daily routine appends its no-source finds
+# via /admin/inet (the low-provenance half of the quote hunt); the maintainer
+# can hand-add through the same door (seed: scripts/internet-lines.*.txt).
+# Same oldest-drop trim, so the pool is a rolling daily-refreshed window.
+INET_LIB_MAX = "1000"
+# Daily window sizes: GET /cards serves this many lines of each persistent pool
+# per day (a stable-shuffled rotating page — see quotes-store.ts dailyWindow),
+# so clients get a fresh light payload daily instead of the whole library.
+# Sized well above any realistic day's draws so the app's no-repeat logic
+# never laps a window mid-day.
+QUOTES_WINDOW = "150"
+INET_WINDOW = "200"
 # Small generation calls per pool per day — several small batches, each with
 # its own random inspiration seeds, beat one long call that templates out.
-# Must match the weight-expanded CARD_GENRES pass count (8 single-pass genres
-# + sincere at weight 5 = 13) so every call lands one focused genre; ~14
-# normal lines per call keeps quality up (long single batches template out
-# toward the tail). Only the cron fallback uses this; the membership routine
-# follows the playbook.
-GEN_RUNS = "13"
+# Must match the weight-expanded CARD_GENRES pass count (dare + joke + sincere
+# = 3) so every call lands one focused genre; ~14 normal lines per call keeps
+# quality up. Only the cron fallback uses this; the membership routine follows
+# the playbook.
+GEN_RUNS = "3"
 
 # Secrets — do NOT put these in this file. Set with `wrangler secret put NAME`:
 #   ANTHROPIC_API_KEY  (primary — chat + cron generation default to anthropic, alias "claude")

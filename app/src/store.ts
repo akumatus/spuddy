@@ -154,8 +154,10 @@ export function defaultState(): AppState {
     cards: [], // {m, rare, day, by, src, fav}
     usedCards: { date: null, used: [] }, // server normal-pool lines drawn this batch (no-replacement gacha; resets when a new daily pool lands)
     usedQuotes: [], // famous-quote lines drawn (golden source) — static pool, so this persists until it laps
+    usedInet: [], // internet-line pool lines drawn (normal source) — persistent pool, so this persists until it laps
     usedMemory: { date: null, used: [] }, // memory facts fed to a golden weave today — rotation, resets each calendar day
     memory: [], // {day, fact, kind, mood} — durable facts he's distilled about the human
+    loops: [], // open threads the distill pass maintains — pending things to ask about later
     // The transcript starts empty — his daily hello lives in a spoken bubble, not
     // the record (see main.js). It fills as you actually talk.
     chat: [],
@@ -198,6 +200,10 @@ export function load(): AppState {
       // Long-term memory moved from raw {day, note, reply} chat excerpts to
       // {day, fact} distilled facts. Old excerpts don't translate — start clean.
       if (!Array.isArray(s.memory)) s.memory = [];
+      if (!Array.isArray(s.usedInet)) s.usedInet = []; // field added 2026-07; heal older saves
+      // open threads (field added 2026-07): heal older saves + drop malformed entries
+      if (!Array.isArray(s.loops)) s.loops = [];
+      s.loops = s.loops.filter((l) => l && typeof l.text === 'string' && typeof l.day === 'number').slice(-8);
       // heal twins saved before dedupe became containment-aware (chat.ts rememberFact)
       s.memory = dedupeMemory(s.memory);
       // pre-TS saves carried a journal field — drop it on load
@@ -263,6 +269,31 @@ export function load(): AppState {
 // read view for anything the pet says or shows.
 export function activeMemory(s: AppState): MemoryFact[] {
   return s.memory.filter((m) => !m.retired);
+}
+
+// ── open threads (loops) ──
+// Short-lived pending things the pet circles back to ("how did the interview
+// go?"). The distill pass returns the authoritative updated list; the day
+// stamp only anchors expiry — a thread never re-confirmed goes quietly stale.
+const LOOP_MAX = 4;
+const LOOP_TTL_DAYS = 7;
+
+export function activeLoops(s: AppState): string[] {
+  return s.loops
+    .filter((l) => s.day - l.day <= LOOP_TTL_DAYS)
+    .slice(-LOOP_MAX)
+    .map((l) => l.text);
+}
+
+// Replace the list with the distill pass's updated one. Texts already tracked
+// keep their original day stamp (expiry keeps counting even across rewording
+// passes that carry a thread verbatim); new ones stamp today.
+export function setLoops(s: AppState, texts: string[]): void {
+  const prev = new Map(s.loops.map((l) => [l.text, l.day]));
+  s.loops = texts
+    .filter((t) => typeof t === 'string' && t.trim())
+    .slice(0, LOOP_MAX)
+    .map((text) => ({ text, day: prev.get(text) ?? s.day }));
 }
 
 // ── memory cap ──

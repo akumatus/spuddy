@@ -17,11 +17,18 @@ this routine doesn't run — so a missed run never leaves the pools empty.
 Never hard-code the token in this file or the routine prompt — read it from the
 env. If either var is missing, stop and report it; do not POST.
 
-There are TWO kinds of content, generated and POSTed differently:
+There are THREE kinds of content, handled differently:
 
-1. **The daily batch** (normal pool + mutters) — REPLACED each day.
-2. **The famous-quote library** (golden-card source) — APPENDED to a growing
-   server library; you add a few genuinely new lines each day.
+1. **The daily batch** (small dare/joke normal pool + bubbles + flavor) —
+   REPLACED each day; the only part you WRITE yourself.
+2. **The famous-quote library** (golden-card source) — APPENDED daily with the
+   HIGH-provenance finds: real lines with real attributions (§2).
+3. **The internet-line pool** (normal-card ambient source) — APPENDED daily
+   with the LOW-provenance finds: circulating 网络/佚名/no-source lines (§3).
+
+§2 and §3 are one daily hunt with a quality SORT: gather ~60 lines per
+language, then route each by attribution — never pad either pool to hit a
+number, and never route a line up to golden that only qualifies for inet.
 
 ### 1. Daily batch — per language (`en` then `zh`)
 
@@ -29,21 +36,18 @@ Read the **exact current prompts and persona voices** from
 [`server/src/personas.ts`](../src/personas.ts) so the register never drifts:
 
 - `buildNormalBatchPrompt(n, lang, genre)` — the shared, voice-neutral normal
-  pool, **~180 lines total** (matches `CARDS_PER_DAY`), generated as a GENRE
-  MIX: iterate `CARD_GENRES` in `personas.ts` and run **one focused pass of
-  ~14 lines per genre pass**, honoring each genre's `weight` (currently
-  sincere is `weight: 5` → five passes, ~40% of the pool; everything else
-  one) — thirteen passes total across award / gossip / fieldnotes / stats /
-  intel / dare / joke / scene / sincere. Distinct card forms are what make
-  each tap feel like a
-  fresh gacha pull — never collapse them into one long same-register dump.
-  A genre that declares `angles` (currently sincere) additionally gets a
-  fresh random sample of ~12 of them planted into each pass's prompt: most
-  sampled angles get ONE line, none more than 2 (write a second line only
-  when you have a genuinely different concrete situation for it — an angle
-  is a direction to shoot from, never a sentence to restate), and draw a
-  DIFFERENT sample per pass so the sincere passes don't circle the same few
-  moves.
+  pool, now just **~42 lines total** (matches `CARDS_PER_DAY`): **one focused
+  pass of ~14 lines per `CARD_GENRES` genre** — currently **dare + joke +
+  sincere**, kept in the 2026-07 quality cut. Sincere runs ONE lean pass (not
+  its old five): the ambient-encouragement bulk now comes from the persistent
+  internet-line pool (§3), which the app mixes in on its own. The six cut skit
+  genres (award/gossip/fieldnotes/stats/intel/scene) stay cut — never write
+  them back into the batch.
+  Sincere declares `angles`: a fresh random sample of ~12 gets planted into
+  its pass's prompt — most sampled angles get ONE line, none more than 2
+  (write a second line only for a genuinely different concrete situation; an
+  angle is a direction to shoot from, never a sentence to restate), and the
+  sample differs day to day so the pass doesn't circle the same few moves.
   Each genre's example lines are flavor anchors: match their craft, NEVER
   copy, translate, or lightly rephrase them into the pool, in either language
   — a line that reuses an anchor's image or skeleton is a reject (the server
@@ -75,54 +79,106 @@ pull is strong, so draw fresh seeds and start each `zh` pass from a blank page.
 Generate in a few focused passes rather than one giant dump — short batches keep
 the variety up and stop the lines templating out toward the tail.
 
-**Variety check before POSTing the normal pool:** three scans over the full
-batch. (1) Opening words — if any single opener (especially "You"/"你") starts
-more than ~20% of the batch, rewrite the excess lines to open elsewhere: the
-deed, the moment, an object, a question, a number, the potato itself. (2)
-Pet-word concentration — count content-word frequencies in the batch you just
-wrote and look at the top repeats, whatever they turn out to be; any
-distinctive word or image anchoring more than ~4 lines gets its extra
-occurrences rewritten in fresh words. Do NOT keep a blacklist of past
-offenders — yesterday's pet word is a perfectly good word at normal frequency;
-the defect is concentration, not the word, and banning words outright just
-deletes good vocabulary. (3) Same-point scan — this is the one users actually
-feel: repetition of MEANING. The genre passes run independently, so the same
-point can arrive wearing three different costumes (a dare, a field note, and a
-stat can all deliver the identical self-care nudge), and the server only
-dedupes near-identical TEXT — paraphrases are yours to catch. Read the batch
-as one deck: whenever two lines are interchangeable in meaning, keep the
-strongest and re-ground the others in different concrete situations, or cut
-them (a slightly short pool beats a samey one).
+**Variety check before POSTing the normal pool:** three scans over the batch.
+(1) Opening words — if any single opener (especially "You"/"你") starts more
+than ~20% of the batch, rewrite the excess lines to open elsewhere: the deed,
+the moment, an object, a question, a number, the potato itself. (2) Pet-word
+concentration — count content-word frequencies in the batch you just wrote and
+look at the top repeats, whatever they turn out to be; any distinctive word or
+image anchoring more than ~3 lines gets its extra occurrences rewritten in
+fresh words. Do NOT keep a blacklist of past offenders — yesterday's pet word
+is a perfectly good word at normal frequency; the defect is concentration, not
+the word. (3) Same-point scan — repetition of MEANING: the two passes run
+independently, so a dare and a joke can deliver the identical nudge, and the
+server only dedupes near-identical TEXT — paraphrases are yours to catch.
+Whenever two lines are interchangeable in meaning, keep the stronger and
+re-ground the other in a new concrete situation, or cut it (a slightly short
+pool beats a samey one).
 
 ### 2. Famous-quote library — per language (`en` then `zh`)
 
-These are **real famous lines** from films, series, books, speeches, and the
-internet — NOT invented encouragement. Match the house rules and quality bar of
-the curated static pools at
+The golden card is a QUOTE card: **real, verifiable famous lines from literary
+masters, novels, films and series** (plus the occasional genuinely famous
+speech) — NOT invented encouragement. Quality bar: the reader should feel they
+discovered a line worth screenshotting — never "I've seen this on a classroom
+wall". Match the curated static pools at
 [`app/src/quotes.en.ts`](../../app/src/quotes.en.ts) and
-[`app/src/quotes.zh.ts`](../../app/src/quotes.zh.ts):
+[`app/src/quotes.zh.ts`](../../app/src/quotes.zh.ts).
 
-- one short warm/uplifting line each; reads well on a tiny card
-- `{ "q": "the line", "s": "attribution" }` — omit `s` for internet-era lines
-  with no meaningful source; keep `s` under ~24 chars
-- NO song lyrics; NO classical Chinese poetry (古诗词) in the zh set
-- attribution by common usage, not scholarship — charm over citation accuracy
+Hard rules — each of these is a category that rotted the old pool
+(cleaned 2026-07: zh 1000→304, en 1000→677):
 
-**Avoid repeats.** First `GET $PP_SERVER_URL/cards?lang=<lang>` and read its
-`quotes` array — that's the current library. Generate **~60 NEW lines per
-language** that are NOT already in it (the server also dedupes, but don't waste
-the effort). Spread across categories (film / series / book / speech / internet)
-and eras so the library stays varied as it grows. Genuinely-famous lines are a
-finite well: if a run struggles to find that many that are both real and new,
-add fewer rather than inventing or stretching — quality bar over hitting 60.
+- **Every line carries `s`** — a real, specific attribution: an author (三毛,
+  Maya Angelou), a work (《小王子》, The Little Prince), or a named speech. NO
+  sourceless lines. If the only honest tag would be 网络/佚名/internet/
+  Anonymous, the line doesn't belong HERE — route it to the internet-line pool
+  instead (§3, `POST /admin/inet`). Same hunt, different door.
+- **No proverbs or folk sayings** (俗语/谚语/歇后语, "Proverb"), no bare 成语.
+- **zh: no classical Chinese at all** — 古诗词 AND 文言/古籍 (论语/孟子/老子/
+  庄子/荀子/增广贤文 and the whole textbook canon). Every Chinese reader saw
+  these on primary-school walls; zero discovery value.
+- **No schoolroom-wall slogans** even when attributed (书籍是人类进步的阶梯 /
+  让暴风雨来得更猛烈些吧 tier); no political-figure quotes.
+- **No adaptations/mutations** of famous quotes and no apocryphal attributions
+  (哈佛图书馆训言 tier). Unsure the person/work really said it → skip it.
+- One short warm/uplifting line each; reads well on a tiny card. NO song
+  lyrics. Attribution by common usage, not scholarship — but common usage
+  naming a real person/work, never a shrug-label.
+- Formatting: zh work titles wrapped 《…》, people bare (三毛 not 《三毛》);
+  en full names (Martin Luther King Jr., not MLK); `s` under ~24 chars.
 
-## Assemble & POST — two calls per language
+**Avoid repeats and pile-ups.** First fetch the FULL libraries (both pools,
+one call):
+
+```sh
+curl -sS "$PP_SERVER_URL/admin/quotes?lang=<lang>" -H "x-pp-admin: $PP_ADMIN_TOKEN"
+```
+
+(`GET /cards` won't do — it serves only a small daily window of each pool.)
+Then, against the `quotes` array:
+
+- skip any line already there — **including paraphrases**: the server dedupes
+  exact text only, so a reworded variant of a stored line is a reject on you;
+- count lines per source: a source already holding **8+** lines is closed for
+  today — pick someone else. Spread new lines across sources and eras.
+
+**The daily hunt gathers ~60 lines per language**, spread across film / series
+/ book / speech / internet-era. Then SORT each line by provenance:
+
+- real, specific attribution + passes every hard rule above → **golden**
+  (`/admin/quotes`). Whatever count genuinely qualifies is the right count —
+  often 10–20; never stretch a line's attribution to promote it.
+- genuinely circulating but no meaningful source (网络/佚名 tier) → **the
+  internet-line pool** (`/admin/inet`, §3), posted as plain lines WITHOUT any
+  source label.
+- invented, uncertain, or rule-breaking (proverbs, classical, mutations) →
+  **dropped**. The old pool rotted because runs padded the golden pool to hit
+  a quota; the fix is the sort, not a smaller hunt.
+
+### 3. Internet-line pool — the low-provenance half of the daily hunt
+
+The persistent pool behind the normal card's ambient encouragement (`inet:zh` /
+`inet:en` in KV, served as `inet` on `GET /cards`; capped `INET_LIB_MAX`,
+oldest drop off, so it stays a rolling, daily-refreshed window). Seeded from
+[`server/scripts/internet-lines.zh.txt`](internet-lines.zh.txt) /
+[`internet-lines.en.txt`](internet-lines.en.txt); the daily run APPENDS its
+no-source finds here via `POST /admin/inet?lang=<lang>` with
+`{ "lines": ["…", …] }`, and the maintainer can hand-add or prune anytime.
+
+Bar for this pool: lines that FEEL human-circulated — warm, quotable,
+screenshot-grade internet writing. Still banned: 俗语/谚语/proverbs, classical
+Chinese, mutations of attributed famous quotes (those are golden's or nobody's),
+and filler you wrote just to fill. Before POSTing, check the `inet` array from
+the same `GET /admin/quotes` answer (§2) and skip lines already there,
+including paraphrases.
+
+## Assemble & POST — three calls per language
 
 ### Batch → `POST /admin/put?lang=<lang>`
 
 ```json
 {
-  "normal": ["…180 neutral lines…"],
+  "normal": ["…~42 lines: one pass each of dare, joke, sincere…"],
   "bubbles": {
     "mutter":   { "watch": ["…20…"], "alone": ["…20…"], "lonely": ["…20…"], "sleepy": ["…4…"], "ignored": ["…4…"], "wake": ["…4…"] },
     "routines": { "chaseStart": ["…10…"], "chaseEnd": ["…10…"], "juggleEnd": ["…10…"], "studyStart": ["…10…"], "studyEnd": ["…10…"], "practiceStart": ["…10…"], "practiceEnd": ["…10…"], "humEnd": ["…10…"], "stretchEnd": ["…10…"], "sneezeEnd": ["…10…"] },
@@ -149,11 +205,21 @@ a legacy `cards.<id>.mutters` field is still accepted but no longer needed.
 ### Quotes → `POST /admin/quotes?lang=<lang>`
 
 ```json
-{ "quotes": [ { "q": "After all, tomorrow is another day.", "s": "Gone with the Wind" }, { "q": "…internet line, no source…" } ] }
+{ "quotes": [ { "q": "After all, tomorrow is another day.", "s": "Gone with the Wind" }, { "q": "家人闲坐，灯火可亲。", "s": "汪曾祺" } ] }
 ```
 
-The Worker appends these to the growing library, dropping any already present and
+The Worker appends these to the growing library, dropping any already present,
+rejecting sourceless lines and junk labels (网络/俗语/Proverb/Anonymous …), and
 trimming the oldest past `QUOTES_LIB_MAX`.
+
+### Internet lines → `POST /admin/inet?lang=<lang>`
+
+```json
+{ "lines": [ "先吃饭，天大的事，吃完再说。", "进度条卡住的时候，其实也在加载。" ] }
+```
+
+Plain strings, no attributions. The Worker appends, dedupes against the pool,
+and trims the oldest past `INET_LIB_MAX`.
 
 ### The curl calls (one set per language)
 
@@ -164,11 +230,14 @@ curl -sS -X POST "$PP_SERVER_URL/admin/put?lang=en" \
 curl -sS -X POST "$PP_SERVER_URL/admin/quotes?lang=en" \
   -H "content-type: application/json" -H "x-pp-admin: $PP_ADMIN_TOKEN" \
   --data @/tmp/quotes-en.json
-# then the same two with ?lang=zh and the zh files
+curl -sS -X POST "$PP_SERVER_URL/admin/inet?lang=en" \
+  -H "content-type: application/json" -H "x-pp-admin: $PP_ADMIN_TOKEN" \
+  --data @/tmp/inet-en.json
+# then the same three with ?lang=zh and the zh files
 ```
 
 Successes look like `{"ok":true,"lang":"en","date":"…","counts":{…}}` (batch) and
-`{"ok":true,"lang":"en","added":N,"total":M}` (quotes). Read them back and report:
-per language, the normal count, per-persona mutter totals, and how many quotes
-were `added` / the new `total`. If any POST returns non-200, or a count is 0 where
-it shouldn't be, say so — don't fail silently.
+`{"ok":true,"lang":"en","added":N,"total":M}` (quotes and inet). Read them back
+and report: per language, the normal count, per-persona mutter totals, and the
+`added` / new `total` for BOTH quotes and inet. If any POST returns non-200, or
+a count is 0 where it shouldn't be, say so — don't fail silently.

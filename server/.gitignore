@@ -1,6 +1,8 @@
 node_modules/
 .dev.vars
 .wrangler/
+backups/
 eval/run.mjs
 eval/out/
 eval/fixtures/
+eval/voice-run.mjs

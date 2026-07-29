@@ -9,8 +9,14 @@
 //                        one language per call; run once per language after deploy
 //   POST /admin/put?lang=en|zh  store a batch generated OUTSIDE the Worker
 //                        (protected) — the free, membership-generated path
+//   GET  /admin/quotes?lang=en|zh  the FULL quotes + inet libraries (protected) —
+//                        the routine's dedupe/per-source view; /cards only
+//                        serves a small daily window of each
 //   POST /admin/quotes?lang=en|zh  append fresh famous quotes to the growing
 //                        library (protected) — golden-card source
+//   POST /admin/inet?lang=en|zh  append internet-era lines to the persistent
+//                        normal-card pool (protected) — the daily hunt's
+//                        no-source finds + maintainer curation
 //   GET  /health         liveness
 //
 // Daily pools (shared normal pool + per-persona mutters) reach KV two ways: the
@@ -20,8 +26,8 @@
 // endpoints (/chat, /golden, /greet) are metered against a per-device budget.
 
 import { generateForLang, putForLang } from './generate';
-import { appendQuotes, readQuotes } from './quotes-store';
-import { PERSONAS, buildChatSystem, buildConsolidateSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, consolidateList, distillTranscript, parseConsolidateOps, parseDistillFacts, parseGesture, parseRemember, parseTag } from './personas';
+import { appendInet, appendQuotes, dailyWindow, readInet, readQuotes } from './quotes-store';
+import { PERSONAS, buildChatSystem, buildConsolidateSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, consolidateList, distillTranscript, parseConsolidateOps, parseDistillFacts, parseDistillLoops, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
 import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type ConsolidatePayload, type DistillPayload, type Env, type Lang } from './types';
 import { CORS, clean, json, today } from './util';
@@ -54,6 +60,19 @@ function withOverride(defaultChain: string[], request: Request, env: Env, cfg: R
   if (p) chain = [p.trim().toLowerCase()]; // force exactly one backend for A/B
   if (m) models = { ...models, [chain[0]]: m.trim() };
   return { chain, models };
+}
+
+// Fold consecutive same-role turns into one message. The app appends burst
+// bubbles as separate pet lines (and queued human notes as separate user
+// lines); some providers (Anthropic) reject non-alternating roles outright.
+function mergeTurns(msgs: { role: string; content: string }[]): { role: string; content: string }[] {
+  const out: { role: string; content: string }[] = [];
+  for (const m of msgs) {
+    const last = out[out.length - 1];
+    if (last && last.role === m.role) last.content += `\n${m.content}`;
+    else out.push({ ...m });
+  }
+  return out;
 }
 
 interface QuotaState {
@@ -175,19 +194,25 @@ export default {
 
       if (url.pathname === '/cards' && request.method === 'GET') {
         const lang = asLang(url.searchParams.get('lang'));
-        // the growing famous-quote library rides on every answer — it's stored
-        // separately from the daily batch (quotes-store.ts) and is the golden
-        // card's source, so it comes along even when the batch is missing/stale
-        const quotes = await readQuotes(env, lang);
+        // two persistent pools ride on every answer — both stored separately
+        // from the daily batch (quotes-store.ts), so they come along even when
+        // the batch is missing/stale: the famous-quote library (golden source)
+        // and the internet-line pool (normal-card source). Each is served as a
+        // small DAILY WINDOW of the full library (quotes-store.ts dailyWindow)
+        // so the payload stays light as the libraries grow toward their caps;
+        // the full pools are visible on GET /admin/quotes for the routine.
+        const [quotesLib, inetLib] = await Promise.all([readQuotes(env, lang), readInet(env, lang)]);
+        const quotes = dailyWindow(quotesLib, today(), parseInt(env.QUOTES_WINDOW || '150', 10));
+        const inet = dailyWindow(inetLib, today(), parseInt(env.INET_WINDOW || '200', 10));
         // no en fallback for a missing zh batch (possible until the first cron
         // after deploy): the app treats an empty answer as "use built-ins",
         // which keeps a Chinese user on Chinese cards instead of English ones
         const raw = await env.KV.get(batchKey(lang));
-        if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes });
+        if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes, inet });
         const data = JSON.parse(raw) as CardsBatch;
         const char = url.searchParams.get('char');
-        if (char) return json({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes });
-        return json({ ...data, quotes });
+        if (char) return json({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes, inet });
+        return json({ ...data, quotes, inet });
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -198,10 +223,10 @@ export default {
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
         const system = buildChatSystem(persona, p, await todaysMusings(env, p.charId, asLang(p.lang)));
-        const messages = (p.messages || []).map((m) => ({
+        const messages = mergeTurns((p.messages || []).map((m) => ({
           role: m.who === 'user' ? 'user' : 'assistant',
           content: m.text || '',
-        }));
+        })));
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — warm but coherent; higher tipped non-English replies into word salad
@@ -213,7 +238,16 @@ export default {
         const { tag, body } = parseTag(out);
         const { gesture, body: afterGesture } = parseGesture(body); // optional action to act out
         const { remember, body: text } = parseRemember(afterGesture); // optional durable fact to keep
-        return json({ tag, gesture, remember, text: text.slice(0, 260), provider, model });
+        // burst bubbles: the model may split a reply into up to 3 short bubbles
+        // with " ||| ". parts feeds newer clients (typed out one after another);
+        // text stays the joined whole so older builds render one clean bubble.
+        // Stray leading tags on later bubbles are stripped, not leaked.
+        const parts = text.split(/\s*\|{2,}\s*/)
+          .map((s) => parseGesture(parseTag(s).body).body.trim())
+          .filter(Boolean)
+          .slice(0, 3)
+          .map((s) => s.slice(0, 180));
+        return json({ tag, gesture, remember, text: parts.join(' ').slice(0, 420), parts, provider, model });
       }
 
       // Batch memory extraction — one call per conversation lull (see
@@ -242,7 +276,8 @@ export default {
         reportBad(ctx, env, chain, bad, failed, provider);
         if (!raw || !raw.trim()) return json({ facts: null, provider }); // chain failed — don't spend budget
         await bumpQuota(env, q); // a real extraction pass counts
-        return json({ facts: parseDistillFacts(raw, chunk.length, (p.memory || []).length), provider, model });
+        // loops: the updated open-thread list (null = model omitted the key → app keeps its own)
+        return json({ facts: parseDistillFacts(raw, chunk.length, (p.memory || []).length), loops: parseDistillLoops(raw), provider, model });
       }
 
       // Periodic memory curation — the app calls this weekly-ish, or when the
@@ -374,6 +409,20 @@ export default {
         return json({ ok: true, lang, date: batch.date, counts: batchCounts(batch) });
       }
 
+      // FULL persistent libraries (quotes + inet), admin-gated — the daily
+      // routine reads this before generating so it can dedupe (incl.
+      // paraphrases) and count lines per source. GET /cards no longer works
+      // for that: it serves only a small daily window of each pool.
+      if (url.pathname === '/admin/quotes' && request.method === 'GET') {
+        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
+        const langParam = url.searchParams.get('lang');
+        if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
+        const lang = asLang(langParam);
+        const [quotes, inet] = await Promise.all([readQuotes(env, lang), readInet(env, lang)]);
+        return json({ lang, quotes, inet, totals: { quotes: quotes.length, inet: inet.length } });
+      }
+
       // Append fresh famous quotes to the persistent library (the golden-card
       // source). The daily membership routine POSTs a few new lines here; the
       // Worker dedupes against the existing library and keeps the newest
@@ -387,8 +436,26 @@ export default {
         const lang = asLang(langParam);
         const body = (await request.json().catch(() => null)) as { quotes?: unknown } | null;
         if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
-        const max = parseInt(env.QUOTES_LIB_MAX || '1000', 10);
+        const max = parseInt(env.QUOTES_LIB_MAX || '5000', 10);
         const { added, total } = await appendQuotes(env, lang, body.quotes, max);
+        return json({ ok: true, lang, added, total });
+      }
+
+      // Append internet-era lines to the persistent normal-card pool: the
+      // daily routine POSTs the low-provenance half of its quote hunt here
+      // (circulating 网络/no-source lines — see generate-pools.md §3), and the
+      // maintainer can hand-add via the same door (seed lives in
+      // scripts/internet-lines.*.txt). Body: { lines: ["…", …] }.
+      if (url.pathname === '/admin/inet' && request.method === 'POST') {
+        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
+        const langParam = url.searchParams.get('lang');
+        if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
+        const lang = asLang(langParam);
+        const body = (await request.json().catch(() => null)) as { lines?: unknown } | null;
+        if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
+        const max = parseInt(env.INET_LIB_MAX || '1000', 10);
+        const { added, total } = await appendInet(env, lang, body.lines, max);
         return json({ ok: true, lang, added, total });
       }
 

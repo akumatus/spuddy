@@ -24,10 +24,10 @@ export const DAILY_DRAW_LIMIT = Infinity;
 // each miss ramps the chance up, and hitting a golden resets it to zero.
 // Persists across days: a once-a-day user builds up pity over a few days and
 // is guaranteed one, naturally recreating the "a golden every few days" rhythm.
-// Start 20% + 15% per miss ⇒ guaranteed by the 7th draw; averages ~1 in 2.7 (≈37%).
+// Start 30% + 15% per miss ⇒ guaranteed by the 6th draw; averages ~1 in 2.3 (≈44%).
 // Want rarer: lower BASE/RAMP; more generous: raise them. Just after a golden it
 // drops back to BASE, so goldens rarely cluster.
-const GOLDEN_BASE = 0.20; // starting chance right after a golden
+const GOLDEN_BASE = 0.30; // starting chance right after a golden
 const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 
 // Where a golden card's text comes from. A golden is either the live
@@ -37,16 +37,16 @@ const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 // the weave; the rest (and every golden before any memory exists, and any live
 // miss: offline, over budget) take a famous quote. The quote pool is bundled
 // with the app, so a golden always lands even fully offline.
-const GOLDEN_LIVE_CHANCE = 0.2;
+const GOLDEN_LIVE_CHANCE = 0.1;
 
-// Live-weave pity. A flat 20% roll leaves long all-quote streaks (0.8^10 ≈ 11%)
+// Live-weave pity. A flat 10% roll leaves long all-quote streaks (0.9^8 ≈ 43%)
 // that read as "the weave never happens". state.weavePity counts goldens since
 // the last DELIVERED weave; at the limit the next golden skips the roll and
 // attempts the weave outright. Misses count too (offline, over budget), so a
 // dry stretch keeps trying every golden until one lands. It also accrues while
 // no memory exists yet — the first golden after his first memory then weaves
 // right away, which is exactly the moment it should feel personal.
-const WEAVE_PITY_LIMIT = 4; // quote-goldens in a row before a weave is forced
+const WEAVE_PITY_LIMIT = 8; // quote-goldens in a row before a weave is forced
 
 // How many memory facts a single live weave is fed. Kept small on purpose: the
 // weave references one concrete memory, so feeding the whole set every time
@@ -64,12 +64,25 @@ function syncUsedCards(): void {
   if (!state.usedCards || state.usedCards.date !== d) state.usedCards = { date: d, used: [] };
 }
 
+// The persistent pools' used-lists remember full line texts and persist across
+// days, so they'd grow without bound (fattening every state.json rewrite) and
+// the old `includes` scan cost O(pool × used) per draw. Cap them to the most
+// recent entries — the server serves those pools as small daily windows, so
+// "not among the last 500 seen" is indistinguishable from perfect
+// no-replacement — and do lookups through a Set.
+const USED_RECENT_CAP = 500;
+function trimUsed(used: string[]): void {
+  if (used.length > USED_RECENT_CAP) used.splice(0, used.length - USED_RECENT_CAP);
+}
+
 // Famous-quote gacha without replacement — the golden card's non-live source.
-// The pool is static (not daily), so its used-list persists across batches and
-// only clears once the whole pool has been seen.
+// The pool persists (today's window of the server library, or the bundled
+// static pool), so its used-list lives in state rather than resetting with the
+// daily batch; it only clears once today's whole pool has been seen.
 function pickQuote(pool: Quote[]): Quote {
   const state = ctx.state;
-  const unseen = pool.filter((x) => !state.usedQuotes.includes(x.q) && x.q !== state.msg);
+  const used = new Set(state.usedQuotes);
+  const unseen = pool.filter((x) => !used.has(x.q) && x.q !== state.msg);
   let pick: Quote;
   if (unseen.length) {
     pick = pickOf(unseen);
@@ -79,6 +92,35 @@ function pickQuote(pool: Quote[]): Quote {
     pick = pickOf(lap.length ? lap : pool);
   }
   state.usedQuotes.push(pick.q);
+  trimUsed(state.usedQuotes);
+  return pick;
+}
+
+// Normal-card sources: the PERSISTENT internet-line pool (circulating
+// 网络/no-source lines the server accumulates daily — the ambient-encouragement
+// bed) mixed with the small DAILY generated batch (the dare/joke/sincere
+// topping). When both are up, this is the share of draws that take an internet
+// line; the rest (~20%) take the day's fresh batch. Either side alone serves
+// 100%.
+const INET_CHANCE = 0.8;
+
+// Internet-line gacha without replacement — mirrors pickQuote: the pool
+// persists (today's window of the server library), so its used-list lives in
+// state and only clears once today's whole pool has been seen.
+function pickInet(pool: string[]): string {
+  const state = ctx.state;
+  const used = new Set(state.usedInet);
+  const unseen = pool.filter((m) => !used.has(m) && m !== state.msg);
+  let pick: string;
+  if (unseen.length) {
+    pick = pickOf(unseen);
+  } else {
+    state.usedInet = [];
+    const lap = pool.filter((m) => m !== state.msg);
+    pick = pickOf(lap.length ? lap : pool);
+  }
+  state.usedInet.push(pick);
+  trimUsed(state.usedInet);
   return pick;
 }
 
@@ -95,22 +137,27 @@ export function drawToday(): void {
     return;
   }
   state.pity++;
-  // Normal cards are the everyday LLM pool, drawn without replacement: each
-  // line is marked and sits out until the pool is exhausted (then the marks
-  // clear and the pool laps). Famous quotes are reserved for goldens. The
-  // built-in DAILY pool is a pure offline fallback — only when no server pool
-  // is reachable — and it draws freely (no retirement, just no instant repeat).
+  // Normal cards mix two server pools, both drawn without replacement: the
+  // persistent internet-line pool (circulating no-source encouragement,
+  // used-list in state until it laps) and the small daily generated
+  // dare/joke/sincere batch (used-list resets with each new batch). Famous
+  // quotes are reserved for goldens. The built-in DAILY pool is a pure
+  // offline fallback — only when no server pool is reachable — and it draws
+  // freely (no retirement, just no instant repeat).
   syncUsedCards();
-  const serverPool = remote.normalPool(ctx.activeChar().id);
+  const dailyPool = remote.normalPool(ctx.activeChar().id);
+  const inetPool = remote.serverInet();
   let msg: string;
-  if (serverPool) {
-    const unseen = serverPool.filter((m) => !state.usedCards.used.includes(m) && m !== state.msg);
+  if (inetPool && (!dailyPool || Math.random() < INET_CHANCE)) {
+    msg = pickInet(inetPool);
+  } else if (dailyPool) {
+    const unseen = dailyPool.filter((m) => !state.usedCards.used.includes(m) && m !== state.msg);
     if (unseen.length) {
       msg = pickOf(unseen);
     } else {
       state.usedCards.used = [];
-      const lap = serverPool.filter((m) => m !== state.msg);
-      msg = pickOf(lap.length ? lap : serverPool);
+      const lap = dailyPool.filter((m) => m !== state.msg);
+      msg = pickOf(lap.length ? lap : dailyPool);
     }
     state.usedCards.used.push(msg);
   } else {

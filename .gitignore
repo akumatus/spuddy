@@ -1,5 +1,7 @@
 claude-design/
 3d-models/
+# generated media (promo audio/video renders etc.) — large binaries, never for git
+outputs/
 .DS_Store
 .claude/settings.local.json
 web/.wrangler/

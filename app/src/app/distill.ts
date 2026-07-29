@@ -98,6 +98,7 @@ async function runDistill(): Promise<void> {
       day: state.day,
       lang: lang(),
       memory: memSnapshot,
+      loops: store.activeLoops(state), // current open threads — the pass returns the updated list
       context: state.chat.slice(Math.max(start - CONTEXT_TAIL, 0), start).map((m) => ({ who: m.who, text: m.text })),
       messages: chunk.map((m) => ({ who: m.who, text: m.text })),
     }).catch(() => null);
@@ -115,6 +116,9 @@ async function runDistill(): Promise<void> {
         if (m && m.who === 'user') m.mem = kind;
       }
     }
+    // updated open-thread list — resolved threads dropped, new ones added.
+    // null/absent means an older server or a drifted reply: keep ours.
+    if (Array.isArray(res.loops)) store.setLoops(state, res.loops.filter((s): s is string => typeof s === 'string'));
     state.distilledUpTo = total;
     ctx.persist();
     // fresh facts may have pushed the list toward the cap — curate if due

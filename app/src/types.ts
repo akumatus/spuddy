@@ -53,6 +53,13 @@ export interface ChatMessage {
   char?: CharId;
 }
 
+// A short-lived pending thing (an interview, a bug hunt, waiting on news) the
+// pet asks about later — maintained by the distill pass, expires fast (store.ts).
+export interface OpenLoop {
+  text: string;
+  day: number; // friendship day it was first noted — the expiry anchor
+}
+
 export interface MemoryFact {
   day: number;
   fact: string;
@@ -95,8 +102,10 @@ export interface AppState {
   cards: KeptCard[];
   usedCards: UsedPool; // server normal-pool lines drawn this batch (no-replacement gacha)
   usedQuotes: string[]; // famous-quote lines drawn (golden source) — static pool, persists until it laps
+  usedInet: string[]; // internet-line pool lines drawn (normal source) — persistent pool, persists until it laps
   usedMemory: UsedPool; // memory facts fed to a golden weave today (rotation, no same-day repeat); date = calendar day
   memory: MemoryFact[]; // durable facts he's distilled about the human
+  loops: OpenLoop[]; // open threads to circle back to ("how did the interview go?")
   chat: ChatMessage[];
   // batch memory extraction cursor — how many chat.jsonl lines (absolute file
   // count, NOT an index into the state.chat window) have been distilled. See
@@ -163,7 +172,8 @@ export interface CardsBatch {
   normal?: string[]; // the shared voice-neutral pool every persona draws from
   bubbles?: Bubbles; // shared daily bubble/greeting pools (absent on pre-Phase-B batches)
   cards: Record<string, CharBatch | null | undefined>;
-  quotes?: Quote[]; // today's famous-quote library from the server (golden source)
+  quotes?: Quote[]; // today's window of the server quote library (golden source)
+  inet?: string[]; // today's window of the internet-line pool (normal-card source, no attributions)
 }
 
 // ── AI requests / replies over the preload bridge ──
@@ -183,6 +193,7 @@ export interface AiReplyRequest {
   day: number;
   memory: MemoryFact[]; // the FULL fact list — the model needs it all to dedupe and stay consistent
   fresh?: string[]; // rotated subset of memory facts to prefer bringing up this turn
+  loops?: string[]; // open threads — the prompt may weave a follow-up on one
   messages: ChatMessage[];
   lang?: Lang; // picks the matching daily-batch musings server-side
   // this build extracts memory in batch (app/distill.ts) — the server omits the
@@ -192,6 +203,9 @@ export interface AiReplyRequest {
 
 export interface AiReplyResult {
   text?: string | null;
+  // burst bubbles — the reply split into 1-3 short messages typed out one
+  // after another (server splits on " ||| "); absent on older servers
+  parts?: string[] | null;
   tag?: string; // EmotionTag, but the model may drift — validated app-side
   gesture?: string | null;
   remember?: RememberNote | null;
@@ -204,6 +218,7 @@ export interface AiDistillRequest {
   day: number;
   lang?: Lang; // 'zh' → facts written in Chinese
   memory: MemoryFact[]; // FULL current fact list — the server's "already known" dedupe context
+  loops?: string[]; // current open-thread list — the pass returns the updated one
   context: { who: string; text: string }[]; // already-distilled tail — extract nothing from these
   messages: { who: string; text: string }[]; // the undistilled chunk
 }
@@ -222,6 +237,7 @@ export interface DistilledFact {
 
 export interface AiDistillResult {
   facts?: DistilledFact[] | null; // null: provider chain failed — keep the cursor, retry later
+  loops?: string[] | null; // updated open-thread list; null/absent → keep the current one
   limited?: boolean; // daily real-time budget spent (server 429)
 }
 
@@ -248,6 +264,17 @@ export interface ConsolidateOpDto {
 export interface AiConsolidateResult {
   ops?: ConsolidateOpDto[] | null; // null: provider chain failed — retry at the next trigger
   limited?: boolean; // daily real-time budget spent (server 429)
+}
+
+// Open-the-app follow-up hello (POST /greet): fired only when an open thread
+// is pending, so the pet greets with "how did it go?" instead of a pool line.
+export interface AiGreetRequest {
+  charId: CharId;
+  day: number;
+  daypart: Daypart;
+  memory: MemoryFact[];
+  loops: string[];
+  lang?: Lang;
 }
 
 export interface AiGoldenRequest {
@@ -289,6 +316,7 @@ export interface PreloadBridge {
     distill?(payload: AiDistillRequest): Promise<AiDistillResult | null>; // absent on older preloads
     consolidate?(payload: AiConsolidateRequest): Promise<AiConsolidateResult | null>; // absent on older preloads
     golden(payload: AiGoldenRequest): Promise<string | null>;
+    greet?(payload: AiGreetRequest): Promise<string | null>; // absent on older preloads
   };
   cards: {
     today(lang?: Lang): Promise<CardsBatch | null>;

@@ -10,6 +10,7 @@ import type {
   AiDistillRequest,
   AiDistillResult,
   AiGoldenRequest,
+  AiGreetRequest,
   AiReplyRequest,
   AiReplyResult,
   CardsBatch,
@@ -25,7 +26,14 @@ export function registerAiIpc(): void {
       if (!res.ok) return null;
       const data = (await res.json()) as AiReplyResult | null;
       return data && data.text
-        ? { tag: data.tag || 'calm', gesture: data.gesture || null, remember: data.remember || null, text: data.text }
+        ? {
+            tag: data.tag || 'calm',
+            gesture: data.gesture || null,
+            remember: data.remember || null,
+            text: data.text,
+            // burst bubbles (absent on older servers) — sanitized to plain strings
+            parts: Array.isArray(data.parts) ? data.parts.filter((s): s is string => typeof s === 'string' && !!s.trim()) : null,
+          }
         : null;
     } catch (e) {
       return null; // offline / server down → renderer uses its in-voice fallback
@@ -55,6 +63,19 @@ export function registerAiIpc(): void {
       if (res.status === 429) return { limited: true }; // daily budget spent
       if (!res.ok) return null; // incl. 404 from a not-yet-deployed server
       return ((await res.json()) as AiConsolidateResult | null) || null;
+    } catch (e) {
+      return null; // offline / server down
+    }
+  });
+
+  // Open-the-app follow-up hello — only fired when an open thread is pending
+  // (see src/main.ts greetFollowUp). Failure just means the pool hello stands.
+  ipcMain.handle('ai-greet', async (_e, p: AiGreetRequest): Promise<string | null> => {
+    try {
+      const res = await serverFetch('/greet', { method: 'POST', body: { deviceId: DEVICE_ID, ...p } });
+      if (!res.ok) return null; // incl. 429 — the pool hello already covered the boot
+      const data = (await res.json()) as { text?: string | null } | null;
+      return data && data.text ? data.text : null;
     } catch (e) {
       return null; // offline / server down
     }

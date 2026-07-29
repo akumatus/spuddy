@@ -11,7 +11,9 @@
     "gen:dev": "curl -s -X POST 'http://localhost:8787/admin/generate?lang=en' -H \"x-pp-admin: dev\" && curl -s -X POST 'http://localhost:8787/admin/generate?lang=zh' -H \"x-pp-admin: dev\"",
     "typecheck": "tsc",
     "eval:build": "esbuild eval/memory-eval.ts --bundle --platform=node --format=esm --outfile=eval/run.mjs --log-level=warning",
-    "eval": "npm run eval:build && node eval/run.mjs"
+    "eval": "npm run eval:build && node eval/run.mjs",
+    "eval:voice:build": "esbuild eval/voice-eval.ts --bundle --platform=node --format=esm --outfile=eval/voice-run.mjs --log-level=warning",
+    "eval:voice": "npm run eval:voice:build && node eval/voice-run.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",

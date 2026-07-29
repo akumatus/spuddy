@@ -119,7 +119,9 @@ export async function runChat(): Promise<void> {
       day: state.day,
       memory: store.activeMemory(state), // the FULL active list — dedupe + a consistent picture of them; attic stays home
       fresh: nextMemories(CHAT_MEMORY_FEED).map((m) => m.fact), // rotated "bring one up" candidates
-      messages: state.chat.slice(-12),
+      loops: store.activeLoops(state), // open threads he may circle back to
+      messages: state.chat.slice(-30), // wider window so long chats keep their own start in view
+
       lang: lang(), // picks the matching daily-batch musings server-side
       distill: true, // memory extraction runs in batch (distill.ts) — drop the in-reply rules
     }).catch(() => null); // dropped connection → fall back instead of hanging chatBusy
@@ -127,20 +129,23 @@ export async function runChat(): Promise<void> {
 
     let tag = 'calm';
     let gesture: string | null = null;
-    let reply = chatFallback(ch.id);
+    // a reply is 1-3 burst bubbles — texting rhythm; fallback/limit stay single
+    let parts = [chatFallback(ch.id)];
     if (res && res.limited) {
       // daily real-time budget spent — warm "let's pick this up tomorrow" line
-      reply = limitReply(ch.id);
+      parts = [limitReply(ch.id)];
     } else if (res && res.text) {
       tag = res.tag || 'calm';
       gesture = res.gesture || null;
-      reply = res.text;
+      parts = res.parts && res.parts.length ? res.parts : [res.text];
     }
     // let the LLM lead; fall back to a keyword read of what they asked for so
     // "sing me a song" still lands even offline / over budget
     if (!gesture) gesture = detectGesture(covered.join(' '));
     reactToReply(tag, gesture);
-    state.chat.push({ who: 'pet', text: reply, day: state.day, date: store.todayStr(), char: ch.id });
+    for (const part of parts) {
+      state.chat.push({ who: 'pet', text: part, day: state.day, date: store.todayStr(), char: ch.id });
+    }
     if (res && res.remember && res.remember.fact) {
       const kind = rememberFact(res.remember.fact, res.remember.kind, res.remember.mood, tag);
       // mark the human's line that revealed it, so the transcript shows the stitch
@@ -152,7 +157,13 @@ export async function runChat(): Promise<void> {
     }
     ctx.persist();
     scheduleDistill(); // pet reply landed — restart the lull clock
-    bubble(reply, { hold: 9000, type: true });
+    for (let i = 0; i < parts.length; i++) {
+      const last = i === parts.length - 1;
+      // non-final bubbles hold only their beat — the next one replaces them
+      bubble(parts[i], { hold: last ? 9000 : 0, type: true });
+      // typewriter (~15ms/char) plus a reading beat before the next bubble
+      if (!last) await new Promise((r) => setTimeout(r, Math.min(3400, 900 + parts[i].length * 70)));
+    }
     setTimeout(() => $('said').classList.add('hidden'), 4200);
 
     // let the reply land before he turns to whatever you said meanwhile
