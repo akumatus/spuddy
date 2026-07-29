@@ -25,9 +25,6 @@
 //      how hard the baked AO darkens (albedo multiply curve / aoMap weight); the
 //      defaults were tuned on the warmer 2026-07-04 scans, lighter bakes may want
 //      a gentler floor.
-//      TRIM_SILVER=1 — render the 'trim' part as bare polished metal (spud's wire
-//      glasses): flat silver base, metallic 1, no sheen/AO/textures, so the IBL
-//      supplies the shine. Leave unset for yarn trims (taco's shell, grad's cap).
 // Then merge the card JSON into public/models/cards.json under the character id.
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, KHRMaterialsSheen } from '@gltf-transform/extensions';
@@ -519,33 +516,6 @@ console.log('total tris after simplify:', total);
     }
   } else if (process.env.BAKED_DIFFUSE === '1') {
     console.warn('baked-diffuse hybrid requested but skipped — need ao.png + ao_all.png + base_basic_shaded.glb next to the input');
-  }
-}
-
-// ---- trim as polished metal (TRIM_SILVER=1) ----
-// The scanned albedo paints spud's wire glasses near-black, and the yarn
-// treatment (sheen + AO multiply) buries them further. Real thin wire reads
-// silver because it mirrors the environment, not because its surface is
-// light — so drop every texture from the trim material and let a bare
-// metallic BRDF + the scene IBL do the work.
-if (process.env.TRIM_SILVER === '1') {
-  // TRIM_SILVER_COLOR tints the metal (F0): bright chrome ~0.72, gunmetal ~0.25.
-  // TRIM_SILVER_ROUGH softens the glints as it rises.
-  const tint = (process.env.TRIM_SILVER_COLOR || '0.72,0.73,0.75').split(',').map(Number);
-  const rough = Number(process.env.TRIM_SILVER_ROUGH || 0.35);
-  for (const p of parts) {
-    if (p.node.getName() !== 'trim') continue;
-    const mat = p.prim.getMaterial();
-    if (!mat) continue;
-    mat.setBaseColorTexture(null);
-    mat.setBaseColorFactor([...tint, 1]);
-    mat.setMetallicRoughnessTexture(null);
-    mat.setMetallicFactor(1);
-    mat.setRoughnessFactor(rough);
-    mat.setNormalTexture(null);
-    mat.setOcclusionTexture(null);
-    mat.setExtension('KHR_materials_sheen', null);
-    console.log(`trim -> metal (tint ${tint.join(',')} / rough ${rough})`);
   }
 }
 
