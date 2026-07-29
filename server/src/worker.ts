@@ -82,11 +82,20 @@ interface QuotaState {
   ok: boolean;
 }
 
+// The daily per-device budget: KV config:current.chatLimit (hot-updatable via
+// POST /admin/config — applies from the very next request, no redeploy, no
+// client change) with the CHAT_DAILY_LIMIT [vars] default as fallback. One
+// shared budget across chat/distill/consolidate/golden/greet.
+function dailyLimit(env: Env, cfg: RuntimeConfig): number {
+  const v = cfg.chatLimit;
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 1) return v;
+  return parseInt(env.CHAT_DAILY_LIMIT || '50', 10);
+}
+
 // Read-only budget check. Counting is deferred to bumpQuota, which only runs
 // after a successful model reply — so a failed/errored/over-quota provider call
 // never burns the user's daily budget.
-async function quotaState(env: Env, deviceId: string | undefined): Promise<QuotaState> {
-  const limit = parseInt(env.CHAT_DAILY_LIMIT || '40', 10);
+async function quotaState(env: Env, deviceId: string | undefined, limit: number): Promise<QuotaState> {
   const key = `q:${deviceId || 'anon'}:${today()}`;
   const used = parseInt((await env.KV.get(key)) || '0', 10);
   return { key, used, limit, ok: used < limit };
@@ -201,24 +210,29 @@ export default {
         // small DAILY WINDOW of the full library (quotes-store.ts dailyWindow)
         // so the payload stays light as the libraries grow toward their caps;
         // the full pools are visible on GET /admin/quotes for the routine.
-        const [quotesLib, inetLib] = await Promise.all([readQuotes(env, lang), readInet(env, lang)]);
+        // config:current.tuning rides along too — the client product knobs
+        // (gacha odds etc.), adjustable via POST /admin/config with no app
+        // release; absent keys just leave the app on its built-in defaults.
+        const [quotesLib, inetLib, cfg] = await Promise.all([readQuotes(env, lang), readInet(env, lang), loadConfig(env)]);
         const quotes = dailyWindow(quotesLib, today(), parseInt(env.QUOTES_WINDOW || '150', 10));
         const inet = dailyWindow(inetLib, today(), parseInt(env.INET_WINDOW || '200', 10));
+        const tuning = cfg.tuning;
         // no en fallback for a missing zh batch (possible until the first cron
         // after deploy): the app treats an empty answer as "use built-ins",
         // which keeps a Chinese user on Chinese cards instead of English ones
         const raw = await env.KV.get(batchKey(lang));
-        if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes, inet });
+        if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes, inet, tuning });
         const data = JSON.parse(raw) as CardsBatch;
         const char = url.searchParams.get('char');
-        if (char) return json({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes, inet });
-        return json({ ...data, quotes, inet });
+        if (char) return json({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes, inet, tuning });
+        return json({ ...data, quotes, inet, tuning });
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = (await request.json()) as ChatPayload;
-        const q = await quotaState(env, p.deviceId);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true, used: q.used, limit: q.limit }, 429);
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
@@ -227,7 +241,6 @@ export default {
           role: m.who === 'user' ? 'user' : 'assistant',
           content: m.text || '',
         })));
-        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — warm but coherent; higher tipped non-English replies into word salad
         const { text: raw, provider, model, failed } = await callLLMChain(env, chain, { system, messages, maxTokens: 300, temperature: 1.0, models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS });
@@ -259,13 +272,13 @@ export default {
       if (url.pathname === '/distill' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = (await request.json()) as DistillPayload;
-        const q = await quotaState(env, p.deviceId);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true }, 429);
         const chunk = (p.messages || []).filter((m) => m && typeof m.text === 'string' && m.text.trim());
         if (!chunk.length) return json({ facts: [] });
 
         const system = buildDistillSystem(p);
-        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 0.2 — extraction wants stability, not creativity
         const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
@@ -287,12 +300,12 @@ export default {
       if (url.pathname === '/consolidate' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = (await request.json()) as ConsolidatePayload;
-        const q = await quotaState(env, p.deviceId);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true }, 429);
         const facts = (p.memory || []).filter((m) => m && typeof m.fact === 'string' && m.fact.trim());
         if (facts.length < 2) return json({ ops: [] }); // nothing to curate
 
-        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 0.2 — curation wants stability, not creativity
         const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
@@ -309,12 +322,12 @@ export default {
       if (url.pathname === '/golden' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = (await request.json()) as ChatPayload;
-        const q = await quotaState(env, p.deviceId);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true }, 429);
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
         const prompt = buildGoldenPrompt(persona, p);
-        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — creative but coherent
         const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
@@ -333,12 +346,12 @@ export default {
       if (url.pathname === '/greet' && request.method === 'POST') {
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
         const p = (await request.json()) as ChatPayload;
-        const q = await quotaState(env, p.deviceId);
+        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+        const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ text: null, limited: true }, 429);
 
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
         const prompt = buildGreetPrompt(persona, p);
-        const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const chain = demoteBad(chatProviderChain(env, cfg), bad);
         const { text: raw, provider, failed } = await callLLMChain(env, chain, {
           system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.0, models: cfg.models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS,
@@ -373,6 +386,23 @@ export default {
             for (const [k, v] of Object.entries(body.models)) {
               if (typeof v === 'string' && v.trim()) next.models[k] = v.trim();
             }
+          }
+          // hot-updatable per-device daily budget: {"chatLimit":50}. POST
+          // replaces the whole config, so omitting it reverts to the [vars]
+          // default on the next request.
+          const lim = Number(body.chatLimit);
+          if (Number.isInteger(lim) && lim >= 1 && lim <= 100000) next.chatLimit = lim;
+          // client product knobs: {"tuning":{"goldenBase":0.25,"inetChance":0.8,…}}
+          // — served to the app on GET /cards, clamped and defaulted client-side,
+          // so the gacha feel is adjustable without an app release. Finite
+          // numbers only; key count capped against runaway configs.
+          if (body.tuning && typeof body.tuning === 'object') {
+            const t: Record<string, number> = {};
+            for (const [k, v] of Object.entries(body.tuning as Record<string, unknown>).slice(0, 32)) {
+              const n = Number(v);
+              if (k.trim() && k.length <= 40 && Number.isFinite(n)) t[k.trim()] = n;
+            }
+            if (Object.keys(t).length) next.tuning = t;
           }
           await env.KV.put('config:current', JSON.stringify(next));
           return json({ ok: true, config: next });

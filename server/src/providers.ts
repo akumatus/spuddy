@@ -9,6 +9,16 @@ export interface RuntimeConfig {
   chat?: string;
   gen?: string;
   models?: Record<string, string>;
+  // per-device daily budget for the real-time endpoints — hot-updatable via
+  // POST /admin/config with no redeploy; absent → the CHAT_DAILY_LIMIT [vars]
+  // default applies
+  chatLimit?: number;
+  // client-side product knobs (gacha odds, mix rates, draw limits) served to
+  // the app on GET /cards — tune the feel with one admin call instead of an
+  // app release users may never install. Free-form number map so new knobs
+  // need no server change; the app clamps every value and falls back to its
+  // built-in default when a key is absent (see app/src/remote.ts tune()).
+  tuning?: Record<string, number>;
 }
 
 interface ProviderCfg {

@@ -13,7 +13,7 @@ import { isOverlayOpen } from '../ui/overlay';
 import { chatSend } from './chat';
 import { $, ctx, pp } from './context';
 import { scheduleDistill } from './distill';
-import { DAILY_DRAW_LIMIT, drawToday, openCard } from './gacha';
+import { dailyDrawLimit, drawToday, openCard } from './gacha';
 import { applyLangPref, onLangChange } from './lang';
 import { openBook, openBuddies } from './panels';
 import { bubble, hideBubble } from './speech';
@@ -94,7 +94,7 @@ export function tapPet(target: PickTarget): void {
     ctx.brain.interrupt(); // the card is functional UI — it always answers
     tapBusyUntil = 0;
     if (ctx.chatBusy || ctx.weaving || isOverlayOpen()) return;
-    if (ctx.state.draws < DAILY_DRAW_LIMIT) {
+    if (ctx.state.draws < dailyDrawLimit()) {
       // still have draw budget (always true when uncapped) → draw a new card; once used up, tapping the card reopens the current one instead
       ctx.anim().play('squish'); // the card says "tap me :)" — this is the draw
       drawToday();

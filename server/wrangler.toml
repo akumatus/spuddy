@@ -35,6 +35,12 @@ id = "276e01a434db4d07a1576578862a45fe"
 #   curl -XPOST https://api.cherry.surf/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>' \
 #     -d '{"chat":"anthropic","gen":"openai","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
 #   curl https://api.cherry.surf/admin/config -H 'x-pp-admin: <ADMIN_TOKEN>'   # read current
+# config:current also carries "tuning" — client product knobs (gacha odds, mix
+# rates, draw limit) served to the app on GET /cards, so the feel is adjustable
+# without an app release: {"tuning":{"goldenBase":0.25,"goldenRamp":0.05,
+# "weaveChance":0.1,"weavePity":8,"inetChance":0.8,"flavorChance":0.15,
+# "drawLimit":3}}. POST replaces the WHOLE config — GET first, merge, resend.
+# Absent keys leave the app on its built-in defaults (app/src/app/gacha.ts).
 # Provider values: "openai" | "gemini" | "deepseek" | "anthropic" (alias "claude").
 #
 # No geo routing — every request uses the same ordered fallback chain
@@ -51,8 +57,11 @@ ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 OPENAI_MODEL = "gpt-5.6-luna"
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
-# Per-device daily budget for real-time LLM calls (chat + golden weave combined).
-CHAT_DAILY_LIMIT = "100"
+# Per-device daily budget for real-time LLM calls (chat/distill/consolidate/
+# golden/greet share it). DEFAULT only — override live with no redeploy via
+#   curl -XPOST .../admin/config -H 'x-pp-admin: TOKEN' -d '{"chatLimit":50, ...}'
+# (POST replaces the whole config — resend chat/gen/models along with it).
+CHAT_DAILY_LIMIT = "50"
 # Pool sizes. CARDS_PER_DAY is the SHARED generated normal pool (voice-neutral —
 # every persona draws from it). Small since 2026-07: generation covers the
 # three kept genres (dare + joke + one lean sincere pass, ~14 lines each,

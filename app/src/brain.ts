@@ -18,6 +18,7 @@
 //   - routine step mutter/speak lines are variant pools (arrays picked at
 //     random), not the prototype's single fixed strings
 import { pool, type MutterPool } from './content';
+import { tune } from './remote';
 import type { AnimMode, Animator } from './scene/motions';
 
 export type BrainState =
@@ -171,7 +172,8 @@ export interface BrainOptions {
 
 // How often an idle mutter comes from the active buddy's tiny flavor set
 // instead of the shared pool — enough accent to be felt, rare enough that the
-// ~4 flavor lines don't wear out within a day.
+// ~4 flavor lines don't wear out within a day. Server-tunable as
+// 'flavorChance' (remote.tune) like the gacha knobs.
 const FLAVOR_CHANCE = 0.15;
 
 export class SpudBrain {
@@ -292,7 +294,7 @@ export class SpudBrain {
     // Bubbles.mutter), else the built-in lines. Always without replacement,
     // so a pool cycles fully before any repeat.
     const fl = this.flavor();
-    if (fl && fl.length && Math.random() < FLAVOR_CHANCE) return this.pickNoRepeat(fl);
+    if (fl && fl.length && Math.random() < tune('flavorChance', FLAVOR_CHANCE, 0, 1)) return this.pickNoRepeat(fl);
     return this.pickNoRepeat(pool('mutter', poolKey));
   }
   // Draw one line from a pool WITHOUT replacement. Used indices are tracked per

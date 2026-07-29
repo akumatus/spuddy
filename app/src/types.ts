@@ -174,6 +174,7 @@ export interface CardsBatch {
   cards: Record<string, CharBatch | null | undefined>;
   quotes?: Quote[]; // today's window of the server quote library (golden source)
   inet?: string[]; // today's window of the internet-line pool (normal-card source, no attributions)
+  tuning?: Record<string, number>; // server-tuned product knobs (gacha odds etc.) — see remote.ts tune()
 }
 
 // ── AI requests / replies over the preload bridge ──

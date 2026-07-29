@@ -86,6 +86,18 @@ export function serverInet(): string[] | null {
   return Array.isArray(arr) && arr.length ? arr : null;
 }
 
+// Server-tuned product knob riding on the daily /cards answer (config:current
+// .tuning, set via POST /admin/config) — lets the maintainer adjust gacha odds
+// and mix rates for EVERY install without shipping an app update users might
+// never take. Callers pass their built-in constant as the fallback, which also
+// serves offline and pre-first-fetch; values are clamped to [min, max] so a
+// fat-fingered config can never break the app.
+export function tune(key: string, fallback: number, min: number, max: number): number {
+  const t = BATCH && BATCH.tuning;
+  const v = t ? t[key] : undefined;
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+}
+
 // Today's flavor lines for a persona ('mutter' | 'greet') — a small daily set
 // in that character's own voice, or null. Mixed into the shared pools at a low
 // rate by the callers; returns the batch's own array (stable identity).

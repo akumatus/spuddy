@@ -522,7 +522,7 @@ export function buildGreetPrompt(persona: Persona, p: ChatPayload): string {
     persona.voice +
     ` It is ${when} where they are, day ${p.day || 1} together. They just opened you on their desk. ` +
     (loops.length
-      ? `Between you two these threads are still open:\n${loops.map((s) => `- ${s}`).join('\n')}\nGreet them by warmly asking how the most recent one is going — specific and casual, a friend who remembered, never an interrogation; skip the card nudge this time. `
+      ? `Between you two these threads are still open:\n${loops.map((s) => `- ${s}`).join('\n')}\nGreet them by warmly asking how the most recent one is going — that ONE only, a single question, save the rest for later; specific and casual, a friend who remembered, never an interrogation; skip the card nudge this time. `
       : `Greet them: ONE short spoken hello in your voice, fit to the ${when}, and gently nudge them to tap you for today's card. `) +
     (ctx
       ? `What you know about them ("learned on day N" = which day of your friendship you learned it, never anyone's age):\n${ctx}\n${MEMORY_AGING} Lightly reference one concrete thing if it fits naturally; otherwise keep it warm and general. `

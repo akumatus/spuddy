@@ -13,10 +13,18 @@ import { openBook } from './panels';
 import { bubble } from './speech';
 import type { Quote } from '../types';
 
-// Daily draw limit. Left uncapped for now; to throttle, set a concrete number
-// (e.g. 3 = the first 3 draws a day give new cards, after that tapping the
-// card just reopens the current one).
-export const DAILY_DRAW_LIMIT = Infinity;
+// ── server-tunable knobs ──
+// Every constant below is only the BUILT-IN DEFAULT: draws read the live value
+// through remote.tune(key, default, min, max), which prefers the server's
+// config tuning (riding on the daily /cards answer, set via POST
+// /admin/config) — so odds and mix rates can be adjusted for every install
+// with one admin call, no app release. Offline or unset keys fall back here.
+
+// Daily draw limit ('drawLimit'). Left uncapped for now; to throttle, tune a
+// concrete number (e.g. 3 = the first 3 draws a day give new cards, after
+// that tapping the card just reopens the current one).
+const DAILY_DRAW_LIMIT = Infinity;
+export const dailyDrawLimit = (): number => remote.tune('drawLimit', DAILY_DRAW_LIMIT, 1, Infinity);
 
 // Golden card (GOLDEN STITCH) chance — with pity / smoothing.
 // Pure randomness (fixed probability) is streaky: long droughts, or several
@@ -24,11 +32,11 @@ export const DAILY_DRAW_LIMIT = Infinity;
 // each miss ramps the chance up, and hitting a golden resets it to zero.
 // Persists across days: a once-a-day user builds up pity over a few days and
 // is guaranteed one, naturally recreating the "a golden every few days" rhythm.
-// Start 30% + 15% per miss ⇒ guaranteed by the 6th draw; averages ~1 in 2.3 (≈44%).
-// Want rarer: lower BASE/RAMP; more generous: raise them. Just after a golden it
-// drops back to BASE, so goldens rarely cluster.
-const GOLDEN_BASE = 0.30; // starting chance right after a golden
-const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
+// Start 25% + 5% per miss ⇒ guaranteed by the 16th draw; averages ~1 in 3 (≈33%).
+// Want rarer: lower 'goldenBase'/'goldenRamp'; more generous: raise them. Just
+// after a golden it drops back to base, so goldens rarely cluster.
+const GOLDEN_BASE = 0.25; // starting chance right after a golden ('goldenBase')
+const GOLDEN_RAMP = 0.05; // how much the chance grows per miss ('goldenRamp')
 
 // Where a golden card's text comes from. A golden is either the live
 // personalized weave (LLM + his memories of you) or a curated famous quote —
@@ -37,7 +45,7 @@ const GOLDEN_RAMP = 0.15; // how much the chance grows per miss
 // the weave; the rest (and every golden before any memory exists, and any live
 // miss: offline, over budget) take a famous quote. The quote pool is bundled
 // with the app, so a golden always lands even fully offline.
-const GOLDEN_LIVE_CHANCE = 0.1;
+const GOLDEN_LIVE_CHANCE = 0.1; // ('weaveChance')
 
 // Live-weave pity. A flat 10% roll leaves long all-quote streaks (0.9^8 ≈ 43%)
 // that read as "the weave never happens". state.weavePity counts goldens since
@@ -46,7 +54,7 @@ const GOLDEN_LIVE_CHANCE = 0.1;
 // dry stretch keeps trying every golden until one lands. It also accrues while
 // no memory exists yet — the first golden after his first memory then weaves
 // right away, which is exactly the moment it should feel personal.
-const WEAVE_PITY_LIMIT = 8; // quote-goldens in a row before a weave is forced
+const WEAVE_PITY_LIMIT = 8; // quote-goldens in a row before a weave is forced ('weavePity')
 
 // How many memory facts a single live weave is fed. Kept small on purpose: the
 // weave references one concrete memory, so feeding the whole set every time
@@ -102,7 +110,7 @@ function pickQuote(pool: Quote[]): Quote {
 // topping). When both are up, this is the share of draws that take an internet
 // line; the rest (~20%) take the day's fresh batch. Either side alone serves
 // 100%.
-const INET_CHANCE = 0.8;
+const INET_CHANCE = 0.8; // ('inetChance')
 
 // Internet-line gacha without replacement — mirrors pickQuote: the pool
 // persists (today's window of the server library), so its used-list lives in
@@ -131,7 +139,7 @@ export function drawToday(): void {
   // welcome-back reward (state.draws resets to 0 on day rollover, so draws===1
   // is the day's first). Every later draw still rolls on the pity curve below,
   // so this is a floor on the first draw, not a return to one-card-a-day.
-  if (state.draws === 1 || Math.random() < GOLDEN_BASE + GOLDEN_RAMP * state.pity) {
+  if (state.draws === 1 || Math.random() < remote.tune('goldenBase', GOLDEN_BASE, 0, 1) + remote.tune('goldenRamp', GOLDEN_RAMP, 0, 1) * state.pity) {
     state.pity = 0;
     weaveGolden();
     return;
@@ -148,7 +156,7 @@ export function drawToday(): void {
   const dailyPool = remote.normalPool(ctx.activeChar().id);
   const inetPool = remote.serverInet();
   let msg: string;
-  if (inetPool && (!dailyPool || Math.random() < INET_CHANCE)) {
+  if (inetPool && (!dailyPool || Math.random() < remote.tune('inetChance', INET_CHANCE, 0, 1))) {
     msg = pickInet(inetPool);
   } else if (dailyPool) {
     const unseen = dailyPool.filter((m) => !state.usedCards.used.includes(m) && m !== state.msg);
@@ -204,7 +212,8 @@ export async function weaveGolden(): Promise<void> {
   // .catch → null so a dropped connection can't leave the weave spinning.
   const tryLive =
     store.activeMemory(ctx.state).length > 0 &&
-    (ctx.state.weavePity >= WEAVE_PITY_LIMIT || Math.random() < GOLDEN_LIVE_CHANCE);
+    (ctx.state.weavePity >= remote.tune('weavePity', WEAVE_PITY_LIMIT, 1, 99) ||
+      Math.random() < remote.tune('weaveChance', GOLDEN_LIVE_CHANCE, 0, 1));
   const memory = tryLive ? nextMemories(GOLDEN_MEMORY_FEED) : [];
   const [aiMsg] = await Promise.all([
     tryLive
