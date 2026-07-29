@@ -28,14 +28,19 @@ There are TWO kinds of content, generated and POSTed differently:
 Read the **exact current prompts and persona voices** from
 [`server/src/personas.ts`](../src/personas.ts) so the register never drifts:
 
-- `buildNormalBatchPrompt(n, lang)` — the shared, voice-neutral normal pool.
-  Generate **~180 lines** (matches `CARDS_PER_DAY`). Follow every rule in that
-  prompt: warm neutral potato voice, no character quirks, no pet names, no
-  fortune-cookie metaphors, avoid the `BANNED_PHRASES`, vary sentence shapes.
-  At this size especially, generate across **~9 focused passes of ~20 lines**
-  (each drawing its own inspiration seeds) rather than one long dump — long
-  batches template out toward the tail. `/admin/put` dedupes and caps at
-  `CARDS_PER_DAY`, so a little overshoot is fine.
+- `buildNormalBatchPrompt(n, lang, genre)` — the shared, voice-neutral normal
+  pool, **~180 lines total** (matches `CARDS_PER_DAY`), generated as a GENRE
+  MIX: iterate `CARD_GENRES` in `personas.ts` and run **one focused pass of
+  ~20 lines per genre** (award / gossip / fieldnotes / stats / intel / dare /
+  joke / scene / sincere), passing that genre to the builder. Nine different
+  card forms is what makes each tap feel like a fresh gacha pull — never
+  collapse them into one long same-register dump. Each genre's example lines
+  are flavor anchors: match their craft, NEVER copy or lightly rephrase them
+  into the pool (the server drops exact echoes, but don't waste the lines).
+  Follow every other rule in the prompt: opener quota, warm neutral potato
+  voice, no fortune-cookie metaphors, avoid the `BANNED_PHRASES`.
+  `/admin/put` dedupes and caps at `CARDS_PER_DAY`, so a little overshoot is
+  fine.
 - `buildBubblesPrompt(part, lang)` — the shared daily bubble pools, ONE
   voice-neutral set every persona serves (this REPLACED the old per-persona
   mutters — do not generate those anymore). Run it twice per language:
@@ -52,10 +57,18 @@ Read the **exact current prompts and persona voices** from
   accent.
 
 For `zh`, write genuinely Chinese lines (not translated English) — the prompts
-already carry the Chinese-language instructions; honor them.
+already carry the Chinese-language instructions; honor them. The two languages
+are SEPARATE creative jobs: never translate or mirror the `en` batch into `zh`
+(or vice versa), even loosely — with the other language's lines in context the
+pull is strong, so draw fresh seeds and start each `zh` pass from a blank page.
 
 Generate in a few focused passes rather than one giant dump — short batches keep
 the variety up and stop the lines templating out toward the tail.
+
+**Variety check before POSTing the normal pool:** count opening words. If any
+single opener (especially "You"/"你") starts more than ~20% of the batch, rewrite
+the excess lines to open elsewhere — the deed, the moment, an object, a question,
+a number, the potato itself — before assembling the JSON.
 
 ### 2. Famous-quote library — per language (`en` then `zh`)
 

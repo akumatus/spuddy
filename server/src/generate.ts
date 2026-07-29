@@ -3,7 +3,7 @@
 // language — then stores each batch in KV (cards:current for English,
 // cards:current:zh for Chinese). Golden cards are not baked here: the app
 // draws them live or from the curated famous-quote pool (quotes-*.ts).
-import { CHAT_IDS, buildBubblesPrompt, buildFlavorPrompt, buildNormalBatchPrompt, type BubblePart } from './personas';
+import { CARD_GENRES, CHAT_IDS, buildBubblesPrompt, buildFlavorPrompt, buildNormalBatchPrompt, type BubblePart, type CardGenre } from './personas';
 import { callLLMChain, genProviderChain, loadConfig } from './providers';
 import {
   BUBBLE_FLAT, BUBBLE_MOODS, DAYPARTS, MOODS, ROUTINE_KEYS, SPEAK_KEYS, batchKey,
@@ -20,13 +20,21 @@ interface GenOpts {
   runs: number;
 }
 
-// Near-identical lines across runs collapse to one (punctuation/case ignored).
-// Unicode-aware: keep letters/digits in any script — the old [^a-z0-9] filter
-// reduced every Chinese line to the same empty key and deduped the whole pool.
+// Normalized comparison key (punctuation/case ignored). Unicode-aware: keep
+// letters/digits in any script — the old [^a-z0-9] filter reduced every
+// Chinese line to the same empty key and deduped the whole pool.
+function lineKey(s: string): string {
+  return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '').trim();
+}
+
+// Normalized keys of every genre example line, for the echo filter in storeBatch.
+const EXAMPLE_KEYS = new Set(CARD_GENRES.flatMap((g) => [...g.en, ...g.zh]).map(lineKey));
+
+// Near-identical lines across runs collapse to one.
 function dedupeLines(lines: string[]): string[] {
   const seen = new Set<string>();
   return lines.filter((s) => {
-    const key = s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '').trim();
+    const key = lineKey(s);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -42,13 +50,15 @@ function sanitizeList(arr: unknown, max: number): string[] {
 }
 
 // Shared normal pool — one voice-neutral batch that every persona draws from.
-// Several small calls instead of one big one: long single batches template out
-// toward the tail, and each run draws its own inspiration seeds. Results are
-// merged and deduped.
+// One focused pass per CARD_GENRES entry when the run budget covers them
+// (production GEN_RUNS matches the genre count), so the pool mixes nine
+// distinct card forms; fewer runs (dev) fall back to the all-genre menu
+// prompt. Small calls also stop long batches templating out toward the tail,
+// and each run draws its own inspiration seeds. Results are merged and deduped.
 async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
   const per = Math.ceil(opts.nNormal / opts.runs);
-  const runOnce = async (): Promise<string[]> => {
-    const prompt = buildNormalBatchPrompt(per, opts.lang); // fresh seeds per run
+  const runOnce = async (genre?: CardGenre): Promise<string[]> => {
+    const prompt = buildNormalBatchPrompt(per, opts.lang, genre); // fresh seeds per run
     // one retry — the batch call occasionally returns throttled/unparseable
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -69,7 +79,8 @@ async function generateNormalPool(env: Env, opts: GenOpts): Promise<string[]> {
     }
     return [];
   };
-  const results = await Promise.all(Array.from({ length: opts.runs }, runOnce));
+  const results = await Promise.all(Array.from({ length: opts.runs }, (_, i) =>
+    runOnce(opts.runs >= CARD_GENRES.length ? CARD_GENRES[i % CARD_GENRES.length] : undefined)));
   return dedupeLines(results.flat()).slice(0, opts.nNormal);
 }
 
@@ -200,7 +211,9 @@ export async function storeBatch(
   cards: Record<string, CharBatch>,
   bubbles: Bubbles = {}
 ): Promise<CardsBatch> {
-  let normal = normalRaw;
+  // The CARD_GENRES few-shot anchors must never surface as real cards — drop
+  // echoes here so both ingest paths (cron/API and /admin/put) are covered.
+  let normal = normalRaw.filter((l) => !EXAMPLE_KEYS.has(lineKey(l)));
   const key = batchKey(lang);
   const prevRaw = await env.KV.get(key);
   if (prevRaw) {

@@ -512,22 +512,182 @@ export function buildMutterPrompt(persona: Persona, n: number, lang: Lang = 'en'
   );
 }
 
+// ── normal-pool genres ──
+// The gacha magic is FORM variety, not wording variety: one prompt asked for
+// 180 lines converges on 180 siblings of the same earnest compliment, and by
+// the fifth draw the human can predict the sixth. So the pool is generated as
+// one focused pass PER GENRE (production GEN_RUNS matches this list), and
+// consecutive taps keep changing shape — an award, then desk gossip, then a
+// quiet sincere one. Delighted-in-them warmth stays the heart of every genre;
+// the genre is the costume it arrives in.
+// The example lines are few-shot flavor anchors — a far stronger style lever
+// than any instruction. zh examples are written natively, never translated
+// from the en ones, so the Chinese pool stops reading like subtitles.
+// storeBatch drops exact echoes of these so they never surface as real cards.
+export interface CardGenre {
+  key: string;
+  brief: string; // one-sentence writing instruction for the generator
+  en: string[]; // flavor-anchor examples, ≤16 words each
+  zh: string[]; // native zh examples, ≤24 chars each — NOT translations of en
+}
+
+export const CARD_GENRES: CardGenre[] = [
+  {
+    key: 'award',
+    brief: 'Potato officialdom: solemn little awards, memos, desk regulations, stamped certificates — bureaucratic form, warm absurd content; the pomp is the joke.',
+    en: [
+      'Official potato memo: this human finished a hard thing quietly. All spuds have been informed.',
+      'Award notice: one invisible gold medal for showing up when nobody was watching.',
+      'Desk regulation 12: sighing counts as breathing exercise. You are in full compliance.',
+    ],
+    zh: [
+      '土豆办公室通报：本桌人类今日又稳又靠谱，全桌传阅学习。',
+      '颁奖词：在没人鼓掌的地方把事做完，特发隐形金牌一枚。',
+      '桌面新规第三条：允许把烦人的事先扔给明天的你。',
+    ],
+  },
+  {
+    key: 'gossip',
+    brief: 'Desk gossip: the mug, stapler, cables, houseplant have opinions about the human and pass them through you — overheard kindness, relayed deadpan.',
+    en: [
+      'The stapler told me it admires how you hold things together. Takes one to know.',
+      'Overheard the mug: someone here is doing better than they think. It meant you.',
+      'The houseplant grew a leaf because you kept going. Its words, not mine.',
+    ],
+    zh: [
+      '马克杯跟我咬耳朵：它见过你最累的样子，还是觉得你行。',
+      '绿植偷偷说，它那片新叶子是看你没放弃才敢长的。',
+      '数据线们打赌你今晚能早睡，我押了三根薯条，帮我赢一次。',
+    ],
+  },
+  {
+    key: 'fieldnotes',
+    brief: 'Field notes: you are a tiny scientist studying the human — numbered days, dry lab-report tone, absurdly precise observations of their goodness.',
+    en: [
+      'Field notes, day 47: subject sighed twice, kept going anyway. Recommending a snack.',
+      'Research log: the human said whatever, then quietly fixed it. Science cannot explain this.',
+      'Observation: subject unclenched their jaw at 3pm. Progress documented with pride.',
+    ],
+    zh: [
+      '观察日记第 47 天：皱着眉也没停手，罕见品种，建议珍惜。',
+      '研究发现：该人类嘴上说算了，手上一直没停。学界震惊。',
+      '记录：今日目标完成一半，另一半在明天恭候，属正常现象。',
+    ],
+  },
+  {
+    key: 'stats',
+    brief: 'Made-up statistics: market tickers, weather bureaus, suspiciously precise percentages about their day — fake numbers, real affection.',
+    en: [
+      'Market report: your reliability is up 3% today. The potato exchange is fully green.',
+      'By unofficial count, you did seventeen good things today. Sixteen went unwitnessed. Noted anyway.',
+      'Forecast: the cloud over you turns partly kind by evening. Bring a snack.',
+    ],
+    zh: [
+      '今日行情：靠谱指数上涨 3%，土豆交易所全线飘红。',
+      '据不完全统计，你今天悄悄厉害了十七次，没人看见。',
+      '天气预报：你头顶那朵乌云今晚转多云，明天起放晴。',
+    ],
+  },
+  {
+    key: 'intel',
+    brief: 'Insider intel: classified files, leaks, telegrams smuggled back from tomorrow — deadpan spy form; the secret is always something kind.',
+    en: [
+      'Classified: future you sent a note back. It says thanks for not quitting today.',
+      'Leaked file: nobody remembers that thing you fumbled. The file has been shredded.',
+      'Intercepted telegram from tomorrow. Two words: still time.',
+    ],
+    zh: [
+      '内部消息：明天的你会感谢今天没摆烂的你。信源可靠，是我。',
+      '机密档案显示：上次搞砸的那件事，别人早忘了。已归档销毁。',
+      '收到一封来自未来的电报，只有四个字：都来得及。',
+    ],
+  },
+  {
+    key: 'dare',
+    brief: 'Tiny dares: challenge them to something kind to themselves — sip water, drop the shoulders, one slow breath — cocky game-show energy, three-second stakes.',
+    en: [
+      'Dare: unclench your jaw for ten seconds. See? The sky held.',
+      "Bet you can't drink water right now. Go on, prove me wrong, champion.",
+      'Challenge: one thing for ten minutes. I will supervise from here, very sternly.',
+    ],
+    zh: [
+      '敢不敢现在松开肩膀？我数三下。三、二——看，天没塌。',
+      '打个赌：喝口水再回来，事情会顺百分之一。赌注是一片薯片。',
+      '挑战开始：接下来十分钟，只做一件事。土豆在旁监督。',
+    ],
+  },
+  {
+    key: 'joke',
+    brief: "Potato logic: dry self-deprecating humor from a potato's lazy worldview — by spud standards, everything the human does is heroic.",
+    en: [
+      "I'm a potato. My entire career is sitting here. You moved today — legendary.",
+      'By potato standards, growing one sprout is ambition. You did three whole tasks. Showoff.',
+      'Other potatoes lie in soil. I sit here watching you work. Immense pride.',
+    ],
+    zh: [
+      '我是土豆，躺平是主业。所以你今天随便动了动，我都佩服。',
+      '土豆界努力的标准是发一颗芽。按这个算，你已经是传奇了。',
+      '别的土豆都在土里躺着，我坐这儿看你干活，与有荣焉。',
+    ],
+  },
+  {
+    key: 'scene',
+    brief: 'Tiny scenes: paint one warm concrete moment — lamp, tea, evening light — and end it tilted gently in their favor.',
+    en: [
+      'Lamp on, tea warm, you still upright. Tonight goes in the win column.',
+      'The evening folded in, the list half done, and you stayed kind. Good ending.',
+      'Rain outside, deadline inside, you between them holding steady. Someone should paint this.',
+    ],
+    zh: [
+      '灯还亮着，茶还温着，你还没被打倒。今晚这局算你赢。',
+      '泡面才等三分钟。你陪自己慢慢变好，等了这么久。',
+      '窗外天黑了又亮，这么多个来回，你都接住了。',
+    ],
+  },
+  {
+    key: 'sincere',
+    brief: "The quiet one: plain sincere praise with no props and no bit — one specific true-feeling observation that lands like being seen. This is the pool's heart; keep it simple.",
+    en: [
+      'That hard hour you got through alone, telling no one — I saw. It counted.',
+      'You keep every promise you make to others. Keep one to yourself: rest a little.',
+      'The undone things say today was hard. They say nothing about you.',
+    ],
+    zh: [
+      '最难的那个钟头你自己熬过去了，谁也没说。我看见了。',
+      '你对别人从不食言。这次也对自己守一次约：去歇一会儿。',
+      '今天没做到的事，只说明今天很难，不说明你不行。',
+    ],
+  },
+];
+
 // Daily shared normal pool — ONE voice-neutral batch every persona serves.
-// Direct, delighted-in-you praise is the whole point (the positive-potato
-// heart); whimsy and object imagery are a garnish, never the default register.
-export function buildNormalBatchPrompt(n: number, lang: Lang = 'en'): string {
+// Called once per genre (focused pass) by both generation paths; without a
+// genre it emits the all-genre menu prompt for single-call fallbacks. See the
+// CARD_GENRES comment for why the pool is a genre mix at all.
+export function buildNormalBatchPrompt(n: number, lang: Lang = 'en', genre?: CardGenre): string {
+  const youWord = lang === 'zh' ? '"你"' : `"You"/"Your"`;
+  const ex = (g: CardGenre, k: number) => g[lang === 'zh' ? 'zh' : 'en'].slice(0, k).map((l) => `"${l}"`).join(' ');
+  const genreBlock = genre
+    ? `THIS PASS WRITES ONE GENRE — ${genre.key}. ${genre.brief} ` +
+      `Flavor anchors, for register only — NEVER copy, translate, or lightly rephrase them; invent fresh material: ${ex(genre, 3)} ` +
+      `All ${n} lines live inside this genre, each attacking from a different angle so no two feel like siblings. `
+    : `MIX THESE GENRES roughly evenly across the batch: ` +
+      CARD_GENRES.map((g) => `${g.key} — ${g.brief} e.g. ${ex(g, 1)}`).join(' ') +
+      ` Never copy or lightly rephrase the examples — they show flavor only. `;
   return (
     `You are a tiny hand-crocheted potato desktop pet who hands your human little encouragement cards. ` +
     `Write ${n} distinct card lines, each MAX 16 words. ` +
     `Return ONLY valid minified JSON of the exact shape {"normal":[...]} — no markdown fences, no commentary. ` +
     `Neutral warm potato voice — no pet names, no character quirks; any potato could hand these over. ` +
-    `THE JOB: the human reads a card and grins. About two thirds of the lines are DIRECT and about THEM — ` +
-    `shameless specific compliments, cheeky flattery, proud little observations of how they're doing; sincere, never sarcastic. ` +
-    `The rest can play: a dry potato joke, a tiny cozy scene, a gentle nudge to drink water or unclench their jaw. ` +
-    `Optional ingredients — use in at most a third of the lines, skip freely: ${pickSeeds(4)}. ` +
+    `THE JOB: they tap, they read, they grin and want to tap again. Every line is FOR them — ` +
+    `flattering, delighting, or gently caring for them; warm under every bit, never sarcastic, never generic. ` +
+    genreBlock +
+    `OPENERS: at most 1 line in 5 may begin with ${youWord} — open the rest on the deed, the moment, ` +
+    `an object, a question, a number, or yourself the potato; the first word keeps changing. ` +
+    `Optional imagery seeds — use in at most a third of the lines, skip freely: ${pickSeeds(4)}. ` +
     `NO fortune-cookie metaphors — if a line reads like a horoscope (the fog holds secrets, let the candle guide you), cut it. ` +
-    `Avoid these worn-out phrasings and close variants (${BANNED_PHRASES}) — say the same direct warm thing in fresh words instead. ` +
-    `No emojis, no quotation marks, no numbering, no emotion tags. Vary sentence shapes so none feel templated.` +
+    `Avoid these worn-out phrasings and close variants (${BANNED_PHRASES}) — same warmth, fresh words. ` +
+    `No emojis, no quotation marks inside lines, no numbering, no emotion tags. Vary sentence shapes so none feel templated.` +
     zhBatchBlock(lang, 24)
   );
 }
