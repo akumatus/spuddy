@@ -15,6 +15,7 @@
     "icon": "node scripts/make-icon.cjs",
     "chars": "electron scripts/shoot-chars.cjs",
     "shots": "electron scripts/shoot-media.cjs",
+    "refresh-media": "bash scripts/refresh-media.sh",
     "dev": "node scripts/set-dev-name.cjs && yarn build && electron .",
     "start": "node scripts/set-dev-name.cjs && yarn build && electron .",
     "build": "vite build && yarn build:electron",
