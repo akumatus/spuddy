@@ -10,6 +10,7 @@
     "tail": "wrangler tail",
     "gen:dev": "curl -s -X POST 'http://localhost:8787/admin/generate?lang=en' -H \"x-pp-admin: dev\" && curl -s -X POST 'http://localhost:8787/admin/generate?lang=zh' -H \"x-pp-admin: dev\"",
     "typecheck": "tsc",
+    "test": "esbuild test/guard.test.ts --bundle --platform=node --format=esm --outfile=test/run.mjs --log-level=warning && node test/run.mjs",
     "eval:build": "esbuild eval/memory-eval.ts --bundle --platform=node --format=esm --outfile=eval/run.mjs --log-level=warning",
     "eval": "npm run eval:build && node eval/run.mjs",
     "eval:voice:build": "esbuild eval/voice-eval.ts --bundle --platform=node --format=esm --outfile=eval/voice-run.mjs --log-level=warning",

@@ -2,6 +2,15 @@ name = "spuddy-server"
 main = "src/worker.ts"
 compatibility_date = "2024-11-01"
 
+# Queryable request logs in the dashboard (Workers & Pages -> spuddy-server ->
+# Observability). Free plan includes 200k events/day with 3-day retention —
+# comfortably more than the 100k/day request ceiling, so sampling stays at 1.
+# Without this there is no way to notice abuse until the provider bill lands:
+# filter on status 429 to see the rate limit and the quota doing their work.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 # Custom domain the app talks to — *.workers.dev is DNS-poisoned in mainland
 # China, so end users reach the Worker through here instead. Requires the
 # cherry.surf zone to be active on this Cloudflare account.
@@ -21,13 +30,46 @@ routes = [
 [triggers]
 crons = []
 
-# KV: daily card batches (cards:current) + per-device quota counters (q:*) +
-# live provider/model config (config:current, set via POST /admin/config).
-# Create it once, then paste the id here:
+# Per-IP burst guard for the metered endpoints (/chat, /distill, /consolidate,
+# /golden, /greet). The daily quota meters deviceId, which the client invents and
+# can rotate every request; the IP is the one identifier it cannot choose. Native
+# rate limiting rather than another KV counter because the free plan allows only
+# 1,000 KV writes a day and the quota counters already spend those.
+#
+# 20 per 60s per IP: a fast human conversation is well under 12/min (the app
+# collapses a burst of typing into ONE request — see chatPending in chat.ts) and
+# the background /distill and /consolidate calls share the same budget, so this
+# sits roughly 2x above the busiest honest client. `period` accepts only 10 or 60.
+[[ratelimits]]
+name = "RT_LIMIT"
+namespace_id = "1001"
+
+[ratelimits.simple]
+limit = 20
+period = 60
+
+# KV: daily card batches (cards:current) + live provider/model config
+# (config:current, set via POST /admin/config) + the persistent quote/inet
+# libraries. NOT the per-device quota counters — those moved to a Durable
+# Object (below) because the free plan's 1,000 KV writes/day couldn't carry a
+# write per successful reply. Create it once, then paste the id here:
 #   wrangler kv namespace create SPUDDY_KV
 [[kv_namespaces]]
 binding = "KV"
 id = "276e01a434db4d07a1576578862a45fe"
+
+# Per-device daily quota counters — one Durable Object per deviceId
+# (src/quota-do.ts, exported from worker.ts). Strongly consistent counting and
+# no KV write budget spent; the free plan allows 100k DO requests/day and a
+# chat reply spends two. Free-plan DOs must use the SQLite storage backend,
+# hence new_sqlite_classes in the migration.
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "DeviceQuota"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeviceQuota"]
 
 [vars]
 # These are only DEFAULTS. The live provider/model is read from KV (config:current)

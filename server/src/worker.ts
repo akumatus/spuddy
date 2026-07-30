@@ -26,23 +26,48 @@
 // endpoints (/chat, /golden, /greet) are metered against a per-device budget.
 
 import { generateForLang, putForLang } from './generate';
+import { adminExpected, capChat, capConsolidate, capDistill, readJson, tokenAccepted } from './guard';
 import { appendInet, appendQuotes, dailyWindow, readInet, readQuotes } from './quotes-store';
 import { PERSONAS, buildChatSystem, buildConsolidateSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, consolidateList, distillTranscript, parseConsolidateOps, parseDistillFacts, parseDistillLoops, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
 import { MOODS, asLang, batchKey, type CardsBatch, type ChatPayload, type ConsolidatePayload, type DistillPayload, type Env, type Lang } from './types';
-import { CORS, clean, json, today } from './util';
+import { CORS, clean, corsJson, json, today } from './util';
+
+// Durable Object classes must be exported from the Worker's main module for the
+// runtime to find them (bound in wrangler.toml [[durable_objects.bindings]]).
+export { DeviceQuota } from './quota-do';
 
 // The zh cron expression — must match the second entry in wrangler.toml's
 // [triggers]; any other firing (the 14:00 one) generates the English batch.
 const CRON_ZH = '20 14 * * *';
 
-// Optional soft gate: baking a shared token into the app deters casual abuse of
-// your key. It is not real auth (extractable from the build) — the per-device
-// quota + Cloudflare rate limiting are the real defense.
+// The only routes a browser may legitimately call: public reads, no token, no
+// cost. Preflight for anything else is refused outright (see fetch()).
+const PUBLIC_PATHS = new Set(['/health', '/cards']);
+
+// A browser attaches Origin to every cross-site request; the Electron main
+// process never does — verified against a real Electron build, whose fetch
+// sends sec-fetch-mode but no Origin. Nothing legitimate breaks: the website
+// makes no API calls and the renderer reaches the server over IPC, so an Origin
+// on a metered route means a web page is calling us. Together with the withheld
+// CORS headers (util.ts) this closes the paste-a-fetch-into-the-console path.
+// A scripted caller just omits the header — that one is the rate limit's job.
+const fromBrowser = (request: Request): boolean => request.headers.has('origin');
+
+// Soft gate: a shared token baked into the app. Never real auth — it ships in
+// every build and `npx asar extract` reveals it — so the per-device quota, the
+// per-IP rate limit and the input caps remain the actual defense. What it does
+// buy is keeping the endpoint out of reach of drive-by callers and automated
+// scanners, which is why the value should no longer sit in the public repo.
+//
+// APP_TOKEN accepts a COMMA-SEPARATED list so a rotation never strands anyone:
+// set it to "new,old", ship a build carrying the new value, then drop the old
+// entry once everyone has updated. Blank (dev) leaves the door open.
 function authed(request: Request, env: Env): boolean {
-  if (!env.APP_TOKEN) return true; // open in dev
-  return request.headers.get('x-pp-app') === env.APP_TOKEN;
+  return tokenAccepted(env.APP_TOKEN, request.headers.get('x-pp-app'));
 }
+
+const adminToken = (env: Env): string => adminExpected(env.ADMIN_TOKEN, env.APP_TOKEN);
 
 // Admin-gated per-request override for local A/B comparison testing. With a valid
 // admin token, x-pp-provider (+ optional x-pp-model) forces the call onto ONE
@@ -53,7 +78,7 @@ function authed(request: Request, env: Env): boolean {
 function withOverride(defaultChain: string[], request: Request, env: Env, cfg: RuntimeConfig) {
   let chain = defaultChain;
   let models = cfg.models;
-  const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+  const want = adminToken(env);
   if (want && request.headers.get('x-pp-admin') !== want) return { chain, models };
   const p = request.headers.get('x-pp-provider');
   const m = request.headers.get('x-pp-model');
@@ -75,12 +100,48 @@ function mergeTurns(msgs: { role: string; content: string }[]): { role: string; 
   return out;
 }
 
+// ── per-IP burst guard ──
+// The daily quota meters deviceId, which the client makes up and can rotate on
+// every request — so on its own it stops an honest user from over-using and
+// nothing else. The caller's IP is the one identifier a client cannot choose,
+// so the metered endpoints pass through here first. Costs no KV writes (see the
+// RT_LIMIT note in types.ts); a missing binding or a throwing limiter allows the
+// request, since an abuse guard must never be the thing that takes chat down.
+async function burstOk(env: Env, request: Request): Promise<boolean> {
+  if (!env.RT_LIMIT) return true;
+  try {
+    const { success } = await env.RT_LIMIT.limit({ key: request.headers.get('cf-connecting-ip') || 'unknown' });
+    return success;
+  } catch {
+    return true;
+  }
+}
+
+// Body-too-large / malformed-JSON short circuit shared by every POST route.
+const reject = (r: { status: number; error: string }): Response => json({ error: r.error }, r.status);
+
+// The admin doors legitimately carry a whole day's batch (~60 KB), so they get a
+// far roomier ceiling than the chat endpoints — still a ceiling, because the
+// isolate has 128 MB of memory and Cloudflare would hand us a 100 MB body.
+const ADMIN_BODY_BYTES = 2 * 1024 * 1024;
+
 interface QuotaState {
-  key: string;
+  deviceId: string;
   used: number;
+  tries: number;
   limit: number;
+  tryLimit: number;
   ok: boolean;
 }
+
+// A failed provider walk deliberately does NOT spend the reply budget — an
+// outage must not cost someone their day. That leaves a hole on its own: a
+// caller who can make calls fail on purpose gets unmetered model calls forever.
+// So attempts are counted too, against a ceiling this many times the reply
+// budget. An honest client would need 150 failures in one day to notice (there
+// is no retry loop anywhere in the app — a failure just prints a fallback
+// line), while a caller farming failures runs out quickly.
+const TRY_MULTIPLIER = 3;
 
 // The daily per-device budget: KV config:current.chatLimit (hot-updatable via
 // POST /admin/config — applies from the very next request, no redeploy, no
@@ -92,19 +153,38 @@ function dailyLimit(env: Env, cfg: RuntimeConfig): number {
   return parseInt(env.CHAT_DAILY_LIMIT || '50', 10);
 }
 
-// Read-only budget check. Counting is deferred to bumpQuota, which only runs
-// after a successful model reply — so a failed/errored/over-quota provider call
-// never burns the user's daily budget.
+// Read-only budget check against BOTH ceilings. Counting is deferred to
+// bumpQuota so an over-quota or errored call is decided before any money is
+// spent. The counters live in one Durable Object per device (quota-do.ts):
+// atomic, and no KV write budget spent.
 async function quotaState(env: Env, deviceId: string | undefined, limit: number): Promise<QuotaState> {
-  const key = `q:${deviceId || 'anon'}:${today()}`;
-  const used = parseInt((await env.KV.get(key)) || '0', 10);
-  return { key, used, limit, ok: used < limit };
+  const id = deviceId || 'anon';
+  const { used, tries } = await env.QUOTA.get(env.QUOTA.idFromName(id)).state(today());
+  const tryLimit = limit * TRY_MULTIPLIER;
+  return { deviceId: id, used, tries, limit, tryLimit, ok: used < limit && tries < tryLimit };
 }
 
-async function bumpQuota(env: Env, q: QuotaState): Promise<void> {
-  // TTL ~2 days so counters self-clean; KV is eventually consistent, so a burst
-  // of concurrent calls may slip a couple over — fine for hobby anti-abuse.
-  await env.KV.put(q.key, String(q.used + 1), { expirationTtl: 172800 });
+// `ok: false` records the attempt without spending the reply budget.
+async function bumpQuota(env: Env, q: QuotaState, ok = true): Promise<void> {
+  await env.QUOTA.get(env.QUOTA.idFromName(q.deviceId)).bump(today(), ok);
+}
+
+// Walk the provider chain, making sure the attempt is recorded even when the
+// walk THROWS (callLLMChain rethrows once every keyed backend has errored).
+// Without this the throw would unwind to the top-level handler and the try
+// would go uncounted — exactly the free-retry hole the try budget closes.
+async function meteredChain(
+  env: Env,
+  q: QuotaState,
+  chain: string[],
+  args: Parameters<typeof callLLMChain>[2]
+): Promise<Awaited<ReturnType<typeof callLLMChain>>> {
+  try {
+    return await callLLMChain(env, chain, args);
+  } catch (e) {
+    await bumpQuota(env, q, false);
+    throw e;
+  }
 }
 
 // ── real-time latency budget ──
@@ -196,10 +276,17 @@ async function todaysMusings(env: Env, charId: string | undefined, lang: Lang): 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+    // Preflight is answered only for the public read routes. Everything else
+    // gets a bare 403, so a browser page never reaches the metered endpoints:
+    // their content-type: application/json makes the preflight mandatory.
+    if (request.method === 'OPTIONS') {
+      return PUBLIC_PATHS.has(url.pathname)
+        ? new Response(null, { headers: CORS })
+        : new Response(null, { status: 403 });
+    }
 
     try {
-      if (url.pathname === '/health') return json({ ok: true });
+      if (url.pathname === '/health') return corsJson({ ok: true });
 
       if (url.pathname === '/cards' && request.method === 'GET') {
         const lang = asLang(url.searchParams.get('lang'));
@@ -221,16 +308,20 @@ export default {
         // after deploy): the app treats an empty answer as "use built-ins",
         // which keeps a Chinese user on Chinese cards instead of English ones
         const raw = await env.KV.get(batchKey(lang));
-        if (!raw) return json({ stale: true, date: null, normal: [], cards: {}, quotes, inet, tuning });
+        if (!raw) return corsJson({ stale: true, date: null, normal: [], cards: {}, quotes, inet, tuning });
         const data = JSON.parse(raw) as CardsBatch;
         const char = url.searchParams.get('char');
-        if (char) return json({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes, inet, tuning });
-        return json({ ...data, quotes, inet, tuning });
+        if (char) return corsJson({ date: data.date, normal: data.normal || [], bubbles: data.bubbles, cards: { [char]: data.cards[char] || null }, quotes, inet, tuning });
+        return corsJson({ ...data, quotes, inet, tuning });
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
+        if (fromBrowser(request)) return json({ error: 'forbidden' }, 403);
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
-        const p = (await request.json()) as ChatPayload;
+        if (!(await burstOk(env, request))) return json({ error: 'slow down' }, 429);
+        const parsed = await readJson<ChatPayload>(request);
+        if (!parsed.ok) return reject(parsed);
+        const p = capChat(parsed.value);
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true, used: q.used, limit: q.limit }, 429);
@@ -243,10 +334,11 @@ export default {
         })));
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — warm but coherent; higher tipped non-English replies into word salad
-        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, { system, messages, maxTokens: 300, temperature: 1.0, models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS });
+        const { text: raw, provider, model, failed } = await meteredChain(env, q, chain, { system, messages, maxTokens: 300, temperature: 1.0, models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS });
         reportBad(ctx, env, chain, bad, failed, provider);
         const out = clean(raw);
-        if (!out) return json(null); // whole chain failed/empty — don't spend budget
+        // whole chain failed/empty — costs no reply budget, but the try is counted
+        if (!out) { await bumpQuota(env, q, false); return json(null); }
         await bumpQuota(env, q); // only a real reply counts
         const { tag, body } = parseTag(out);
         const { gesture, body: afterGesture } = parseGesture(body); // optional action to act out
@@ -270,8 +362,12 @@ export default {
       // facts only when the whole provider chain failed (the app keeps its
       // cursor and retries at the next trigger).
       if (url.pathname === '/distill' && request.method === 'POST') {
+        if (fromBrowser(request)) return json({ error: 'forbidden' }, 403);
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
-        const p = (await request.json()) as DistillPayload;
+        if (!(await burstOk(env, request))) return json({ error: 'slow down' }, 429);
+        const parsed = await readJson<DistillPayload>(request);
+        if (!parsed.ok) return reject(parsed);
+        const p = capDistill(parsed.value);
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true }, 429);
@@ -281,13 +377,14 @@ export default {
         const system = buildDistillSystem(p);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 0.2 — extraction wants stability, not creativity
-        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
+        const { text: raw, provider, model, failed } = await meteredChain(env, q, chain, {
           system,
           messages: [{ role: 'user', content: distillTranscript(p) }],
           maxTokens: 700, temperature: 0.2, json: true, models,
         });
         reportBad(ctx, env, chain, bad, failed, provider);
-        if (!raw || !raw.trim()) return json({ facts: null, provider }); // chain failed — don't spend budget
+        // chain failed — no reply budget spent, but the try is counted
+        if (!raw || !raw.trim()) { await bumpQuota(env, q, false); return json({ facts: null, provider }); }
         await bumpQuota(env, q); // a real extraction pass counts
         // loops: the updated open-thread list (null = model omitted the key → app keeps its own)
         return json({ facts: parseDistillFacts(raw, chunk.length, (p.memory || []).length), loops: parseDistillLoops(raw), provider, model });
@@ -298,8 +395,12 @@ export default {
       // as chat. Returns { ops: [] } for a healthy list ("change nothing" is
       // the expected answer); null ops only when the provider chain failed.
       if (url.pathname === '/consolidate' && request.method === 'POST') {
+        if (fromBrowser(request)) return json({ error: 'forbidden' }, 403);
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
-        const p = (await request.json()) as ConsolidatePayload;
+        if (!(await burstOk(env, request))) return json({ error: 'slow down' }, 429);
+        const parsed = await readJson<ConsolidatePayload>(request);
+        if (!parsed.ok) return reject(parsed);
+        const p = capConsolidate(parsed.value);
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true }, 429);
@@ -308,20 +409,25 @@ export default {
 
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 0.2 — curation wants stability, not creativity
-        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
+        const { text: raw, provider, model, failed } = await meteredChain(env, q, chain, {
           system: buildConsolidateSystem(p),
           messages: [{ role: 'user', content: consolidateList(p) }],
           maxTokens: 700, temperature: 0.2, json: true, models,
         });
         reportBad(ctx, env, chain, bad, failed, provider);
-        if (!raw || !raw.trim()) return json({ ops: null, provider }); // chain failed — don't spend budget
+        // chain failed — no reply budget spent, but the try is counted
+        if (!raw || !raw.trim()) { await bumpQuota(env, q, false); return json({ ops: null, provider }); }
         await bumpQuota(env, q); // a real curation pass counts
         return json({ ops: parseConsolidateOps(raw, facts.length, facts.map((m) => m.kind || 'other')), provider, model });
       }
 
       if (url.pathname === '/golden' && request.method === 'POST') {
+        if (fromBrowser(request)) return json({ error: 'forbidden' }, 403);
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
-        const p = (await request.json()) as ChatPayload;
+        if (!(await burstOk(env, request))) return json({ error: 'slow down' }, 429);
+        const parsed = await readJson<ChatPayload>(request);
+        if (!parsed.ok) return reject(parsed);
+        const p = capChat(parsed.value);
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true }, 429);
@@ -330,12 +436,13 @@ export default {
         const prompt = buildGoldenPrompt(persona, p);
         const { chain, models } = withOverride(demoteBad(chatProviderChain(env, cfg), bad), request, env, cfg);
         // temperature 1.0 — creative but coherent
-        const { text: raw, provider, model, failed } = await callLLMChain(env, chain, {
+        const { text: raw, provider, model, failed } = await meteredChain(env, q, chain, {
           system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 200, temperature: 1.0, models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS,
         });
         reportBad(ctx, env, chain, bad, failed, provider);
         const out = clean(raw);
-        if (!out) return json({ text: null, provider }); // failed — don't spend budget
+        // failed — no reply budget spent, but the try is counted
+        if (!out) { await bumpQuota(env, q, false); return json({ text: null, provider }); }
         await bumpQuota(env, q); // successful weave counts
         return json({ text: out.length > 4 && out.length < 220 ? out : null, provider, model });
       }
@@ -344,8 +451,12 @@ export default {
       // Over budget or model failure just returns null text and the app speaks
       // its built-in daypart greeting instead.
       if (url.pathname === '/greet' && request.method === 'POST') {
+        if (fromBrowser(request)) return json({ error: 'forbidden' }, 403);
         if (!authed(request, env)) return json({ error: 'unauthorized' }, 401);
-        const p = (await request.json()) as ChatPayload;
+        if (!(await burstOk(env, request))) return json({ text: null, error: 'slow down' }, 429);
+        const parsed = await readJson<ChatPayload>(request);
+        if (!parsed.ok) return reject(parsed);
+        const p = capChat(parsed.value);
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
         const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ text: null, limited: true }, 429);
@@ -353,12 +464,13 @@ export default {
         const persona = PERSONAS[p.charId || ''] || PERSONAS.spud;
         const prompt = buildGreetPrompt(persona, p);
         const chain = demoteBad(chatProviderChain(env, cfg), bad);
-        const { text: raw, provider, failed } = await callLLMChain(env, chain, {
+        const { text: raw, provider, failed } = await meteredChain(env, q, chain, {
           system: '', messages: [{ role: 'user', content: prompt }], maxTokens: 120, temperature: 1.0, models: cfg.models, timeoutMs: RT_TIMEOUT_MS, deadlineMs: RT_DEADLINE_MS,
         });
         reportBad(ctx, env, chain, bad, failed, provider);
         const out = clean(raw);
-        if (!out) return json({ text: null, provider }); // failed — don't spend budget
+        // failed — no reply budget spent, but the try is counted
+        if (!out) { await bumpQuota(env, q, false); return json({ text: null, provider }); }
         await bumpQuota(env, q); // a real greeting counts
         return json({ text: out.length > 2 && out.length < 200 ? out : null, provider });
       }
@@ -368,14 +480,16 @@ export default {
       //   curl -XPOST .../admin/config -H 'x-pp-admin: TOKEN' \
       //     -d '{"chat":"anthropic","gen":"openai","models":{"anthropic":"claude-haiku-4-5-20251001"}}'
       if (url.pathname === '/admin/config') {
-        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        const want = adminToken(env);
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         if (request.method === 'GET') {
           const raw = await env.KV.get('config:current');
           return json(raw ? JSON.parse(raw) : {});
         }
         if (request.method === 'POST') {
-          const body = (await request.json()) as Record<string, unknown>;
+          const parsed = await readJson<Record<string, unknown>>(request, ADMIN_BODY_BYTES);
+          if (!parsed.ok) return reject(parsed);
+          const body = parsed.value;
           const next: RuntimeConfig = {};
           for (const k of ['chat', 'gen'] as const) {
             const v = body[k];
@@ -411,7 +525,7 @@ export default {
       }
 
       if (url.pathname === '/admin/generate' && request.method === 'POST') {
-        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        const want = adminToken(env);
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         // One language per call — a single invocation's subrequest budget can't
         // fit both batches (see generateForLang). Run it once per language.
@@ -428,14 +542,14 @@ export default {
       // generator, the Worker is just the inbox. Same admin gate + one language
       // per call as /admin/generate. Body: { normal: [...], cards: { id: { mutters: {...} } } }.
       if (url.pathname === '/admin/put' && request.method === 'POST') {
-        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        const want = adminToken(env);
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         const langParam = url.searchParams.get('lang');
         if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
         const lang = asLang(langParam);
-        const body = await request.json().catch(() => null);
-        if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
-        const batch = await putForLang(env, lang, body);
+        const parsed = await readJson<Record<string, unknown>>(request, ADMIN_BODY_BYTES);
+        if (!parsed.ok) return reject(parsed);
+        const batch = await putForLang(env, lang, parsed.value);
         return json({ ok: true, lang, date: batch.date, counts: batchCounts(batch) });
       }
 
@@ -444,7 +558,7 @@ export default {
       // paraphrases) and count lines per source. GET /cards no longer works
       // for that: it serves only a small daily window of each pool.
       if (url.pathname === '/admin/quotes' && request.method === 'GET') {
-        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        const want = adminToken(env);
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         const langParam = url.searchParams.get('lang');
         if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
@@ -459,15 +573,15 @@ export default {
       // QUOTES_LIB_MAX. No LLM work — same free path as /admin/put.
       // Body: { quotes: [{ q: "…", s?: "…" }, …] }.
       if (url.pathname === '/admin/quotes' && request.method === 'POST') {
-        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        const want = adminToken(env);
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         const langParam = url.searchParams.get('lang');
         if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
         const lang = asLang(langParam);
-        const body = (await request.json().catch(() => null)) as { quotes?: unknown } | null;
-        if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
+        const parsed = await readJson<{ quotes?: unknown }>(request, ADMIN_BODY_BYTES);
+        if (!parsed.ok) return reject(parsed);
         const max = parseInt(env.QUOTES_LIB_MAX || '5000', 10);
-        const { added, total } = await appendQuotes(env, lang, body.quotes, max);
+        const { added, total } = await appendQuotes(env, lang, parsed.value.quotes, max);
         return json({ ok: true, lang, added, total });
       }
 
@@ -477,15 +591,15 @@ export default {
       // maintainer can hand-add via the same door (seed lives in
       // scripts/internet-lines.*.txt). Body: { lines: ["…", …] }.
       if (url.pathname === '/admin/inet' && request.method === 'POST') {
-        const want = env.ADMIN_TOKEN || env.APP_TOKEN;
+        const want = adminToken(env);
         if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
         const langParam = url.searchParams.get('lang');
         if (!langParam) return json({ error: 'pass ?lang=en or ?lang=zh — one language per call' }, 400);
         const lang = asLang(langParam);
-        const body = (await request.json().catch(() => null)) as { lines?: unknown } | null;
-        if (!body || typeof body !== 'object') return json({ error: 'invalid JSON body' }, 400);
+        const parsed = await readJson<{ lines?: unknown }>(request, ADMIN_BODY_BYTES);
+        if (!parsed.ok) return reject(parsed);
         const max = parseInt(env.INET_LIB_MAX || '1000', 10);
-        const { added, total } = await appendInet(env, lang, body.lines, max);
+        const { added, total } = await appendInet(env, lang, parsed.value.lines, max);
         return json({ ok: true, lang, added, total });
       }
 

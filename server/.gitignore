@@ -6,3 +6,4 @@ eval/run.mjs
 eval/out/
 eval/fixtures/
 eval/voice-run.mjs
+test/run.mjs

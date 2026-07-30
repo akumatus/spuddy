@@ -1,8 +1,23 @@
 // Shared server types: the Worker environment and the request/response shapes
 // exchanged with the app (see app/src/types.ts for the client-side mirror).
 
+import type { DeviceQuota } from './quota-do';
+
 export interface Env {
   KV: KVNamespace;
+
+  // Per-device daily quota counters — one Durable Object per deviceId
+  // (quota-do.ts). Deliberately REQUIRED, unlike RT_LIMIT below: a missing
+  // binding should fail requests loudly at deploy time, not silently stop
+  // metering the money.
+  QUOTA: DurableObjectNamespace<DeviceQuota>;
+
+  // Per-IP burst guard (Workers native rate limiting, [[ratelimits]] in
+  // wrangler.toml). Deliberately optional: local dev and any older config run
+  // without it, and the Worker treats a missing binding as "allow". Chosen over
+  // another KV counter because the free plan allows only 1,000 KV writes a day
+  // and the quota counters already spend those.
+  RT_LIMIT?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
 
   // secrets (wrangler secret put NAME) — a missing key just skips that backend
   OPENAI_API_KEY?: string;
