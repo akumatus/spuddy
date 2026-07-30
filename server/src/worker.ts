@@ -5,6 +5,8 @@
 //   POST /distill        batch memory extraction over a transcript chunk (same quota)
 //   POST /golden         real-time personalized golden card (same quota)
 //   POST /greet          real-time personalized open-the-app greeting (same quota)
+//   POST /admin/code?code=<phrase>&limit=<n>  mint a single-use invite
+//                        passphrase (protected); limit=0 revokes it
 //   POST /admin/generate?lang=en|zh  Worker-side batch regen via LLM (protected) —
 //                        one language per call; run once per language after deploy
 //   POST /admin/put?lang=en|zh  store a batch generated OUTSIDE the Worker
@@ -26,7 +28,7 @@
 // endpoints (/chat, /golden, /greet) are metered against a per-device budget.
 
 import { generateForLang, putForLang } from './generate';
-import { adminExpected, capChat, capConsolidate, capDistill, readJson, tokenAccepted } from './guard';
+import { adminExpected, capChat, capCodes, capConsolidate, capDistill, matchCode, readJson, tokenAccepted } from './guard';
 import { appendInet, appendQuotes, dailyWindow, readInet, readQuotes } from './quotes-store';
 import { PERSONAS, buildChatSystem, buildConsolidateSystem, buildDistillSystem, buildGoldenPrompt, buildGreetPrompt, consolidateList, distillTranscript, parseConsolidateOps, parseDistillFacts, parseDistillLoops, parseGesture, parseRemember, parseTag } from './personas';
 import { callLLMChain, chatProviderChain, loadConfig, type RuntimeConfig } from './providers';
@@ -35,7 +37,7 @@ import { CORS, clean, corsJson, json, today } from './util';
 
 // Durable Object classes must be exported from the Worker's main module for the
 // runtime to find them (bound in wrangler.toml [[durable_objects.bindings]]).
-export { DeviceQuota } from './quota-do';
+export { DeviceQuota, InviteCode } from './quota-do';
 
 // The zh cron expression — must match the second entry in wrangler.toml's
 // [triggers]; any other firing (the 14:00 one) generates the English batch.
@@ -143,6 +145,12 @@ interface QuotaState {
 // line), while a caller farming failures runs out quickly.
 const TRY_MULTIPLIER = 3;
 
+// What the pet says when a passphrase lands. Deliberately oblivious — he has no
+// idea what just happened, which is the whole joke. No model call is made, so
+// this text is fixed rather than generated.
+const UNLOCK_ZH = '咦……刚才有什么咔哒响了一下';
+const UNLOCK_EN = 'huh... something just went click somewhere';
+
 // The daily per-device budget: KV config:current.chatLimit (hot-updatable via
 // POST /admin/config — applies from the very next request, no redeploy, no
 // client change) with the CHAT_DAILY_LIMIT [vars] default as fallback. One
@@ -159,9 +167,11 @@ function dailyLimit(env: Env, cfg: RuntimeConfig): number {
 // atomic, and no KV write budget spent.
 async function quotaState(env: Env, deviceId: string | undefined, limit: number): Promise<QuotaState> {
   const id = deviceId || 'anon';
-  const { used, tries } = await env.QUOTA.get(env.QUOTA.idFromName(id)).state(today());
-  const tryLimit = limit * TRY_MULTIPLIER;
-  return { deviceId: id, used, tries, limit, tryLimit, ok: used < limit && tries < tryLimit };
+  const { used, tries, grant } = await env.QUOTA.get(env.QUOTA.idFromName(id)).state(today());
+  // a redeemed passphrase raises this device above the global default for good
+  const effective = Math.max(limit, grant);
+  const tryLimit = effective * TRY_MULTIPLIER;
+  return { deviceId: id, used, tries, limit: effective, tryLimit, ok: used < effective && tries < tryLimit };
 }
 
 // `ok: false` records the attempt without spending the reply budget.
@@ -323,6 +333,23 @@ export default {
         if (!parsed.ok) return reject(parsed);
         const p = capChat(parsed.value);
         const [cfg, bad] = await Promise.all([loadConfig(env), badProviders(env)]);
+
+        // A passphrase is just something you say to your pet — there is no
+        // settings screen and nothing to paste. Checked BEFORE the quota gate
+        // on purpose: running out of budget is exactly when someone reaches for
+        // their invite, and redeeming costs no model call. A phrase nobody
+        // configured, or one already spent by somebody else, falls through and
+        // is answered as ordinary conversation.
+        const said = matchCode(p.messages?.[p.messages.length - 1]?.text || '', cfg.codes);
+        if (said && p.deviceId) {
+          const { ok } = await env.INVITE.get(env.INVITE.idFromName(said.key)).redeem(p.deviceId);
+          if (ok) {
+            await env.QUOTA.get(env.QUOTA.idFromName(p.deviceId)).grant(said.limit);
+            const line = asLang(p.lang) === 'zh' ? UNLOCK_ZH : UNLOCK_EN;
+            return json({ tag: 'cheer', gesture: null, remember: null, text: line, parts: [line], provider: null, model: null });
+          }
+        }
+
         const q = await quotaState(env, p.deviceId, dailyLimit(env, cfg));
         if (!q.ok) return json({ limited: true, used: q.used, limit: q.limit }, 429);
 
@@ -522,6 +549,30 @@ export default {
           return json({ ok: true, config: next });
         }
         return json({ error: 'method not allowed' }, 405);
+      }
+
+      // Mint or revoke ONE invite passphrase without resending the whole config.
+      //   POST /admin/code?code=<phrase>&limit=1000   mint
+      //   POST /admin/code?code=<phrase>&limit=0      revoke
+      // Revoking only removes it from the config; a phrase already redeemed
+      // stays redeemed, and the device keeps the budget it was granted.
+      if (url.pathname === '/admin/code' && request.method === 'POST') {
+        const want = adminToken(env);
+        if (want && request.headers.get('x-pp-admin') !== want) return json({ error: 'unauthorized' }, 401);
+        const code = (url.searchParams.get('code') || '').trim();
+        if (!code || code.length > 80) return json({ error: 'pass ?code=<phrase>' }, 400);
+        const limit = Number(url.searchParams.get('limit'));
+        if (!Number.isInteger(limit) || limit < 0 || limit > 100000) {
+          return json({ error: 'pass ?limit=<1-100000>, or 0 to revoke' }, 400);
+        }
+        const cfg = await loadConfig(env);
+        const codes: Record<string, unknown> = { ...(cfg.codes || {}) };
+        if (limit === 0) delete codes[code];
+        else codes[code] = limit;
+        const next: RuntimeConfig = { ...cfg, codes: capCodes(codes) };
+        if (!next.codes) delete next.codes;
+        await env.KV.put('config:current', JSON.stringify(next));
+        return json({ ok: true, code, limit: limit || null, codes: next.codes || {} });
       }
 
       if (url.pathname === '/admin/generate' && request.method === 'POST') {

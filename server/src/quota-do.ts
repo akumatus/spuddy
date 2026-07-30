@@ -30,10 +30,26 @@ interface DayCount {
 const EMPTY = { used: 0, tries: 0 };
 
 export class DeviceQuota extends DurableObject {
-  // Today's counters; any other stored date means an untouched day → zeroes.
-  async state(date: string): Promise<{ used: number; tries: number }> {
-    const cur = await this.ctx.storage.get<DayCount>('q');
-    return cur && cur.date === date ? { used: cur.used, tries: cur.tries || 0 } : EMPTY;
+  // Today's counters plus any standing grant. The counters reset with the date;
+  // the grant does not — it is what a redeemed passphrase bought, and it should
+  // outlive every daily rollover.
+  async state(date: string): Promise<{ used: number; tries: number; grant: number }> {
+    const [cur, grant] = await Promise.all([
+      this.ctx.storage.get<DayCount>('q'),
+      this.ctx.storage.get<number>('grant'),
+    ]);
+    const counts = cur && cur.date === date ? { used: cur.used, tries: cur.tries || 0 } : EMPTY;
+    return { ...counts, grant: grant || 0 };
+  }
+
+  // Raise this device's daily budget for good. Only ever called after an invite
+  // DO confirmed the passphrase was unused, and only upward — replaying a
+  // smaller code can never take away a bigger grant.
+  async grant(limit: number): Promise<number> {
+    const cur = (await this.ctx.storage.get<number>('grant')) || 0;
+    if (limit <= cur) return cur;
+    await this.ctx.storage.put('grant', limit);
+    return limit;
   }
 
   // Record one attempt. `ok` marks it as having produced a real reply, which is
@@ -51,5 +67,22 @@ export class DeviceQuota extends DurableObject {
       used: cur.used + (ok ? 1 : 0),
       tries: cur.tries + 1,
     });
+  }
+}
+
+// One Durable Object per passphrase — the thing that makes "single use" true
+// rather than merely likely. A DO instance is globally unique for its name and
+// serializes its calls, so two people racing on the same phrase cannot both
+// win; a KV read-then-write could let both through.
+export class InviteCode extends DurableObject {
+  // First caller takes it. A replay by the SAME device is idempotent (someone
+  // retyping their phrase should not feel broken), while any other device is
+  // simply refused — the worker then treats the message as ordinary chat, so a
+  // leaked-and-spent phrase reveals nothing about having ever been valid.
+  async redeem(deviceId: string): Promise<{ ok: boolean; already: boolean }> {
+    const by = await this.ctx.storage.get<string>('by');
+    if (by) return { ok: by === deviceId, already: true };
+    await this.ctx.storage.put('by', deviceId);
+    return { ok: true, already: false };
   }
 }

@@ -1,7 +1,7 @@
 // Shared server types: the Worker environment and the request/response shapes
 // exchanged with the app (see app/src/types.ts for the client-side mirror).
 
-import type { DeviceQuota } from './quota-do';
+import type { DeviceQuota, InviteCode } from './quota-do';
 
 export interface Env {
   KV: KVNamespace;
@@ -11,6 +11,10 @@ export interface Env {
   // binding should fail requests loudly at deploy time, not silently stop
   // metering the money.
   QUOTA: DurableObjectNamespace<DeviceQuota>;
+
+  // One Durable Object per invite passphrase, which is what makes a phrase
+  // genuinely single use (quota-do.ts InviteCode).
+  INVITE: DurableObjectNamespace<InviteCode>;
 
   // Per-IP burst guard (Workers native rate limiting, [[ratelimits]] in
   // wrangler.toml). Deliberately optional: local dev and any older config run

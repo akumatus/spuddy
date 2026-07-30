@@ -166,6 +166,49 @@ export function adminExpected(adminToken: string | undefined, appToken: string |
   return adminToken || (appToken || '').split(',')[0].trim();
 }
 
+// ── invite passphrases ──
+// Codes live in config:current.codes as { "<phrase>": <daily limit> }. There is
+// no UI for redeeming one: the human simply says the phrase to their pet, and
+// the worker recognises it before the message ever reaches a model.
+
+// Normalise for comparison so a phrase survives being retyped: case and
+// surrounding whitespace are forgiven, and full-width punctuation folds to
+// ASCII (a Chinese IME produces ，。！？ where the config likely has none).
+export function normalizeCode(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[，。！？、；：]/g, '')
+    .replace(/[.!?,;:]/g, '')
+    .replace(/\s+/g, '');
+}
+
+// Match a chat message against the configured phrases. Returns the phrase's
+// canonical key (the DO name) and the budget it grants, or null for the
+// overwhelmingly common case of ordinary conversation. Anything long enough to
+// be a real sentence is skipped without looking.
+export function matchCode(text: string, codes: Record<string, number> | undefined): { key: string; limit: number } | null {
+  if (!codes || !text || text.length > 80) return null;
+  const said = normalizeCode(text);
+  if (!said) return null;
+  for (const [phrase, limit] of Object.entries(codes)) {
+    if (normalizeCode(phrase) === said) return { key: phrase, limit };
+  }
+  return null;
+}
+
+// Validate the codes map coming in over the admin door. Bounded like the tuning
+// map: a runaway config here would be read on every single chat request.
+export function capCodes(codes: Record<string, unknown>): Record<string, number> | undefined {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(codes).slice(0, 200)) {
+    const phrase = k.trim();
+    const n = Math.trunc(Number(v));
+    if (phrase && phrase.length <= 80 && Number.isFinite(n) && n >= 1 && n <= 100_000) out[phrase] = n;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 // deviceId becomes part of a KV key (`q:<id>:<date>`), and KV keys are capped at
 // 512 bytes — an oversized one would fail the quota write rather than the
 // request, i.e. the caller would get metered for free. charId only indexes a

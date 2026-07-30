@@ -7,7 +7,7 @@
 // Plain asserts over esbuild + node, same shape as the eval scripts — the
 // Worker never runs, so this needs no wrangler and no API keys.
 
-import { LIMITS, adminExpected, capChat, capDistill, capMemory, capTurns, dayNum, readJson, tokenAccepted } from '../src/guard';
+import { LIMITS, adminExpected, capChat, capCodes, capDistill, capMemory, capTurns, dayNum, matchCode, normalizeCode, readJson, tokenAccepted } from '../src/guard';
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, extra = '') => {
@@ -121,5 +121,37 @@ console.log('\ntoken rotation (tokenAccepted / adminExpected)');
   ok('admin falls back to FIRST app token', adminExpected(undefined, 'new,old') === 'new');
   ok('admin blank when nothing set', adminExpected(undefined, undefined) === '');
 }
+console.log('\ninvite passphrases');
+{
+  const codes = { '芝麻开门': 1000, 'open sesame': 500 };
+  ok('exact phrase matches', matchCode('芝麻开门', codes)?.limit === 1000);
+  ok('returns the canonical key', matchCode('芝麻开门', codes)?.key === '芝麻开门');
+  ok('surrounding space forgiven', matchCode('  芝麻开门  ', codes)?.limit === 1000);
+  ok('case forgiven', matchCode('OPEN SESAME', codes)?.limit === 500);
+  // a Chinese IME adds full-width punctuation the config almost certainly lacks
+  ok('full-width punctuation folded', matchCode('芝麻开门。', codes)?.limit === 1000);
+  ok('trailing ! forgiven', matchCode('open sesame!', codes)?.limit === 500);
+  ok('inner spacing forgiven', matchCode('opensesame', codes)?.limit === 500);
+
+  // everything else must look exactly like ordinary conversation
+  ok('ordinary chat is not a code', matchCode('今天好累啊', codes) === null);
+  ok('near miss is not a code', matchCode('芝麻关门', codes) === null);
+  ok('phrase inside a sentence does NOT match', matchCode('我跟他说了芝麻开门这四个字', codes) === null);
+  ok('long message skipped outright', matchCode('x'.repeat(200), codes) === null);
+  ok('no codes configured → never matches', matchCode('芝麻开门', undefined) === null);
+  ok('empty message is not a code', matchCode('   ', codes) === null);
+}
+
+console.log('\ncapCodes');
+{
+  ok('valid map kept', JSON.stringify(capCodes({ a: 1000 })) === '{"a":1000}');
+  ok('zero/negative dropped', capCodes({ a: 0, b: -5 }) === undefined);
+  ok('non-numeric dropped', capCodes({ a: 'lots' }) === undefined);
+  ok('over-cap limit dropped', capCodes({ a: 999999 }) === undefined);
+  ok('empty phrase dropped', capCodes({ '   ': 100 }) === undefined);
+  ok('empty map → undefined', capCodes({}) === undefined);
+  ok('float truncated', JSON.stringify(capCodes({ a: 10.9 })) === '{"a":10}');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -58,9 +58,20 @@ id = "276e01a434db4d07a1576578862a45fe"
 name = "QUOTA"
 class_name = "DeviceQuota"
 
+# One DO per invite passphrase. A globally unique, serialized instance per name
+# is what makes "single use" actually true — a KV read-then-write would let two
+# simultaneous redemptions both succeed.
+[[durable_objects.bindings]]
+name = "INVITE"
+class_name = "InviteCode"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["DeviceQuota"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["InviteCode"]
 
 [vars]
 # These are only DEFAULTS. The live provider/model is read from KV (config:current)

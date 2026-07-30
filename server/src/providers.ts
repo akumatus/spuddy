@@ -19,6 +19,10 @@ export interface RuntimeConfig {
   // need no server change; the app clamps every value and falls back to its
   // built-in default when a key is absent (see app/src/remote.ts tune()).
   tuning?: Record<string, number>;
+  // Invite passphrases: { "<phrase>": <daily limit> }. Said aloud to the pet in
+  // chat, not typed into any settings screen — see matchCode in guard.ts. Each
+  // one is single use, enforced by a Durable Object per phrase.
+  codes?: Record<string, number>;
 }
 
 interface ProviderCfg {
