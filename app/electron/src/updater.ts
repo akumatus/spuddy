@@ -1,6 +1,7 @@
 // Auto-update via electron-updater against the public GitHub releases.
 // Quiet by design: checks 30s after launch, every 6h, and after waking from a
-// long sleep; downloads silently, installs on quit — the pet never nags. The
+// long sleep; downloads silently, installs on quit or by itself once the user
+// has clearly stepped away (see the idle watcher) — the pet never nags. The
 // tray mirrors the state (see tray.ts): the menu shows the current version, a
 // manual "Check for Updates" entry, and a "Restart to update" entry once a
 // download is staged. Check results are spoken by the pet itself (the
@@ -81,6 +82,24 @@ export function quitAndInstall(): void {
 
 const CHECK_EVERY = 6 * 60 * 60 * 1000;
 
+// A desk pet is never quit on purpose, so autoInstallOnAppQuit alone can
+// strand people on a stale version for weeks. Once an update is staged,
+// install it the moment the human is clearly away — quitAndInstall relaunches
+// us, boot takes a couple of seconds, and the potato has already changed
+// clothes by the time they're back. Idle keeps accruing while the screen is
+// locked, but a lock is the unambiguous "gone for a bit", so it gets a
+// shorter fuse.
+const IDLE_INSTALL_AFTER = 10 * 60; // seconds without input
+const LOCKED_INSTALL_AFTER = 2 * 60;
+
+let screenLocked = false;
+
+function maybeInstallWhileAway(): void {
+  if (status.state !== 'ready') return;
+  const fuse = screenLocked ? LOCKED_INSTALL_AFTER : IDLE_INSTALL_AFTER;
+  if (powerMonitor.getSystemIdleTime() >= fuse) quitAndInstall();
+}
+
 export function startUpdater(): void {
   // dev runs have no app-update.yml (and nothing meaningful to update)
   if (!app.isPackaged) return;
@@ -108,4 +127,12 @@ export function startUpdater(): void {
       if (Date.now() - lastCheckAt > 60 * 60 * 1000) checkForUpdates();
     }, 10_000);
   });
+
+  powerMonitor.on('lock-screen', () => {
+    screenLocked = true;
+  });
+  powerMonitor.on('unlock-screen', () => {
+    screenLocked = false;
+  });
+  setInterval(maybeInstallWhileAway, 60_000);
 }
