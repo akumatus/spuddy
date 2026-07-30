@@ -148,12 +148,15 @@ Then, against the `quotes` array:
 - real, specific attribution + passes every hard rule above → **golden**
   (`/admin/quotes`). Whatever count genuinely qualifies is the right count —
   often 10–20; never stretch a line's attribution to promote it.
-- genuinely circulating but no meaningful source (网络/佚名 tier) → **the
+- everything that reads well but fails golden's attribution bar → **the
   internet-line pool** (`/admin/inet`, §3), posted as plain lines WITHOUT any
-  source label.
-- invented, uncertain, or rule-breaking (proverbs, classical, mutations) →
-  **dropped**. The old pool rotted because runs padded the golden pool to hit
-  a quota; the fix is the sort, not a smaller hunt.
+  source label. This covers the 网络/佚名 tier AND golden's rejects — uncertain
+  or apocryphal attributions, mutations of famous quotes, lines whose real
+  source you couldn't pin down. A hunted line that reads well is never wasted:
+  demote it, don't drop it.
+- fails inet's own quality bar too (proverbs, classical, schoolroom slogans,
+  filler) → **dropped**. The old pool rotted because runs padded the golden
+  pool to hit a quota; the fix is the sort, not a smaller hunt.
 
 ### 3. Internet-line pool — the low-provenance half of the daily hunt
 
@@ -166,11 +169,12 @@ no-source finds here via `POST /admin/inet?lang=<lang>` with
 `{ "lines": ["…", …] }`, and the maintainer can hand-add or prune anytime.
 
 Bar for this pool: lines that FEEL human-circulated — warm, quotable,
-screenshot-grade internet writing. Still banned: 俗语/谚语/proverbs, classical
-Chinese, mutations of attributed famous quotes (those are golden's or nobody's),
-and filler you wrote just to fill. Before POSTing, check the `inet` array from
-the same `GET /admin/quotes` answer (§2) and skip lines already there,
-including paraphrases.
+screenshot-grade internet writing. Golden's attribution rejects land here too
+(posted as plain lines, no source label) — a shaky attribution is inet's
+normal, not a defect. Still banned: 俗语/谚语/proverbs, classical Chinese,
+schoolroom slogans, and filler you wrote just to fill. Before POSTing, check
+the `inet` array from the same `GET /admin/quotes` answer (§2) and skip lines
+already there, including paraphrases.
 
 ## Assemble & POST — three calls per language
 
