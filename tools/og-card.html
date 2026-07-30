@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- resolve every relative URL (modules, draco path, glb, cards.json) into web/ -->
+<base href="../web/">
+<title>Spuddy og:image composer</title>
+<!-- Composes web/assets/og-card.png (2400x1260, a 2x 1200x630 social card).
+     Serve the repo root (launch config "tryon-preview") and open
+     /tools/og-card.html — it renders the potato live with the site's PetScene
+     runtime under a punchier studio light rig (the old spuddy-3d.png bake read
+     flat), lets the scene bake a real card line onto the 3D card, then rebuilds
+     the hero-section design language on a canvas. Result lands in window.__png
+     (also a Download link). -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#888;display:flex;flex-direction:column;align-items:flex-start}
+  #c{width:1200px;height:630px;display:block}
+  #r3d{width:560px;height:700px;position:absolute;left:-9999px;top:0}
+  #bar{font:14px system-ui;color:#fff;padding:6px 10px}
+</style>
+</head>
+<body>
+<canvas id="c" width="2400" height="1260"></canvas>
+<canvas id="r3d"></canvas>
+<div id="bar">rendering…</div>
+<script type="module">
+import * as THREE from './lib/three.module.js';
+import { PetScene } from './lib/spud-scene2.js';
+
+const W = 1200, H = 630;                    // design units; canvas is 2x
+
+const load = (src) => new Promise((res, rej) => {
+  const im = new Image();
+  im.onload = () => res(im);
+  im.onerror = rej;
+  im.src = src;
+});
+
+// Live-render the potato holding a written card, transparent background.
+async function renderPotato() {
+  const c3 = document.getElementById('r3d');
+  const scene = new PetScene(c3, { cameraSway: false, card: true });
+  scene.shadow.visible = false;             // the composition draws its own
+
+  // og studio rig — the hero rig reads flat on the cream card, so: brighter,
+  // slightly whiter key, a front fill to open the shadow side, and stronger
+  // back rims to pop the silhouette off the pale backdrop
+  scene.key.intensity = 1.3;
+  scene.key.color.set(0xfff3dd);
+  scene.key.position.set(2.2, 3.4, 5.2);
+  scene.rim.intensity = 0.9;
+  scene.rim.position.set(-2.4, 2.8, -2.6);
+  const fill = new THREE.DirectionalLight(0xffe2bf, 0.38);
+  fill.position.set(-2.6, 1.4, 4.6);
+  scene.scene.add(fill);
+  const kicker = new THREE.DirectionalLight(0xfff1d8, 0.35);
+  kicker.position.set(3, 1.8, -2.5);
+  scene.scene.add(kicker);
+  scene.renderer.toneMappingExposure = 1.2;
+
+  await scene.setCharacter('spud');
+
+  // The pane throttles rAF while hidden, so never rely on the tick loop or
+  // wall-clock transitions: halt the loop and compose one deterministic frame.
+  scene.disposed = true;                    // stops _tick without disposing GL
+  const A = scene.animator;
+  A.nextBlinkAt = performance.now() + 1e9;  // no mid-blink snapshots
+  A.t0 = A.lastNow = performance.now();     // breath phase 0 → neutral pose
+  A.update();
+  // Bake the card line ourselves instead of cs.redraw(): the runtime centers
+  // text across ~98% of the card, which runs the last word under his right
+  // thumb — keep a custom safe box biased away from the grip instead.
+  const cs = scene.cardScreen;
+  const cc = cs.canvas, cx2 = cs.ctx, CW = cc.width, CH = cc.height;
+  cx2.clearRect(0, 0, CW, CH);
+  cx2.fillStyle = '#FFFDF6';
+  cx2.fillRect(0, 0, CW, CH);
+  cx2.textAlign = 'center';
+  cx2.textBaseline = 'middle';
+  cx2.fillStyle = '#C9A96F';
+  cx2.font = `800 ${Math.round(CH * 0.075)}px Nunito, sans-serif`;
+  const prevSpacing = cx2.letterSpacing;
+  cx2.letterSpacing = `${CH * 0.02}px`;
+  cx2.fillText('TODAY', CW * 0.47, CH * 0.17);
+  cx2.letterSpacing = prevSpacing;
+  cx2.fillStyle = '#4A3B2A';
+  cx2.font = `700 ${Math.round(CH * 0.2)}px Caveat, cursive`;
+  cx2.fillText('Your pace is', CW * 0.47, CH * 0.42);
+  cx2.fillText('a real pace.', CW * 0.47, CH * 0.62);
+  cx2.fillStyle = '#B07C3B';
+  cx2.textAlign = 'right';
+  cx2.font = `800 ${Math.round(CH * 0.062)}px Nunito, sans-serif`;
+  cx2.fillText('— Spud', CW * 0.78, CH * 0.81);
+  cx2.textAlign = 'left';
+  cs.texture.needsUpdate = true;
+  scene.camera.position.copy(scene.camBase);
+  scene.camera.lookAt(scene.lookAt);
+  scene.renderer.render(scene.scene, scene.camera);
+
+  const snap = document.createElement('canvas');
+  snap.width = c3.width; snap.height = c3.height;
+  snap.getContext('2d').drawImage(c3, 0, 0);
+
+  const d = snap.getContext('2d').getImageData(0, 0, snap.width, snap.height).data;
+  let x0 = snap.width, y0 = snap.height, x1 = 0, y1 = 0;
+  for (let y = 0; y < snap.height; y++) for (let x = 0; x < snap.width; x++) {
+    if (d[(y * snap.width + x) * 4 + 3] > 12) {
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+  }
+  const edgeAt = (fy) => {                  // silhouette edges at a body fraction
+    const y = Math.round(y0 + (y1 - y0) * fy);
+    let l = -1, r = -1;
+    for (let x = x0; x <= x1; x++) if (d[(y * snap.width + x) * 4 + 3] > 12) { if (l < 0) l = x; r = x; }
+    return [l, r];
+  };
+  return { snap, x0, y0, x1, y1, edgeAt };
+}
+
+function star(ctx, x, y, r, color, alpha) { // 4-point sparkle, like the site's ✦
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const rr = i % 2 ? r * 0.36 : r;
+    const a = i * Math.PI / 4 - Math.PI / 2;
+    ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function wrap(ctx, text, maxW) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const wd of words) {
+    const t = cur ? cur + ' ' + wd : wd;
+    if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = wd; }
+    else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+async function main() {
+  // No buddy lineup in this image on purpose: the cast may change over time
+  // and the og card is regenerated rarely — keep it evergreen.
+  const icon = await load('assets/icon.png');
+  await document.fonts.load('900 56px Nunito');
+  await document.fonts.load('800 13px Nunito');
+  await document.fonts.load('600 20px Nunito');
+  await document.fonts.load('700 48px Caveat');
+  await document.fonts.load('600 24px Caveat');
+  const pot = await renderPotato();
+
+  const ctx = document.getElementById('c').getContext('2d');
+  ctx.scale(2, 2);
+
+  // backdrop — the site's body gradient
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#FAF4E6');
+  g.addColorStop(0.6, '#F3E7CD');
+  g.addColorStop(1, '#EBDBBB');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // potato placement: bbox fitted into the right column (feet on y=608)
+  const PH = 505;
+  const scale = PH / (pot.y1 - pot.y0);
+  const pw = (pot.x1 - pot.x0) * scale;
+  const px = 878 - pw / 2, py = 608 - PH;
+  const toDesign = (sx) => px + (sx - pot.x0) * scale;
+  const headR = toDesign(pot.edgeAt(0.2)[1]);
+  document.getElementById('bar').textContent =
+    `head right edge @20% body ≈ ${headR.toFixed(0)} (golden card tucks at ~1013)`;
+
+  // ---- top right: a golden card he pulled earlier, corner tucked just
+  //      behind his head like the hero section's side cards ----
+  ctx.save();
+  ctx.translate(1105, 162);
+  ctx.rotate(7 * Math.PI / 180);
+  ctx.scale(0.82, 0.82);
+  ctx.fillStyle = '#FFFEF6';
+  ctx.strokeStyle = 'rgba(201,162,39,0.55)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 5]);
+  ctx.shadowColor = 'rgba(62,50,38,0.14)';
+  ctx.shadowOffsetY = 10;
+  ctx.shadowBlur = 22;
+  ctx.beginPath(); ctx.roundRect(-105, -68, 210, 136, 16); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#C9A227';
+  ctx.beginPath(); ctx.roundRect(-89, -52, 116, 21, 999); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '800 10.5px Nunito';
+  ctx.letterSpacing = '1.2px';
+  ctx.fillText('GOLDEN STITCH', -79, -37.5);
+  ctx.letterSpacing = '0px';
+  ctx.fillStyle = '#4A3B2A';
+  ctx.font = '600 23px Caveat';
+  ctx.fillText('a whole snack this', -89, -2);
+  ctx.fillText('week, honestly.', -89, 24);
+  ctx.fillStyle = '#B07C3B';
+  ctx.font = '800 12px Nunito';
+  ctx.textAlign = 'right';
+  ctx.fillText('— Taco', 92, 52);
+  ctx.textAlign = 'left';
+  ctx.restore();
+
+  // ---- right: the potato on his own soft shadow ----
+  const sh = ctx.createRadialGradient(878, 612, 4, 878, 612, 175);
+  sh.addColorStop(0, 'rgba(62,50,38,0.20)');
+  sh.addColorStop(0.72, 'rgba(62,50,38,0.0)');
+  ctx.save();
+  ctx.translate(878, 612); ctx.scale(1, 0.13); ctx.translate(-878, -612);
+  ctx.fillStyle = sh;
+  ctx.fillRect(670, 400, 420, 430);
+  ctx.restore();
+  ctx.save();
+  // soft contact glow so he sits in the scene instead of floating on it
+  ctx.shadowColor = 'rgba(62,50,38,0.16)';
+  ctx.shadowBlur = 26;
+  ctx.shadowOffsetY = 14;
+  ctx.drawImage(
+    pot.snap,
+    pot.x0, pot.y0, pot.x1 - pot.x0 + 1, pot.y1 - pot.y0 + 1,
+    px, py, pw, PH
+  );
+  ctx.restore();
+
+  // ---- left column ----
+  const L = 84;
+  // brand: app icon + Caveat wordmark, like the nav
+  ctx.save();
+  ctx.shadowColor = 'rgba(62,50,38,0.2)';
+  ctx.shadowOffsetY = 2;
+  ctx.shadowBlur = 7;
+  ctx.beginPath(); ctx.roundRect(L, 44, 44, 44, 12); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.clip();
+  ctx.drawImage(icon, L, 44, 44, 44);
+  ctx.restore();
+  ctx.fillStyle = '#3E3226';
+  ctx.font = '700 36px Caveat';
+  ctx.fillText('Spuddy', L + 58, 78);
+
+  // eyebrow — block below the brand sits vertically centered now that the
+  // buddy row is gone
+  ctx.font = '800 13px Nunito';
+  ctx.letterSpacing = '2.4px';
+  ctx.fillStyle = '#C9A227';
+  ctx.fillText('✦', L, 222);
+  ctx.fillStyle = '#A98A52';
+  ctx.fillText('YOUR DAILY PICK-ME-UP', L + 22, 222);
+  ctx.fillStyle = '#C9A227';
+  ctx.fillText('✦', L + 22 + ctx.measureText('YOUR DAILY PICK-ME-UP').width + 8, 222);
+  ctx.letterSpacing = '0px';
+
+  // headline — Nunito 900 line + Caveat line, like the hero
+  ctx.fillStyle = '#2E251B';
+  ctx.font = '900 56px Nunito';
+  ctx.letterSpacing = '-1.6px';
+  ctx.fillText('Pull a little card,', L, 282);
+  ctx.letterSpacing = '0px';
+  ctx.save();
+  ctx.translate(L, 334);
+  ctx.rotate(-1 * Math.PI / 180);
+  ctx.fillStyle = '#B07C3B';
+  ctx.font = '700 48px Caveat';
+  ctx.fillText('whenever you need one.', 0, 0);
+  ctx.restore();
+
+  // sub copy
+  ctx.fillStyle = '#5E5142';
+  ctx.font = '600 20px Nunito';
+  const sub = wrap(ctx, 'A real crocheted potato, alive on your desktop — he holds up little cards of encouragement.', 430);
+  sub.forEach((ln, i) => ctx.fillText(ln, L, 382 + i * 30));
+
+  // "Free for macOS" pill
+  const pillY = 382 + sub.length * 30 + 16;
+  ctx.fillStyle = '#3E3226';
+  ctx.beginPath(); ctx.roundRect(L, pillY, 152, 38, 999); ctx.fill();
+  ctx.fillStyle = '#FBF3E2';
+  ctx.font = '800 15px Nunito';
+  ctx.fillText('Free for macOS', L + 20, pillY + 25);
+
+  // sparkles
+  star(ctx, 940, 44, 7, '#C9A227', 0.75);
+  star(ctx, 700, 120, 6, '#D9B24D', 0.6);
+  star(ctx, 1163, 58, 6, '#D9B24D', 0.8);
+  star(ctx, 1150, 330, 7, '#C9A227', 0.7);
+  star(ctx, 636, 548, 6, '#D9B24D', 0.7);
+  star(ctx, 604, 330, 5, '#C9A227', 0.55);
+  star(ctx, 150, 540, 6, '#D9B24D', 0.55);
+
+  window.__png = document.getElementById('c').toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = window.__png;
+  a.download = 'og-card.png';
+  a.textContent = 'download og-card.png';
+  const bar = document.getElementById('bar');
+  bar.append(' · ready · ', a);
+  document.title = 'og:ready';
+}
+main().catch((e) => { document.getElementById('bar').textContent = 'error: ' + e; });
+</script>
+</body>
+</html>
