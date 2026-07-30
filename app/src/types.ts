@@ -107,6 +107,11 @@ export interface AppState {
   memory: MemoryFact[]; // durable facts he's distilled about the human
   loops: OpenLoop[]; // open threads to circle back to ("how did the interview go?")
   chat: ChatMessage[];
+  // lifetime count of lines the HUMAN has sent him — the Bloom unlock's meter
+  // (store.ts counts().chats). Its own counter rather than a read of the
+  // transcript: state.chat is a sliding window, and clearing the chat must not
+  // revoke progress the human already earned. Monotonic, never reset.
+  chatTurns: number;
   // batch memory extraction cursor — how many chat.jsonl lines (absolute file
   // count, NOT an index into the state.chat window) have been distilled. See
   // app/distill.ts; healed by clamping when the transcript shrinks (clear chat).

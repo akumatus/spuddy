@@ -89,6 +89,11 @@ export function chatSend(): void {
   ctx.state.chat.push({ who: 'user', text: note, day: ctx.state.day, date: store.todayStr() });
   chatPending.push(note);
   scheduleDistill();
+  // Persist on send, not just after the reply: this is the tick that moves the
+  // Bloom meter, and the unlock celebration should answer what THEY just did —
+  // it lands while he's still writing, so his reply doesn't step on it.
+  ctx.state.chatTurns++;
+  ctx.persist();
 
   if (ctx.chatBusy) return; // a reply is already brewing — he'll pick this up next
   runChat();

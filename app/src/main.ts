@@ -90,6 +90,13 @@ ctx.onPersist(() => {
   $('buddiesDot').classList.toggle('hidden', !state.buddyNew);
 });
 
+// A save can already satisfy a condition at boot without anything persisting
+// yet — a rule whose meter changed under it (store.ts counts()), or a migration
+// that backfilled a counter. Persist-only checking left those buddies locked
+// until the human happened to draw a card. Delayed past the greeting's dwell so
+// the hello doesn't clobber the "joined!" bubble.
+setTimeout(() => checkUnlocks(), 8000);
+
 wireInteractions();
 
 // ── language switch: the ⚙ settings panel and the tray menu share one path

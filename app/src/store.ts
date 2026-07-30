@@ -161,6 +161,7 @@ export function defaultState(): AppState {
     // The transcript starts empty — his daily hello lives in a spoken bubble, not
     // the record (see main.js). It fills as you actually talk.
     chat: [],
+    chatTurns: 0, // lifetime lines the human has sent — the Bloom unlock's meter (counts() below)
     distilledUpTo: 0, // batch memory-extraction cursor, in absolute chat.jsonl lines (app/distill.ts)
     consolidatedDay: 0, // friendship day of the last memory-curation pass (app/consolidate.ts)
     active: 'spud',
@@ -178,11 +179,16 @@ export function defaultState(): AppState {
 
 export function load(): AppState {
   let s = defaultState();
+  // Was this an existing save with no chatTurns field? Can't be inferred from
+  // the merged state further down — defaultState() already put a 0 there, so a
+  // `typeof !== 'number'` test would read as "present" and backfill nothing.
+  let backfillTurns = false;
   try {
     const raw = JSON.parse(fileStore()?.load() || localStorage.getItem(KEY) || 'null') as
       | (Partial<AppState> & { journal?: unknown })
       | null;
     if (raw && Array.isArray(raw.cards)) {
+      backfillTurns = typeof raw.chatTurns !== 'number' || !isFinite(raw.chatTurns);
       s = { ...s, ...raw };
       // One-time buddy rename leo → mochi: the lion coach became Mochi the
       // bun potato (content.ts). Remap every persisted CharId so existing
@@ -253,6 +259,15 @@ export function load(): AppState {
       if (legacy) save(s); // rewrites state.json without the chat field
     } catch (e) {}
   }
+  // Chat-turn counter (field added 2026-07). Older saves backfill from the
+  // transcript so nobody loses credit for talks they already had: user lines in
+  // the loaded window, plus a half-and-half estimate of the pages above it (pet
+  // replies can split into several lines, so that half under-counts if
+  // anything). Placed after the window load above, which sets chatBase.
+  if (backfillTurns) {
+    s.chatTurns = s.chat.filter((m) => m.who === 'user').length + Math.floor(chatBase / 2);
+  }
+  s.chatTurns = Math.max(0, Math.floor(s.chatTurns) || 0);
   // Batch-extraction cursor (app/distill.ts). Saves from before the field
   // existed backfill the last few messages once — history distilled under the
   // old in-reply rules gets a second read — then clamp into the transcript
@@ -414,11 +429,17 @@ export function reset(): void {
   } catch (e) {}
 }
 
+// Unlock meters (content.ts UNLOCK keys → thresholds). Every one of these has
+// to be something the human can see themselves doing: `chats` counts what they
+// actually said to him, NOT the facts the distill pass managed to extract from
+// it — that number lags a conversation lull, depends on what the model found
+// worth keeping, and shrinks when consolidation merges cards, so a chatty human
+// could watch "0/5 heart-to-hearts" all day (Bloom never unlocked).
 export function counts(s: AppState) {
   return {
     cards: s.cards.length,
     favs: s.cards.filter((c) => c.fav).length,
-    chats: s.memory.length,
+    chats: s.chatTurns,
     streak: s.streak,
     golden: s.cards.filter((c) => c.rare).length,
   };
