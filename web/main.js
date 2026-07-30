@@ -9,15 +9,21 @@
 const HERO_BUDDY = 'spud';
 
 // Lines painted onto the card he actually holds, cycled with a cross-fade.
+// A blend of house voice and the live pools at api.cherry.surf (quote library
+// + internet lines — see server/src/quotes-store.ts): normal cards stay
+// unattributed and signed by the buddy, the golden card carries a real famous
+// quote, signed with its source via `s`.
 const CARD_DECK = [
   { top: 'TODAY', main: 'Your pace is a real pace.' },
-  { top: 'A REMINDER', main: 'Rest counts as doing something.' },
-  { top: 'PSST', main: 'Small steps still count.' },
+  { top: 'PSST', main: 'Stay soft in a hard world.' },
   { top: 'HEY', main: 'You made it through every hard day so far.' },
+  { top: 'A REMINDER', main: 'You are not behind. You are on your own path.' },
   { top: 'FOR YOU', main: 'Done beats perfect.' },
   { top: '· ♥ ·', main: 'You don’t have to bloom today — just stay rooted.' },
   { top: 'GENTLE NUDGE', main: 'Go drink some water. I’ll watch your stuff.' },
-  { top: 'GOLDEN STITCH', main: 'You’re doing better than you think.', gold: true },
+  { top: 'PSST', main: 'Growth is quiet. Trust it.' },
+  { top: 'A REMINDER', main: 'Rest is not quitting.' },
+  { top: 'GOLDEN STITCH', main: 'You have more courage than you think.', s: 'Winnie the Pooh', gold: true },
 ];
 
 // On a poke he plays a random motion (no immediate repeats), weighted like the
@@ -53,7 +59,8 @@ function buddyName() { return BUDDY_NAMES[HERO_BUDDY] || 'Spud'; }
 function applyCard(i) {
   if (!scene || !scene.setCard) return;
   const c = CARD_DECK[((i % CARD_DECK.length) + CARD_DECK.length) % CARD_DECK.length];
-  scene.setCard({ top: c.top, main: c.main, footR: '— ' + buddyName(), gold: !!c.gold });
+  // quotes carry their real source; everything else is signed by the buddy
+  scene.setCard({ top: c.top, main: c.main, footR: '— ' + (c.s || buddyName()), gold: !!c.gold });
 }
 
 function advanceCard() {
