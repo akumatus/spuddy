@@ -105,7 +105,7 @@ pp?.on('set-lang', (pref) => applyLangPref(pref));
 pp?.lang?.report(state.lang, lang()); // initial sync so the tray matches the saved pref
 
 // ── update feedback: the updater's answers come out of the potato's own
-// mouth — macOS may swallow system notifications, but nobody can mute him ──
+// mouth, and nowhere else — this bubble is the whole channel, no OS banners ──
 pp?.on('update-note', (text) => {
   if (typeof text === 'string' && text) bubble(text, { hold: 3600 });
 });

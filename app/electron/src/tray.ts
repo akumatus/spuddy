@@ -25,8 +25,9 @@ const LABELS: Record<
     uptodate: string;
     restart: (v: string) => string;
     checkFailed: string;
-    notifyUptodate: (v: string) => string;
-    notifyReady: (v: string) => string;
+    // version numbers live in the menu above, not in the pet's mouth
+    notifyUptodate: string;
+    notifyReady: string;
     notifyFailed: string;
     notifySlow: string;
   }
@@ -42,8 +43,8 @@ const LABELS: Record<
     uptodate: 'Up to date',
     restart: (v) => `Restart to update (${v})`,
     checkFailed: 'Update check failed',
-    notifyUptodate: (v) => `i'm already the newest me (v${v})`,
-    notifyReady: (v) => `v${v} is ready — i'll slip into it next time you step away`,
+    notifyUptodate: "i'm already the newest me",
+    notifyReady: "a new sweater just landed — i'll sneak into it the moment you look away",
     notifyFailed: "couldn't reach the update server — i'll try again later",
     notifySlow: 'the network is slow today — still checking…',
   },
@@ -58,8 +59,8 @@ const LABELS: Record<
     uptodate: '已是最新版本',
     restart: (v) => `重启并更新到 ${v}`,
     checkFailed: '检查更新失败',
-    notifyUptodate: (v) => `我已经是最新的我啦（v${v}）`,
-    notifyReady: (v) => `v${v} 准备好了，等你下次离开一会儿我就悄悄焕新`,
+    notifyUptodate: '我已经是最新的我啦',
+    notifyReady: '新毛衣到货啦，等你一转身我就偷偷换上',
     notifyFailed: '暂时够不到更新服务器，稍后我再试试',
     notifySlow: '今天网络有点慢，还在看有没有新版本…',
   },
@@ -114,10 +115,10 @@ function maybeNotify(u: UpdateStatus): void {
   if (u.slow) {
     body = L.notifySlow;
   } else if (u.state === 'ready' && u.version && notifiedReady !== u.version) {
-    notifiedReady = u.version;
-    body = L.notifyReady(u.version);
+    notifiedReady = u.version; // still keyed on the version, just not spoken
+    body = L.notifyReady;
   } else if (u.manual) {
-    if (u.state === 'uptodate') body = L.notifyUptodate(app.getVersion());
+    if (u.state === 'uptodate') body = L.notifyUptodate;
     else if (u.state === 'error') body = L.notifyFailed;
   }
   if (!body) return;
