@@ -5,8 +5,7 @@
 // tray mirrors the state (see tray.ts): the menu shows the current version, a
 // manual "Check for Updates" entry, and a "Restart to update" entry once a
 // download is staged. Check results are spoken by the pet itself (the
-// 'update-note' bubble) — macOS drops our system notifications unless the
-// user grants them, so Notification is only a best-effort echo.
+// 'update-note' bubble) and nowhere else — no system notifications.
 import { app, powerMonitor } from 'electron';
 import { autoUpdater } from 'electron-updater';
 

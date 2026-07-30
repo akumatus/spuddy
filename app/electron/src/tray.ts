@@ -1,4 +1,4 @@
-import { Menu, Notification, Tray, app, ipcMain, nativeImage } from 'electron';
+import { Menu, Tray, app, ipcMain, nativeImage } from 'electron';
 import path from 'node:path';
 import type { Lang, LangPref } from '../../src/types';
 import { checkForUpdates, getUpdateStatus, onUpdateStatus, quitAndInstall, type UpdateStatus } from './updater';
@@ -26,7 +26,6 @@ const LABELS: Record<
     restart: (v: string) => string;
     checkFailed: string;
     notifyUptodate: (v: string) => string;
-    notifyFound: (v: string) => string;
     notifyReady: (v: string) => string;
     notifyFailed: string;
     notifySlow: string;
@@ -44,7 +43,6 @@ const LABELS: Record<
     restart: (v) => `Restart to update (${v})`,
     checkFailed: 'Update check failed',
     notifyUptodate: (v) => `i'm already the newest me (v${v})`,
-    notifyFound: (v) => `found v${v} — fetching it quietly…`,
     notifyReady: (v) => `v${v} is ready — i'll slip into it next time you step away`,
     notifyFailed: "couldn't reach the update server — i'll try again later",
     notifySlow: 'the network is slow today — still checking…',
@@ -61,7 +59,6 @@ const LABELS: Record<
     restart: (v) => `重启并更新到 ${v}`,
     checkFailed: '检查更新失败',
     notifyUptodate: (v) => `我已经是最新的我啦（v${v}）`,
-    notifyFound: (v) => `发现 v${v}，正在悄悄下载…`,
     notifyReady: (v) => `v${v} 准备好了，等你下次离开一会儿我就悄悄焕新`,
     notifyFailed: '暂时够不到更新服务器，稍后我再试试',
     notifySlow: '今天网络有点慢，还在看有没有新版本…',
@@ -103,35 +100,28 @@ function updateItem(L: (typeof LABELS)[Lang]): Electron.MenuItemConstructorOptio
 
 // The GitHub check can take a long while on a slow network and the tray menu
 // closes on click, so a manual check answers out loud. The potato's own speech
-// bubble is the primary channel — macOS quietly drops notifications from apps
-// the user never granted (this app registers no notification permission on a
-// fresh Mac), so the system Notification is only a best-effort echo. Auto
-// checks stay silent except the one moment worth knowing: an update is staged.
+// bubble is the only channel: it can talk, so a system banner repeating him
+// would just say everything twice (and macOS drops it anyway unless the user
+// granted notifications). Auto checks stay silent except the one moment worth
+// knowing — an update is staged, so a self-restart while they're away doesn't
+// read as a crash. Finding one needs no line of its own; the download is
+// usually seconds and the "ready" note covers it.
 let notifiedReady: string | null = null;
 
 function maybeNotify(u: UpdateStatus): void {
   const L = LABELS[effective];
   let body: string | null = null;
-  let echo = true; // also mirror to a system notification
   if (u.slow) {
     body = L.notifySlow;
-    echo = false; // a "hang on" is bubble-only — as a banner it'd just be noise
   } else if (u.state === 'ready' && u.version && notifiedReady !== u.version) {
     notifiedReady = u.version;
     body = L.notifyReady(u.version);
   } else if (u.manual) {
     if (u.state === 'uptodate') body = L.notifyUptodate(app.getVersion());
-    else if (u.state === 'downloading') body = L.notifyFound(u.version ?? '');
     else if (u.state === 'error') body = L.notifyFailed;
   }
   if (!body) return;
   getWin()?.webContents.send('update-note', body);
-  if (!echo) return;
-  try {
-    new Notification({ title: 'Spuddy', body }).show();
-  } catch (e) {
-    // notifications are a convenience — the bubble already told the story
-  }
 }
 
 function rebuildMenu(): void {
