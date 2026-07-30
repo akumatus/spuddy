@@ -1,13 +1,19 @@
 // Baked-in production defaults, shipped inside the build so a distributed app
 // reaches the server with no local config file. Precedence (see config.ts):
-//   env (PP_SERVER_URL / PP_APP_TOKEN)  >  user config.json  >  these defaults
+//   env (PP_SERVER_URL / PP_APP_TOKEN)  >  user config.json  >  build-time
+//   injection (__PP_APP_TOKEN__)  >  these defaults
 //
-// APP_TOKEN here is a SOFT GATE, not a secret: it ships in every build and is
-// extractable, so committing it doesn't weaken it. Real protection is the
-// server's per-device daily quota. If this repo is public and you'd rather not
-// have it in git, blank it here and inject PP_APP_TOKEN at build time instead
-// (and rotate the Worker's APP_TOKEN secret).
+// APP_TOKEN is deliberately EMPTY here and must stay that way. This repo is
+// public, and a token sitting in it is found for free by anyone reading the
+// source or by an automated secret scanner. The real value is injected at
+// build time from the PP_APP_TOKEN environment variable — see
+// scripts/build-electron.mjs and the release workflow.
+//
+// It was never a strong secret either way: it ships inside every build and
+// `npx asar extract` recovers it. The server's per-device quota, per-IP rate
+// limit and input caps are the actual defense; this only keeps the endpoint
+// away from drive-by callers.
 export const DEFAULTS = {
   SERVER_URL: 'https://api.cherry.surf',
-  APP_TOKEN: 'c481db09487ec84589f727d260ad2dd976d642bb25aa7b9e',
+  APP_TOKEN: '',
 };

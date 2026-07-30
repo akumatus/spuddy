@@ -19,7 +19,7 @@
     "dev": "node scripts/set-dev-name.cjs && yarn build && electron .",
     "start": "node scripts/set-dev-name.cjs && yarn build && electron .",
     "build": "vite build && yarn build:electron",
-    "build:electron": "esbuild electron/src/main.ts electron/src/preload.ts --bundle --platform=node --format=cjs --external:electron --outdir=electron --out-extension:.js=.cjs",
+    "build:electron": "node scripts/build-electron.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json",
     "dist:mac": "yarn build && electron-builder --mac --publish never",
     "release": "bash scripts/release.sh"

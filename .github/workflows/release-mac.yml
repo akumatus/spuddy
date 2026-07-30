@@ -40,7 +40,14 @@ jobs:
         # electron-builder only packages the prebuilt dist/ — it does not run Vite.
         # Without this, the app ships with no dist/index.html and opens a blank
         # white window. (Mirrors the local `dist:mac` script's `vite build` step.)
+        #
+        # PP_APP_TOKEN is baked into the main-process bundle here (esbuild
+        # `define`, see app/scripts/build-electron.mjs) — this repo is public, so
+        # the value is no longer committed in defaults.ts. A build without the
+        # secret still succeeds; its app just cannot reach the production server.
         run: yarn build
+        env:
+          PP_APP_TOKEN: ${{ secrets.PP_APP_TOKEN }}
 
       - name: Build DMG
         # Signed with Developer ID and notarized by Apple, so the dmg opens without

@@ -42,9 +42,13 @@ function writeConfig(patch: UserConfig): void {
   }
 }
 
+// Injected by esbuild at build time from PP_APP_TOKEN (scripts/build-electron.mjs).
+// Empty string in a local build that did not set it — see defaults.ts.
+declare const __PP_APP_TOKEN__: string;
+
 export const CONFIG = readConfig();
 export const SERVER_URL = (process.env.PP_SERVER_URL || CONFIG.serverUrl || DEFAULTS.SERVER_URL || '').replace(/\/+$/, '');
-export const APP_TOKEN = process.env.PP_APP_TOKEN || CONFIG.appToken || DEFAULTS.APP_TOKEN || '';
+export const APP_TOKEN = process.env.PP_APP_TOKEN || CONFIG.appToken || __PP_APP_TOKEN__ || DEFAULTS.APP_TOKEN || '';
 
 function ensureDeviceId(): string {
   if (CONFIG.deviceId) return CONFIG.deviceId;
