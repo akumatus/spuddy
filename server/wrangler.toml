@@ -2,15 +2,6 @@ name = "spuddy-server"
 main = "src/worker.ts"
 compatibility_date = "2024-11-01"
 
-# Queryable request logs in the dashboard (Workers & Pages -> spuddy-server ->
-# Observability). Free plan includes 200k events/day with 3-day retention —
-# comfortably more than the 100k/day request ceiling, so sampling stays at 1.
-# Without this there is no way to notice abuse until the provider bill lands:
-# filter on status 429 to see the rate limit and the quota doing their work.
-[observability]
-enabled = true
-head_sampling_rate = 1
-
 # Custom domain the app talks to — *.workers.dev is DNS-poisoned in mainland
 # China, so end users reach the Worker through here instead. Requires the
 # cherry.surf zone to be active on this Cloudflare account.
@@ -150,3 +141,17 @@ GEN_RUNS = "3"
 #   ADMIN_TOKEN        (protects POST /admin/generate; falls back to APP_TOKEN)
 # A backend with no key set is skipped automatically — the chain falls through to
 # the next provider that has one, so you only need keys for the ones you use.
+
+# Queryable request logs in the dashboard (Workers & Pages -> spuddy-server ->
+# Observability). Free plan includes 200k events/day with 3-day retention —
+# comfortably more than the 100k/day request ceiling, so sampling stays at 1.
+# Without this there is no way to notice abuse until the provider bill lands:
+# filter on status 429 to see the rate limit and the quota doing their work.
+#
+# KEEP THIS LAST. In TOML every key after a [table] header belongs to that
+# table, so putting this block above `routes` silently swallowed it — wrangler
+# read no top-level route at all and only muttered "Unexpected fields found in
+# observability field: routes". Any new bare top-level key goes ABOVE here.
+[observability]
+enabled = true
+head_sampling_rate = 1
