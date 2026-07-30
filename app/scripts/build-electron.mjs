@@ -10,13 +10,28 @@
 // the value out of a public repo, where automated scanners and casual readers
 // would find it for free.
 //
-// Building with no PP_APP_TOKEN set is fine and normal for local development:
-// the constant becomes '' and config.ts falls back to the env var or
-// ~/.config/spuddy/config.json. A LOCAL build therefore cannot talk to the
-// production server unless you supply the token one of those ways.
+// For local development, put the token in app/.dev.vars (git-ignored, same
+// shape and spirit as server/.dev.vars):
+//
+//     PP_APP_TOKEN=...
+//
+// Without it the constant is '' and a local build simply cannot reach the
+// production server — every request comes back 401.
+import fs from 'node:fs';
+import path from 'node:path';
 import esbuild from 'esbuild';
 
-const token = process.env.PP_APP_TOKEN || '';
+// env wins (that is how CI injects it), then the local file.
+function localToken() {
+  try {
+    const file = fs.readFileSync(path.join(process.cwd(), '.dev.vars'), 'utf8');
+    return /^\s*PP_APP_TOKEN\s*=\s*(.*)$/m.exec(file)?.[1].trim().replace(/^["']|["']$/g, '') || '';
+  } catch {
+    return ''; // no file is the normal case in CI
+  }
+}
+
+const token = process.env.PP_APP_TOKEN || localToken();
 
 await esbuild.build({
   entryPoints: ['electron/src/main.ts', 'electron/src/preload.ts'],
@@ -29,4 +44,4 @@ await esbuild.build({
   define: { __PP_APP_TOKEN__: JSON.stringify(token) },
 });
 
-console.log(token ? '  app token: injected from PP_APP_TOKEN' : '  app token: none (local build — set PP_APP_TOKEN or ~/.config/spuddy/config.json)');
+console.log(token ? '  app token: injected' : '  app token: none — create app/.dev.vars with PP_APP_TOKEN=... to reach the server');
