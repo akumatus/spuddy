@@ -210,7 +210,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
               <div class="mface">${memFace(mood, kind)}</div>
               <div class="mmark">
                 <span class="micon">${memIcon(mood)}</span>
-                <button class="del" data-delmem="${m.i}" title="${ui.unpickTitle}">×</button>
+                <button class="del" data-delmem="${m.i}">×</button>
               </div>
             </div>
             <div class="mfact ${zhClass(m.fact)}">${esc(m.fact)}</div>
