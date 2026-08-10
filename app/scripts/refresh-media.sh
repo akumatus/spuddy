@@ -54,12 +54,14 @@ done
 echo "▸ regenerating buddy portraits …"
 SHOT_URL="$URL" node_modules/.bin/electron scripts/shoot-chars.cjs
 
-# ── 2. media that renders a buddy — the roster, the live-3D pet frames, and the
-#       popup avatars. cardbook (text cards) and memory (SVG doodles) show no
-#       buddy, so they're left alone to keep the review diff focused. ──
+# ── 2. every media shot ──
+# Deliberately ALL of them, not just the buddy-bearing ones. Scoping this to
+# "shots with a buddy in them" once left docs/media/cardbook.png stale after the
+# demo card lines changed — the shots share fixtures (DEMO_CARDS, DEMO_MEMORY),
+# so anything can go out of date for reasons that have nothing to do with a
+# model. Re-shooting everything is a few extra seconds and removes the footgun.
 echo "▸ re-shooting media …"
-SHOT_URL="$URL" node_modules/.bin/electron scripts/shoot-media.cjs \
-  buddies hero chat chat-bloom golden daily-card
+SHOT_URL="$URL" node_modules/.bin/electron scripts/shoot-media.cjs
 
 kill "$VITE_PID" 2>/dev/null || true
 trap - EXIT

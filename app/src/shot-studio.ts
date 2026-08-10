@@ -46,7 +46,7 @@ const $ = (id: string) => document.getElementById(id)!;
 // content follows (server/src/personas.ts for the distill phrasing: third
 // person, no trailing period, they/their), so the shots read as a real save.
 
-const HERO_CARD = "You don't have to be perfect to be wonderful";
+const HERO_CARD = 'You can do hard things.';
 const HERO_MUTTER = 'the lamp hums. i don’t mind it.';
 
 // Seven cards. The grid is 3-wide, so seven runs 3 · 3 · 1 and the short last
@@ -55,19 +55,24 @@ const HERO_MUTTER = 'the lamp hums. i don’t mind it.';
 // show what the ✦ and the ♥ actually look like, and a golden signed by its
 // source is the common case the Golden Stitch section describes.
 //
-// The normal pool is VOICE-NEUTRAL — every persona draws the same lines (the
-// `daily` pool below, and the server's batch), so `by` records who was on duty
-// when it was drawn, not who wrote it. These stay in that register: warm,
-// sentence case, one breath long. A line in a buddy's own voice is wrong here
-// however good it is — and all-caps sets as a brick in Caveat besides.
+// Every line here is REAL shipped content, not written for the shot — so the
+// screenshots promise exactly what the app hands out:
+//   · normal cards  → server/scripts/internet-lines.en.txt (the normal pool's
+//     source; voice-neutral, so `by` records who was on duty, not who wrote it)
+//   · golden cards  → app/src/quotes.en.ts, WITH that entry's real attribution.
+//     A golden without a `src` would misrepresent the feature: goldens are
+//     either an attributed famous line or a live weave, never an unsourced
+//     aphorism. Keep the pairing exact — the card foot prints it verbatim.
+// Both fit the card box: cardFont() drops a size past 70 chars, so short reads
+// biggest. All-caps sets as a brick in Caveat — leave it to the chat bubbles.
 const DEMO_CARDS: AppState['cards'] = [
-  { m: 'Rest is productive. Signed, a potato.', rare: false, day: 3, by: 'Spud' },
-  { m: 'Look inside yourself. You are more than what you have become.', rare: true, day: 8, by: 'Sprinkles', src: 'The Lion King' },
-  { m: 'Water. Snack. Deep breath. In that order. Go.', rare: false, day: 9, by: 'Taco' },
-  { m: 'Small steps still face forward.', rare: false, day: 12, by: 'Bloom' },
-  { m: 'Leap, and the net will appear.', rare: true, day: 14, by: 'Spud', src: 'John Burroughs', fav: true },
-  { m: 'You have survived every single one of your worst days.', rare: false, day: 17, by: 'Mochi', fav: true },
-  { m: 'This little potato believes in you.', rare: false, day: 24, by: 'Spud' },
+  { m: 'Just keep swimming.', rare: true, day: 8, by: 'Spud', src: 'Finding Nemo' },
+  { m: 'Collect moments, not things.', rare: false, day: 9, by: 'Taco' },
+  { m: 'Trust the timing of your life.', rare: false, day: 12, by: 'Bloom' },
+  { m: 'To live will be an awfully big adventure.', rare: true, day: 14, by: 'Spud', src: 'Peter Pan', fav: true },
+  { m: "Storms don't last forever.", rare: false, day: 17, by: 'Mochi', fav: true },
+  { m: 'Rest is productive too.', rare: false, day: 21, by: 'Prof' },
+  { m: 'Bloom where you are planted.', rare: false, day: 24, by: 'Bloom' },
 ];
 
 // Six patches — the quilt is 2-wide, so six is three clean rows. One per doodle
@@ -209,7 +214,7 @@ const SHOTS: Record<string, Shot> = {
       const state = demoState();
       await petScene('spud', {
         top: '· · ♥ · ·',
-        main: 'Small steps still face forward.',
+        main: 'Slow progress is still progress.',
         footL: TXT().ui.dayShort(state.day),
         footR: `— Spud`,
       });
@@ -231,7 +236,7 @@ const SHOTS: Record<string, Shot> = {
       const state = demoState({ active: 'bloom' });
       await petScene('bloom', {
         top: '· · ♥ · ·',
-        main: 'Small steps still face forward.',
+        main: 'Slow progress is still progress.',
         footL: TXT().ui.dayShort(state.day),
         footR: `— Bloom`,
       });
@@ -247,7 +252,7 @@ const SHOTS: Record<string, Shot> = {
     view: DOM_VIEW,
     async render() {
       const state = demoState();
-      showCard(state, { msg: 'This little potato believes in you.', rare: false, keptToday: false },
+      showCard(state, { msg: 'Some days you just have to create your own sunshine.', rare: false, keptToday: false },
         { onKeep: () => {}, onLater: () => {} });
       stageToRoot();
     },
@@ -264,7 +269,8 @@ const SHOTS: Record<string, Shot> = {
     async render() {
       const state = demoState();
       showCard(state, {
-        msg: 'You are not behind. You are exactly here, and here is where the good stuff starts.',
+        msg: 'Sometimes the smallest things take up the most room in your heart.',
+        src: 'Winnie the Pooh',
         rare: true,
         keptToday: false,
       }, { onKeep: () => {}, onLater: () => {} });
