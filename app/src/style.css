@@ -209,7 +209,15 @@ html, body {
      padding / radius / tail / shadow shrink and grow with the text as one unit
      (the pp-bubble keyframe owns `transform`, so scaling has to come through
      font-size, not a scale()) */
-  max-width: calc(250px * var(--bubble-scale, 1));
+  /* Capped to keep the card out of the hover panel's column — the echo of what
+     they just typed grows upward into the same airspace and nothing in the
+     layout keeps the two apart. Half of this (125px * pet-scale) overshoots the
+     104px * pet-scale the panel's right edge sits in from the window center, so
+     the echo gives up the difference by pulling in 28px (see #said) — the two
+     only fit by both staying narrow. Note this one metric rides --pet-scale
+     instead of the compressed --bubble-scale the rest of the box uses: it's the
+     panel it has to clear, and the panel tracks pet-scale. */
+  max-width: calc(250px * var(--pet-scale, 1));
   width: max-content;
   background: var(--paper);
   border: 1.5px solid var(--ink);
@@ -337,8 +345,9 @@ html, body {
   transform: translateX(-10px);
 }
 #hoverpanel.flip #said {
-  text-align: left;
   transform-origin: left bottom;
+  margin-right: 0; /* mirrored — on this flank the echo pulls in from the left */
+  margin-left: 28px;
 }
 #hoverpanel.show {
   opacity: 1;
@@ -351,8 +360,8 @@ html, body {
 #hoverpanel.show #icons,
 #hoverpanel.show #chatrow { pointer-events: auto; }
 #said {
-  max-width: 220px;
-  text-align: right;
+  max-width: 195px;
+  text-align: left; /* reads like the reply card, in either language */
   font-family: var(--hand);
   font-weight: 600;
   font-size: 18px;
@@ -373,6 +382,12 @@ html, body {
     0 0 6px rgba(255, 253, 246, 0.9),
     0 1px 10px rgba(255, 253, 246, 0.75);
   animation: pp-bubble 0.4s ease-out;
+  /* Held in from the panel's right edge so the reply card can clear it: the
+     card is centered on the window and overshoots this column by 21px *
+     pet-scale (see #bubble's cap), so the echo gives that back — 28px covers
+     every pet size with 7–14px of air left over. Without it the card paints
+     right over these lines. */
+  margin-right: 28px;
 }
 #icons { display: flex; gap: 8px; align-items: center; }
 #icons button {

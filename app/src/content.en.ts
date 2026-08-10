@@ -411,7 +411,6 @@ export const EN: TextPack = {
     hintMem: 'his picture of you — unpick any stitch, anytime',
     memHead: "the quilt he's making of you — sunny patches and rainy ones, all kept",
     clearAll: 'clear all',
-    holdTitle: 'hold this one',
     unpickTitle: 'unpick this stitch',
     knitTag: (label) => `knit into Memory · ${label}`,
     cardFoot: (day, by) => `day ${day} — ${by}`,

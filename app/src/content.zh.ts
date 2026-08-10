@@ -399,7 +399,6 @@ export const ZH: TextPack = {
     hintMem: '他眼里的你——任何一针，随时可拆',
     memHead: '他为你缝的被子——晴天的补丁和雨天的，都收着',
     clearAll: '全部清空',
-    holdTitle: '让他拿着这张',
     unpickTitle: '拆掉这一针',
     knitTag: (label) => `已织入记忆 · ${label}`,
     cardFoot: (day, by) => `第 ${day} 天 — ${by}`,

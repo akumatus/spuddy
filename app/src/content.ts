@@ -62,7 +62,6 @@ export interface UiText {
   hintMem: string;
   memHead: string;
   clearAll: string;
-  holdTitle: string;
   unpickTitle: string;
   knitTag(label: string): string;
   cardFoot(day: number, by: string): string;

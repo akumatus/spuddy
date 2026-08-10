@@ -140,7 +140,7 @@ export function showBook(state: AppState, tab: BookTab, filter: BookFilter, hand
         ${view
           .map(
             (c) => `
-          <div class="ccard ${c.rare ? 'gold' : ''}" data-apply="${c.i}" title="${ui.holdTitle}">
+          <div class="ccard ${c.rare ? 'gold' : ''}" data-apply="${c.i}">
             <div class="acts">
               <button class="fav ${c.fav ? 'on' : ''}" data-fav="${c.i}">♥</button>
               <button class="del" data-del="${c.i}">×</button>
