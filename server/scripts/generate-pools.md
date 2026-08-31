@@ -162,7 +162,7 @@ Then, against the `quotes` array:
 
 The persistent pool behind the normal card's ambient encouragement (`inet:zh` /
 `inet:en` in KV, served as `inet` on `GET /cards`; capped `INET_LIB_MAX`,
-oldest drop off, so it stays a rolling, daily-refreshed window). Seeded from
+oldest drop off past it — generous, so the pool accumulates). Seeded from
 [`server/scripts/internet-lines.zh.txt`](internet-lines.zh.txt) /
 [`internet-lines.en.txt`](internet-lines.en.txt); the daily run APPENDS its
 no-source finds here via `POST /admin/inet?lang=<lang>` with

@@ -649,7 +649,7 @@ export default {
         const lang = asLang(langParam);
         const parsed = await readJson<{ lines?: unknown }>(request, ADMIN_BODY_BYTES);
         if (!parsed.ok) return reject(parsed);
-        const max = parseInt(env.INET_LIB_MAX || '1000', 10);
+        const max = parseInt(env.INET_LIB_MAX || '5000', 10);
         const { added, total } = await appendInet(env, lang, parsed.value.lines, max);
         return json({ ok: true, lang, added, total });
       }

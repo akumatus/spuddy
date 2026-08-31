@@ -126,8 +126,11 @@ QUOTES_LIB_MAX = "5000"
 # ambient-encouragement source. The daily routine appends its no-source finds
 # via /admin/inet (the low-provenance half of the quote hunt); the maintainer
 # can hand-add through the same door (seed: scripts/internet-lines.*.txt).
-# Same oldest-drop trim, so the pool is a rolling daily-refreshed window.
-INET_LIB_MAX = "1000"
+# Same oldest-drop trim, but generous like QUOTES_LIB_MAX: at the hunt's ~40
+# adds/day the old 1000 cap recycled good lines back out within weeks, so the
+# pool now ACCUMULATES instead of rolling. /cards still ships only an
+# INET_WINDOW slice per day, so the payload never grows with the cap.
+INET_LIB_MAX = "5000"
 # Daily window sizes: GET /cards serves this many lines of each persistent pool
 # per day (a stable-shuffled rotating page — see quotes-store.ts dailyWindow),
 # so clients get a fresh light payload daily instead of the whole library.
