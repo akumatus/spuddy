@@ -19,14 +19,15 @@ env. If either var is missing, stop and report it; do not POST.
 
 There are THREE kinds of content, handled differently:
 
-1. **The daily batch** (small dare/joke normal pool + bubbles + flavor) —
-   REPLACED each day; the only part you WRITE yourself.
+1. **The daily batch** (small dare/joke/sincere normal pool + bubbles +
+   flavor) — REPLACED each day; the only part you WRITE yourself.
 2. **The famous-quote library** (golden-card source) — APPENDED daily with the
    HIGH-provenance finds: real lines with real attributions (§2).
 3. **The internet-line pool** (normal-card ambient source) — APPENDED daily
-   with the hunt's NO-SOURCE finds, gated by §3: only lines search-VERIFIED to
-   actually circulate, evidence logged. Never AI-written, never a dumping
-   ground for unverifiable rejects.
+   with the hunt's finds that have no RECOGNIZABLE name to sign (internet
+   handles, obscure bloggers, unknown), gated by §3: only lines
+   search-VERIFIED to actually circulate, evidence logged. Never AI-written,
+   never a dumping ground for unverifiable rejects.
 
 §2 and §3 are one daily hunt with a quality SORT: gather ~60 lines per
 language, then route each by attribution — never pad either pool to hit a
@@ -149,18 +150,23 @@ Then, against the `quotes` array:
 your friend), spread across film / series / book / speech / internet-era. Then
 SORT each line by provenance:
 
-- real, specific attribution + passes every hard rule above → **golden**
+- attributed to a RECOGNIZABLE name — an author, book, film, series a reader
+  might actually know — + passes every hard rule above → **golden**
   (`/admin/quotes`). Whatever count genuinely qualifies is the right count —
   often 10–20; never stretch a line's attribution to promote it.
-- no meaningful attribution, but **search-VERIFIED actually circulating** on
-  the internet per §3's rules (seen quoted by real people; evidence logged) →
-  **the internet-line pool** (`/admin/inet`, §3), posted as plain lines
-  WITHOUT any source label.
+- **search-VERIFIED actually circulating** per §3 (seen quoted in real posts;
+  evidence logged), but with no recognizable name to sign — an internet
+  handle, an obscure blogger, or genuinely unknown → **the internet-line
+  pool** (`/admin/inet`, §3), posted as plain lines WITHOUT any source label.
+  Tracing a circulating line to some 网络 ID does NOT disqualify it — that IS
+  this pool's material (the card signs it 佚名). The litmus test: if you only
+  learned the name from today's search, it's a handle → inet; a name you
+  already knew belongs on a golden card.
 - everything else → **dropped**. The line between inet and the bin is
   VERIFICATION, never how good a line reads: a line you cannot show exists
   outside your own output is dropped, along with rule-breakers (proverbs,
-  classical, slogans, mutations of attributed quotes). "Reads well, demote it"
-  is exactly the rule that rotted the pool in 2026-08 — it stays dead.
+  classical, slogans, mutations of famous-name quotes). "Reads well, demote
+  it" is exactly the rule that rotted the pool in 2026-08 — it stays dead.
 
 ### 3. Internet-line pool — SEARCH-VERIFIED internet finds only
 
@@ -175,9 +181,11 @@ SORT each line by provenance:
 The persistent pool behind the normal card's ambient encouragement (`inet:zh` /
 `inet:en` in KV, served as `inet` on `GET /cards`; capped `INET_LIB_MAX`).
 These are QUOTE-GRADE lines, golden's equal in quality — the only difference
-is provenance: they circulate on social media (微博/豆瓣/小红书/网易云,
-Tumblr/Instagram/X …) with no one author to credit. They are **collected from
-the internet, never authored by you**. Seeded from
+is the SIGNATURE: they circulate on social media (微博/豆瓣/小红书/网易云,
+Tumblr/Instagram/X …) with no name a reader would recognize — an internet
+handle, an obscure blogger, or no traceable origin at all. Golden is for
+recognizable names; this pool is for great lines the card must sign 佚名.
+They are **collected from the internet, never authored by you**. Seeded from
 [`server/scripts/internet-lines.zh.txt`](internet-lines.zh.txt) /
 [`internet-lines.en.txt`](internet-lines.en.txt); the maintainer can hand-add
 or prune anytime.
@@ -198,8 +206,10 @@ seed out entirely; these rules are the fix):
   empty day is healthy: skip the `/admin/inet` call entirely rather than pad.
   Equally, never trim a day that verified more; verification IS the cap.
 - Same bans as golden: no 俗语/谚语/proverbs, no classical Chinese, no
-  schoolroom slogans — and NO mutations of attributed famous quotes: golden's
-  attribution-rejects are dropped in §2's sort, never laundered into here.
+  schoolroom slogans — and NO mutations or apocryphal versions of famous-name
+  quotes: those are dropped in §2's sort, never laundered into here. (A line
+  whose true origin is an internet handle is welcome; a famous quote wearing
+  a fake beard is not.)
 - Dedupe first: check the full `inet` array from the same `GET /admin/quotes`
   answer (§2) and skip anything already present, paraphrases included.
 
