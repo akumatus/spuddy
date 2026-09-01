@@ -24,7 +24,9 @@ There are THREE kinds of content, handled differently:
 2. **The famous-quote library** (golden-card source) — APPENDED daily with the
    HIGH-provenance finds: real lines with real attributions (§2).
 3. **The internet-line pool** (normal-card ambient source) — APPENDED daily
-   with the LOW-provenance finds: circulating 网络/佚名/no-source lines (§3).
+   with the hunt's NO-SOURCE finds, gated by §3: only lines search-VERIFIED to
+   actually circulate, evidence logged. Never AI-written, never a dumping
+   ground for unverifiable rejects.
 
 §2 and §3 are one daily hunt with a quality SORT: gather ~60 lines per
 language, then route each by attribution — never pad either pool to hit a
@@ -111,8 +113,9 @@ Hard rules — each of these is a category that rotted the old pool
 - **Every line carries `s`** — a real, specific attribution: an author (三毛,
   Maya Angelou), a work (《小王子》, The Little Prince), or a named speech. NO
   sourceless lines. If the only honest tag would be 网络/佚名/internet/
-  Anonymous, the line doesn't belong HERE — route it to the internet-line pool
-  instead (§3, `POST /admin/inet`). Same hunt, different door.
+  Anonymous, this line is an internet-pool CANDIDATE, not a golden — send it
+  through §3's verification gate: verified circulating → `/admin/inet`,
+  unverifiable → dropped.
 - **No proverbs or folk sayings** (俗语/谚语/歇后语, "Proverb"), no bare 成语.
 - **zh: no classical Chinese at all** — 古诗词 AND 文言/古籍 (论语/孟子/老子/
   庄子/荀子/增广贤文 and the whole textbook canon). Every Chinese reader saw
@@ -142,39 +145,66 @@ Then, against the `quotes` array:
 - count lines per source: a source already holding **8+** lines is closed for
   today — pick someone else. Spread new lines across sources and eras.
 
-**The daily hunt gathers ~60 lines per language**, spread across film / series
-/ book / speech / internet-era. Then SORT each line by provenance:
+**The daily hunt gathers ~60 lines per language** — FOUND lines (web search is
+your friend), spread across film / series / book / speech / internet-era. Then
+SORT each line by provenance:
 
 - real, specific attribution + passes every hard rule above → **golden**
   (`/admin/quotes`). Whatever count genuinely qualifies is the right count —
   often 10–20; never stretch a line's attribution to promote it.
-- everything that reads well but fails golden's attribution bar → **the
-  internet-line pool** (`/admin/inet`, §3), posted as plain lines WITHOUT any
-  source label. This covers the 网络/佚名 tier AND golden's rejects — uncertain
-  or apocryphal attributions, mutations of famous quotes, lines whose real
-  source you couldn't pin down. A hunted line that reads well is never wasted:
-  demote it, don't drop it.
-- fails inet's own quality bar too (proverbs, classical, schoolroom slogans,
-  filler) → **dropped**. The old pool rotted because runs padded the golden
-  pool to hit a quota; the fix is the sort, not a smaller hunt.
+- no meaningful attribution, but **search-VERIFIED actually circulating** on
+  the internet per §3's rules (seen quoted by real people; evidence logged) →
+  **the internet-line pool** (`/admin/inet`, §3), posted as plain lines
+  WITHOUT any source label.
+- everything else → **dropped**. The line between inet and the bin is
+  VERIFICATION, never how good a line reads: a line you cannot show exists
+  outside your own output is dropped, along with rule-breakers (proverbs,
+  classical, slogans, mutations of attributed quotes). "Reads well, demote it"
+  is exactly the rule that rotted the pool in 2026-08 — it stays dead.
 
-### 3. Internet-line pool — the low-provenance half of the daily hunt
+### 3. Internet-line pool — SEARCH-VERIFIED internet finds only
+
+> **MAINTAINER-LOCKED RULES.** The verification gate in this section (and
+> §2's verification-gated sort) exists because this pool has rotted before —
+> most recently via commit fd47f2a, where a working session "helpfully"
+> loosened the sort to "demote golden rejects instead of dropping" and the
+> pool filled with model-written filler within a month. No session may weaken,
+> reinterpret, or add exceptions to these rules without an explicit, quoted
+> instruction from the maintainer. When in doubt: drop the line.
 
 The persistent pool behind the normal card's ambient encouragement (`inet:zh` /
-`inet:en` in KV, served as `inet` on `GET /cards`; capped `INET_LIB_MAX`,
-oldest drop off past it — generous, so the pool accumulates). Seeded from
+`inet:en` in KV, served as `inet` on `GET /cards`; capped `INET_LIB_MAX`).
+These are QUOTE-GRADE lines, golden's equal in quality — the only difference
+is provenance: they circulate on social media (微博/豆瓣/小红书/网易云,
+Tumblr/Instagram/X …) with no one author to credit. They are **collected from
+the internet, never authored by you**. Seeded from
 [`server/scripts/internet-lines.zh.txt`](internet-lines.zh.txt) /
-[`internet-lines.en.txt`](internet-lines.en.txt); the daily run APPENDS its
-no-source finds here via `POST /admin/inet?lang=<lang>` with
-`{ "lines": ["…", …] }`, and the maintainer can hand-add or prune anytime.
+[`internet-lines.en.txt`](internet-lines.en.txt); the maintainer can hand-add
+or prune anytime.
 
-Bar for this pool: lines that FEEL human-circulated — warm, quotable,
-screenshot-grade internet writing. Golden's attribution rejects land here too
-(posted as plain lines, no source label) — a shaky attribution is inet's
-normal, not a defect. Still banned: 俗语/谚语/proverbs, classical Chinese,
-schoolroom slogans, and filler you wrote just to fill. Before POSTing, check
-the `inet` array from the same `GET /admin/quotes` answer (§2) and skip lines
-already there, including paraphrases.
+Hard rules — this pool rotted once (2026-08: a month of daily quota-hunting
+filled it with model-written filler and the old cap rolled the human-curated
+seed out entirely; these rules are the fix):
+
+- **Search-verified or nothing.** A line may be POSTed ONLY if you actually
+  found it TODAY via web search (WebSearch/WebFetch) and saw it genuinely
+  circulating — quoted by real people in real posts, not conjured by one
+  AI-written listicle. Recalling a line "from memory" does NOT count; memory
+  is exactly how the filler got in.
+- **Log the evidence.** Every added line goes into the daily report with
+  where you saw it (platform + page). An add without a citation is a bug.
+- **No quota, either direction.** The day's count is however many lines
+  genuinely passed verification — typically a handful, often zero, and an
+  empty day is healthy: skip the `/admin/inet` call entirely rather than pad.
+  Equally, never trim a day that verified more; verification IS the cap.
+- Same bans as golden: no 俗语/谚语/proverbs, no classical Chinese, no
+  schoolroom slogans — and NO mutations of attributed famous quotes: golden's
+  attribution-rejects are dropped in §2's sort, never laundered into here.
+- Dedupe first: check the full `inet` array from the same `GET /admin/quotes`
+  answer (§2) and skip anything already present, paraphrases included.
+
+POST as plain lines without any source label:
+`POST /admin/inet?lang=<lang>` with `{ "lines": ["…", …] }`.
 
 ## Assemble & POST — three calls per language
 

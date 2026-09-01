@@ -156,8 +156,14 @@ export function drawToday(): void {
   const dailyPool = remote.normalPool(ctx.activeChar().id);
   const inetPool = remote.serverInet();
   let msg: string;
+  // Internet-pool lines are circulated words, not the buddy's own — sign them
+  // with the localized "Anonymous" so the card reads as a found line (same
+  // treatment as a source-less golden quote). Generated dare/joke/sincere
+  // lines stay unsigned and fall through to the buddy's own signature.
+  let src = '';
   if (inetPool && (!dailyPool || Math.random() < remote.tune('inetChance', INET_CHANCE, 0, 1))) {
     msg = pickInet(inetPool);
+    src = TXT().ui.anon;
   } else if (dailyPool) {
     const unseen = dailyPool.filter((m) => !state.usedCards.used.includes(m) && m !== state.msg);
     if (unseen.length) {
@@ -179,7 +185,7 @@ export function drawToday(): void {
   setTimeout(() => {
     // Don't put the card in his hands yet — the draw only offers it. It lands
     // on the potato in openCard's onKeep; "Later" leaves his hands untouched.
-    openCard({ msg, rare: false }); // normal cards carry no attribution
+    openCard({ msg, src: src || undefined, rare: false }); // inet lines sign as Anonymous; generated lines carry the buddy's own signature
     const lines = pool('drawLines');
     bubble(lines[Math.floor(Math.random() * lines.length)]);
   }, 1250);
